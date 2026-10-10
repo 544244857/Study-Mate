@@ -175,7 +175,10 @@ export function validatePack(pack) {
   const files = pack.files.map(file => file.path);
   // lib/ 是 Client 半（阅读端）与 Host 半的共享模块：package.json 的 exports["./client"]
   // 指向 lib/client.js，宿主按这个字段取 bundle，所以它必须随包发出去。
-  const allowed = /^(?:package\.json|cordis\.patch\.yml|README\.md|LICENSE|CHANGELOG\.md|bin\/[^/]+\.(?:mjs|ts)|lib\/.+|openai\/studymate\/(?:\.codex-plugin\/plugin\.json|scripts\/[^/]+\.mjs|skills\/learning-system\/references\/[^/]+\.md)|antigravity\/studymate\/.+|preset\/(?:learning|qa|skills)\/.+|schemas\/[^/]+\.json|templates\/.+|docs\/(?:[^/]+\/)*[^/]+\.md|docs\/images\/.+)$/;
+  // 根级的 README* / LICEN[CS]E* / COPYING* **不归 files 管**：npm 一定会把它们打进 tarball
+  // （`files: ["lib"]` 的包照样进 README.en.md，npm 11 实测）。白名单认下这批——npm 塞进来、
+  // 我们自己拦下，发布就卡在打包校验这步：#155（README.en.md，2026-10-10 的 Release）。
+  const allowed = /^(?:package\.json|cordis\.patch\.yml|CHANGELOG\.md|README(?:\.[^/]*)?|LICEN[CS]E(?:\.[^/]*)?|COPYING(?:\.[^/]*)?|bin\/[^/]+\.(?:mjs|ts)|lib\/.+|openai\/studymate\/(?:\.codex-plugin\/plugin\.json|scripts\/[^/]+\.mjs|skills\/learning-system\/references\/[^/]+\.md)|antigravity\/studymate\/.+|preset\/(?:learning|qa|skills)\/.+|schemas\/[^/]+\.json|templates\/.+|docs\/(?:[^/]+\/)*[^/]+\.md|docs\/images\/.+)$/;
   for (const file of files) {
     if (!allowed.test(file) || /(^|\/)(?:\.env(?:\..*)?|\.npmrc|\.git|node_modules|__pycache__|\.DS_Store|[^/]+\.pyc)(\/|$)/.test(file)) {
       throw new Error(`Unexpected or private file in npm tarball: ${file}`);
