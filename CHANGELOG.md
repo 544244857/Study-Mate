@@ -1,5 +1,57 @@
 # 更新日志
 
+<!-- studymate-release:v2.0.1 -->
+## [2.0.1](https://github.com/Miaotofu01/Study-Mate/releases/tag/v2.0.1) - 2026-10-10
+
+### 已合并的 Pull Request
+
+- fix(安装器):同一代插件不再被默认安装停用（\#157） ([#158](https://github.com/Miaotofu01/Study-Mate/pull/158))
+- docs(安装):主推改成 dsh plugin add，npx install 退成兜底（\#159） ([#160](https://github.com/Miaotofu01/Study-Mate/pull/160))
+
+### 所有提交
+
+- fix(安装器):同一代插件不再被默认安装停用（\#157） ([5726e1b](https://github.com/Miaotofu01/Study-Mate/commit/5726e1b7a69ed6ace546ed9cb4bc90500558d0d4))
+
+  > 默认安装看到档位清单里已经列了本插件时，原先一律写「停用入口 + 两条声明行」。
+  > 那条停用担着两件事：不让同一个预设被声明两次（宿主注册表对同一个 id 直接抛错），
+  > 以及不让一个不认识当前注册契约的旧插件被执行。代价是阅读端一起没了——阅读页、
+  > 答疑面板、取课件的接口只长在插件里，声明行给不了。
+  > 
+  > 改成按世代分流：档位里那份已装插件与本包同一个大版时，两条模式与阅读端都交给插件
+  > （不写声明行、不停用入口）；跨代或缺包时沿用原来的接管，读不到版本也按跨代算，
+  > 「旧插件不许被执行」那条保护不丢。处在旧状态的档位，重跑一次安装就会清掉托管块、
+  > 放开入口。
+  > 
+  > 门禁：npm test 退出码 0；npm run test:dsh 在真宿主 0.2.0-rc.2 上 6/6（含迁移用例）。
+
+- Merge pull request \#158 from Miaotofu01/fix/157-插件入口别被默认安装关掉 ([a87bb18](https://github.com/Miaotofu01/Study-Mate/commit/a87bb189414e178759a6c8f1d37cee1256aacafd))
+
+  > fix(安装器):同一代插件不再被默认安装停用（\#157）
+
+- docs(安装):主推改成 dsh plugin add，npx install 退成兜底（\#159） ([83fcf97](https://github.com/Miaotofu01/Study-Mate/commit/83fcf97a3609f32fbe6cbde75e9b8a21392ab457))
+
+  > 文档一直主推 npx -y @yunmiao/studymate@latest install，可那条命令只装「引擎材料 +
+  > 两条模式声明」：包没进档位的插件清单，所以阅读端、答疑面板、九个学习工具都不会出现
+  > （拿干净档位实测过：合成清单里只有两条预设声明，插件那条不在）。
+  > 
+  > 主推换成 dsh plugin --profile &lt;档位&gt; add @yunmiao/studymate + 重启：插件进档位，
+  > 第一次启动时自己配好引擎路径与两条预设，工作区默认 ~/StudyMate、已有配置优先。
+  > npx 那条退成兜底：0.1.7-alpha.1 以下的 DSH、或要显式指定工作区与桌面端安装位置时用，
+  > 文档里写明它给不出阅读端。
+  > 
+  > 改到：README 中英的快速开始与更新、安装说明的 DSH 一节（桌面端、官方 CLI、兜底、
+  > 目录与工作区）、发布说明那张分发表、安装器 --help 的用法提示。
+  > 
+  > 门禁：npm test 退出码 0。
+
+- Merge pull request \#160 from Miaotofu01/docs/159-安装主推-dsh-plugin ([040aeee](https://github.com/Miaotofu01/Study-Mate/commit/040aeee904d48732cf9e2015bdb8412590704601))
+
+  > docs(安装):主推改成 dsh plugin add，npx install 退成兜底（\#159）
+
+
+[完整比较](https://github.com/Miaotofu01/Study-Mate/compare/v2.0.0...v2.0.1)
+<!-- /studymate-release:v2.0.1 -->
+
 <!-- studymate-release:v2.0.0 -->
 ## [2.0.0](https://github.com/Miaotofu01/Study-Mate/releases/tag/v2.0.0) - 2026-10-10
 
