@@ -31,16 +31,20 @@
 
 ### DeepSeek Harness
 
-**DSH 依赖**：DSH 0.1.5-rc.2+、Node.js（支持范围见 `package.json` 的 `engines`）。**不需要 Python**：引擎是随包发的 TypeScript 插件。
+**DSH 依赖**：DSH 0.1.7-alpha.1+、Node.js（支持范围见 `package.json` 的 `engines`）、PATH 上的 `pnpm`（`dsh plugin` 转给 pnpm）。**不需要 Python**：引擎是随包发的 TypeScript 插件。
 
 ```bash
-npx -y @yunmiao/studymate@latest install
+dsh plugin --profile web add @yunmiao/studymate
 ```
 
-- **桌面端（DeepSeek Harness Desktop）**：桌面端自带 DSH。它启动过一次之后，安装器就会用桌面端自带的 `dsh`，把「学习模式」装进它的 `desktop` 档位。装完**完全退出桌面端再重新打开**，新建会话时选「学习模式」。
-- **官方 CLI**：先 `npm install -g @deepseek-ai/dsh@latest`，同一条安装命令默认注册到 `web` 档位，之后用 `dsh web` 启动。
+装完**重启 DSH**（CLI 重开 `dsh web`，桌面端整个退出再打开），新建会话时选「学习模式」，从侧边栏切到阅读端。插件第一次启动时会自己把引擎路径与两条预设配好；学习工作区默认 `~/StudyMate`，已有配置优先。
 
-**更新**：再次运行上述 `npx` 命令，然后重启对应的 DSH（桌面端完全退出再打开；CLI 重启并新建会话）。
+- **桌面端（DeepSeek Harness Desktop）**：桌面端自带 DSH。先让它**启动过一次**，再把上面的 `--profile web` 换成 `--profile desktop`；手边没有 `dsh` 命令时，用桌面端的插件市场按包名装。装完**完全退出桌面端再重新打开**。
+- **官方 CLI**：先 `npm install -g @deepseek-ai/dsh@latest`，然后跑上面那条（默认进 `web` 档位），用 `dsh web` 启动。
+
+**更新**：`dsh plugin --profile web update @yunmiao/studymate@latest`，然后重启对应的 DSH（桌面端完全退出再打开；CLI 重启并新建会话）。
+
+**DSH 低于 0.1.7-alpha.1**、或要显式指定学习工作区与桌面端安装位置时，走 `npx -y @yunmiao/studymate@latest install`（`--workspace <目录>`、`--profile <档位>`、`--dsh <桌面端自带的 dsh>`）。它只装「引擎材料 + 两条模式声明」，**不会让阅读端出现**——能升级 DSH 就升级。细节见 [安装说明](docs/使用/安装.md)。
 
 - **第一次学习**：新建会话时选「学习模式」，说一句「我想学 [某个科目]」。学习数据直接写进配置好的学习工作区（暂存模式已删，没有"收尾问落点再搬一次"这一步）。
 - **还没想好学什么**：在学习对话里说「我不知道学什么，帮我选方向」，可选探索后再决定是否开课；已有明确科目或恢复学习直接走原流程。
@@ -48,7 +52,7 @@ npx -y @yunmiao/studymate@latest install
 - **阅读在 DSH 的阅读端**：装好后新建会话时选「学习模式」，从侧边栏切到阅读端就能读课件、作答、搜资料——页面由阅读端实时渲染，不再预生成 HTML。
 - **要离线看**：在会话里说一句「导出一份能离线看的」，或自己跑 `npx -y @yunmiao/studymate export`，产物落在 `<工作区>/export/`，入口是 `index.html`。
 
-指定工作区、依赖安装、桌面端非默认安装位置和换机器续学见 [安装说明](docs/使用/安装.md)。
+工作区、更新、桌面端与换机器续学、以及老版本 DSH 的替代装法见 [安装说明](docs/使用/安装.md)。
 
 ### Codex 和 ChatGPT Work
 

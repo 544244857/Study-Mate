@@ -33,16 +33,20 @@ I don't think that does justice to all the trust and stars it has received. I'm 
 
 ### DeepSeek Harness
 
-**DSH requirements**: DSH 0.1.5-rc.2+ and Node.js (see `engines` in `package.json` for supported versions). **Python is not required**: the engine is a TypeScript plugin that ships with the package.
+**DSH requirements**: DSH 0.1.7-alpha.1+, Node.js (see `engines` in `package.json` for supported versions), and `pnpm` on PATH (`dsh plugin` forwards to pnpm). **Python is not required**: the engine is a TypeScript plugin that ships with the package.
 
 ```bash
-npx -y @yunmiao/studymate@latest install
+dsh plugin --profile web add @yunmiao/studymate
 ```
 
-- **Desktop app (DeepSeek Harness Desktop)**: the desktop app bundles its own DSH. Once you have launched it at least once, the installer uses that bundled `dsh` and installs Learning Mode (「学习模式」) into its `desktop` profile. After installing, **quit the desktop app completely and reopen it**, then pick 「学习模式」 when creating a new session.
-- **Official CLI**: first run `npm install -g @deepseek-ai/dsh@latest`. The same install command registers into the `web` profile by default; start it with `dsh web`.
+Then **restart DSH** (CLI: reopen `dsh web`; desktop: quit completely and reopen), pick 「学习模式」 when creating a new session, and switch to the reader from the sidebar. On first start the plugin configures the engine path and the two presets itself; the study workspace defaults to `~/StudyMate` and an existing configuration is kept.
 
-**Updating**: run the `npx` command above again, then restart DSH (desktop: quit completely and reopen; CLI: restart and create a new session).
+- **Desktop app (DeepSeek Harness Desktop)**: the desktop app bundles its own DSH. Launch it at least once, then use `--profile desktop` instead of `--profile web`; if you have no `dsh` command at hand, install by package name from the desktop app's plugin market. After installing, **quit the desktop app completely and reopen it**.
+- **Official CLI**: first run `npm install -g @deepseek-ai/dsh@latest`, then run the command above (it goes into the `web` profile by default); start it with `dsh web`.
+
+**Updating**: `dsh plugin --profile web update @yunmiao/studymate@latest`, then restart DSH (desktop: quit completely and reopen; CLI: restart and create a new session).
+
+**On DSH below 0.1.7-alpha.1**, or when you need to name the study workspace or a non-default desktop install location, use `npx -y @yunmiao/studymate@latest install` (`--workspace <dir>`, `--profile <name>`, `--dsh <bundled desktop dsh>`). It only installs the engine materials plus two preset declarations and **will not give you the reader** — upgrade DSH if you can. See the [installation guide](docs/使用/安装.md).
 
 - **Your first lesson**: pick 「学习模式」 when creating a new session and say "I want to learn [some subject]". Study data is written directly into the configured study workspace (staging mode has been removed, so there is no "ask where to put it at the end and move it again" step).
 - **Not sure what to learn yet**: in the study conversation, say "I don't know what to learn, help me pick a direction". You can explore first and decide later whether to start a course. If you already have a subject in mind or are resuming, the usual flow applies.
@@ -50,7 +54,7 @@ npx -y @yunmiao/studymate@latest install
 - **Reading happens in the DSH reader**: after installing, pick 「学习模式」 for a new session and switch to the reader from the sidebar to read lessons, answer exercises, and search sources. Pages are rendered live by the reader; HTML is no longer pre-generated.
 - **Reading offline**: say "export a copy I can read offline" in the session, or run `npx -y @yunmiao/studymate export` yourself. The output goes to `<workspace>/export/`, with `index.html` as the entry point.
 
-For choosing a workspace, installing dependencies, non-default desktop install locations, and continuing on another machine, see the [installation guide](docs/使用/安装.md).
+For the workspace, updating, the desktop app, continuing on another machine, and the fallback for older DSH versions, see the [installation guide](docs/使用/安装.md).
 
 ### Codex and ChatGPT Work
 
