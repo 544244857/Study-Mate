@@ -1,5 +1,7 @@
 # 在 Google Antigravity 中使用 StudyMate
 
+**支持范围：只有 `v1.0.0`。** 1.1.0 起的版本不再保证在这一侧可用——构建时用 `v1.0.0` 那棵树（`git checkout v1.0.0`），不要用 `main`。
+
 StudyMate 的 Google Antigravity 版本是面向 Antigravity 架构的原生多智能体插件包。它将 StudyMate 的学习工作流、HTML 课件引擎与 Antigravity 原生能力（子智能体机制 `invoke_subagent`、结构化交互模态 `ask_question`、安全沙箱 `run_command` 以及伴学 Artifacts）深度融合。
 
 ---
