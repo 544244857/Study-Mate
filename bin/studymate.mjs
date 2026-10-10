@@ -18,7 +18,9 @@ const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const metadata = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8'));
 const help = `StudyMate ${metadata.version}
 
-在 DSH 中安装或更新 StudyMate：npx -y @yunmiao/studymate@latest install
+在 DSH 中装插件（推荐）：dsh plugin --profile <档位> add @yunmiao/studymate
+本安装器只装「引擎材料 + 两条模式声明」：0.1.7-alpha.1 以下的 DSH，或要指定学习工作区时用
+npx -y @yunmiao/studymate@latest install
 Codex / ChatGPT Work：下载并导入最新插件 ZIP：
 https://github.com/Miaotofu01/Study-Mate/releases/latest/download/studymate-openai.zip
 
