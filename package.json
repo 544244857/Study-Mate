@@ -47,6 +47,7 @@
     "docs/**/*.md",
     "docs/images/**",
     "README.md",
+    "README.en.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
