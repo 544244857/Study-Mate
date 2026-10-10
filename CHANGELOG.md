@@ -1,5 +1,681 @@
 # 更新日志
 
+<!-- studymate-release:v2.0.0 -->
+## [2.0.0](https://github.com/Miaotofu01/Study-Mate/releases/tag/v2.0.0) - 2026-10-10
+
+### 已合并的 Pull Request
+
+- feat(阅读端): 课件正文的代码块与终端块重做（\#114） ([#120](https://github.com/Miaotofu01/Study-Mate/pull/120))
+- fix(发布):修复npm包中的TypeScript加载 ([#124](https://github.com/Miaotofu01/Study-Mate/pull/124))
+- feat(工具): 核链接收进引擎——并发 · 路由表 · 缓存 · 预算 ([#127](https://github.com/Miaotofu01/Study-Mate/pull/127))
+- feat(资源清单): 按节冻结与交接门禁摘要——模板补齐分节、核验结果挂内容指纹（\#129） ([#133](https://github.com/Miaotofu01/Study-Mate/pull/133))
+- feat(资源清单): 每条来源标出服务哪几个节点——校验器报覆盖率与膨胀（\#130） ([#134](https://github.com/Miaotofu01/Study-Mate/pull/134))
+- feat(提示词): 资料收集的取回失败判据与抓取预算（\#131） ([#135](https://github.com/Miaotofu01/Study-Mate/pull/135))
+- feat(图片库): 按文件头复算格式与尺寸——纯标准库、不加索引列（\#132） ([#136](https://github.com/Miaotofu01/Study-Mate/pull/136))
+- fix(检查): 门禁看得见跑不起来的套件 ([#141](https://github.com/Miaotofu01/Study-Mate/pull/141))
+- fix(检查): 阅读位置那一套跳过时不再报成功 ([#143](https://github.com/Miaotofu01/Study-Mate/pull/143))
+- refactor(提示词): 课件语体不再跟着来源走，§四 由「行文禁忌」改为「行文要求」 ([#145](https://github.com/Miaotofu01/Study-Mate/pull/145))
+- docs(README): 新增英文版 README 与系统架构图（中英两版，深浅两色） ([#147](https://github.com/Miaotofu01/Study-Mate/pull/147))
+- feat(原生工具): 注册面收进「学习模式」预设（\#138） ([#148](https://github.com/Miaotofu01/Study-Mate/pull/148))
+- docs(测试): 真宿主对照版本跟实机走：示例换成 0.2.0-rc.2 ([#149](https://github.com/Miaotofu01/Study-Mate/pull/149))
+- docs(编排): 编排纪律独立成篇，AGENTS.md 给指针 ([#150](https://github.com/Miaotofu01/Study-Mate/pull/150))
+- docs(编排): 一节一句——三节从条目清单压成一句话 ([#151](https://github.com/Miaotofu01/Study-Mate/pull/151))
+- feat(阅读端)!: 路线图去掉连线与箭头，载荷不再投影 edges（\#153） ([#154](https://github.com/Miaotofu01/Study-Mate/pull/154))
+- fix(发布):发放白名单认下 npm 必打的根级文件（\#155） ([#156](https://github.com/Miaotofu01/Study-Mate/pull/156))
+
+### 所有提交
+
+- docs(课件内容格式): 给 term 定下「终端/运行结果摘录」的口径 ([76a5853](https://github.com/Miaotofu01/Study-Mate/commit/76a58538c2d34e1b1f025eb031c3230717796038))
+
+  > \`term\` 此前只是语言表里的一个字符串：角色提示词从不教模型写它，规范里也没有一处
+  > 说清它指什么，唯一那个例子还用 $ 提示符。内容作者（人或模型）查不到该不该写它。
+  > 
+  > 口径按现状量出来：65 个真实 term 块里 52 个是纯输出（字符画、报错原文、REPL），
+  > 只有 7 个带 \`&gt; \` 命令行。所以定成「终端／运行结果的等宽摘录，命令行行可选」——
+  > 写死「必须有命令行」会与多数现状冲突，「不许有命令行」会让 terminal-workflow 整课越界。
+  > 
+  > 与 sh/bash 的分界按「这段能不能整体存成一个文件去执行」判：能就是源码块，混着提示符
+  > 与输出就是 term。行首三档（\`&gt; \` 命令 / \`\# \` 注释 / 其余输出）明确写成呈现层约定，
+  > 不是对内容的规定；只有 \`&gt; \` 进命令档，\`$ \`、\`&gt;&gt;&gt; \` 等其它提示符算输出，因此把
+  > practice 示例里的 \`$ echo 600 | ./main\` 对齐成 \`&gt; echo 600 | ./main\`。
+  > 
+  > 只动这一份规范：preset/skills/\*\* 已声明「语法以规范为准、本文件不复述」，再写一句
+  > 就是第二处定义。不改 lib/\*\*、不改渲染，已写下的 term 块照旧读得下去。
+
+- merge(课件内容格式): \#117 term 的口径（\#114） ([37bcda7](https://github.com/Miaotofu01/Study-Mate/commit/37bcda7ebf2e051dfc69173d436db8fa5889d1eb))
+- test(阅读端): 课件页套件先钉住代码块与终端块的新骨架读数 ([2c2cecc](https://github.com/Miaotofu01/Study-Mate/commit/2c2cecccb3ef1020e3fa51ee8de40a87cef7a745))
+
+  > 工单 \#115 的验收面里，正文套件要新增的一组读数是判据本身：三档行各自可判、
+  > 行号槽在且逐行对齐、行号不可选中、顶栏写 term 且全文不再有写死的终端块标题、
+  > 三颗点在、块整宽。按 TDD 先把这些读数写进去、看它们红（实测 28 条失败：
+  > 「命令 0 / 输出 0 / 注释 0」「没有行号槽」「还写着运行结果」），再动渲染。
+  > 
+  > 夹具补一段含 \`&gt; \` 命令 / \`\# \` 注释 / 输出三类行的 term 围栏，特意放在超长 js 块
+  > \*\*之后\*\*：既有探针按 \`.smb-code pre\` 取第一个代码块，「超长行在块内横滚」那条
+  > 读数就压在它身上，插到前面会把那条读数改去量终端块、静默失去覆盖。
+  > 
+  > 为什么这些读数只断关系：三档按对比度大小比（命令 &gt; 输出 &gt; 注释），行号按与代码行
+  > 的横坐标/纵坐标关系比，块按与正文列宽的关系比——不钉具体像素与色值。
+
+- feat(阅读端): 课件正文的代码块与终端块换成文档站骨架 ([98de81c](https://github.com/Miaotofu01/Study-Mate/commit/98de81c90fa5b4e313b2c768d56c3f9668860c1f))
+
+  > 学生视角的问题是这块不像代码块：整块横贯正文列而内容只占左边一条、顶栏孤零零挂
+  > 一个写死的「运行结果」、块内一色到底看不出哪行是命令哪行是输出、也没法跟人指
+  > 「第几行」。这一轮把普通代码块与终端块并成同一副骨架（\#114 已决方向、\#115 实现）：
+  > 
+  > - 块体与顶栏改引宿主自己的 markdown 代码块 token（\`--dsw-alias-markdown-code-block\`
+  >   / \`-banner\`），圆角 8、1px 边框走既有 \`--smb-line\`；原来「终端块换一种底」那层
+  >   规则去掉——两副骨架并成一副。
+  > - 顶栏左边三颗等径中性点（只用既有 \`--smb-text-4\` 靠不透明度做层次：不引语义色，
+  >   红黄绿会叫人以为出了错），右边写这段真实的语言标记 \`lang || 'text'\`。写死的
+  >   「运行结果」文案与它的分支、以及客户端搜索索引里那一处一起删掉——\`term\` 本来
+  >   就是语言标记，不必再另起一个说法。
+  > - 左边一列行号（2.5ch、右对齐、\`user-select: none\`、\`aria-hidden\`）。这一列独立于
+  >   代码文本：代码在自己那一层横滚，行号不跟着跑，滚到行尾也知道这是第几行。
+  > - 行按行首前缀在\*\*渲染层\*\*分三档：\`&gt; \` 命令（亮一档 + 一条极淡的命令带）、
+  >   \`\# \` 注释（暗一档）、其余输出（中间档）。行的原文一字不动（前缀不删不重写、
+  >   空白不动），块数据里也不加分档字段——解析器与内容格式一个字没动。
+  > - 块整宽对齐正文列、超长行照旧在块内横向滚动；字号行高仍走 \`--smb-fs-code\` /
+  >   \`--smb-lh-code\`，没有新造字面字号。
+  > 
+  > 顺带收掉一处旧账：块里的 \`&lt;code&gt;\` 一直在吃 \`.smb-doc code\`（行内代码）那套
+  > \`.88em\` 字号 + 内边距 + 底色，行高与行号槽对不上、块底也被盖住；现在它整层回到
+  > 代码档。\`lib/export/guard.ts\` 那条「产物里的 client.js 就是仓库那一份」的哈希
+  > 断言不需要第二份样式，照旧成立。
+  > 
+  > 守卫落点跟着走：token 纪律那条把三张新底（块体/顶栏/命令带）纳进表面清单，
+  > 让「引到的 alias 真的存在」与「文字压在新底上达 AA」两半都真的压在新底上；
+  > 四路由那条的语言标记断言与对比度取样点从旧骨架的 \`.smb-code\_\_bar b\` 挪到
+  > \`.smb-code\_\_lang\`（旧选择器在新骨架里取不到）。
+
+- merge(阅读端): 跟上集成分支 \#114（\#117 term 口径已并入） ([897e681](https://github.com/Miaotofu01/Study-Mate/commit/897e6816ee580af3f4c1695189d3ce46dc4aac2d))
+- test(阅读端): 点明代码块骨架用的是哪几档文本 token ([3c93028](https://github.com/Miaotofu01/Study-Mate/commit/3c93028ca2db2738caab7ac10e822050ac6ba22f))
+
+  > 审阅这一段时最容易问的一句是「顶栏那行语言标记压在宿主代码块底上，AA 谁在守」。
+  > 三/四档原本就在 TEXT\_TOKENS 里，所以这次真正新增的登记是三张\*\*表面\*\*（代码块体、
+  > 顶栏、命令带）——这一条注释把两侧对上，避免下次有人以为语言标记漏登记了。
+
+- merge(阅读端): \#115 代码块与终端块换成文档站骨架（\#114） ([4babf5f](https://github.com/Miaotofu01/Study-Mate/commit/4babf5f592a2c5766f4825eafb634519f0182244))
+- fix(阅读端): 代码行三档改用主文字色往页面底混，填上亮色的分档空档 ([080580c](https://github.com/Miaotofu01/Study-Mate/commit/080580c95404b1aac4d8e647c67326a6d629599d))
+
+  > 上一版三档是从中性文字阶梯上挑现成档：命令拿主文字色（亮 18.08）、输出拿次级
+  > （亮 5.55）、注释拿四档（亮 5.62）。亮色下 2/3/4 档塌在同一支灰上，注释与输出只差
+  > 1.3%，肉眼同色——「三档在亮暗两套下都彼此可判」这条没达成，我当时把它记成无解。
+  > 
+  > 其实杠杆还没试完：把\*\*主文字色朝页面底混\*\*能连续取到 4.5 到 18 之间的任意对比度，
+  > 空档是能填的（token 块自己就在用 color-mix 调档）。改成：
+  > 
+  > - 命令档仍用 --smb-text（主文字色）；
+  > - 输出档 --smb-code-out = 主文字色 86% + 页面底；
+  > - 注释档 --smb-code-cmt = 主文字色 72% + 页面底。
+  > 
+  > 两支新 token 只混宿主 alias，\*\*没有字面色值\*\*（不给兜底 hex：宿主改名时退化成继承、
+  > 版面不散，比塞一个会过期的字面值好）。实测相邻两档的对比度差：
+  > 
+  >   亮 18.08 / 12.23 / 7.30 → 命令/输出 +47.9%、输出/注释 +67.6%
+  >   暗 16.47 / 12.29 / 8.85 → 命令/输出 +34.0%、输出/注释 +38.9%
+  > 
+  > 三档在两套主题下都 ≥ AA 4.5。判据也换了：正文套件那条「亮色下只断言两支不同的色」
+  > 是把未达成伪装成通过，现在亮暗两场都断「三档都达 AA 且相邻两档差 ≥ 20%」——实测
+  > 最紧的一档是暗色的命令/输出 +34.0%，离门槛还有余量。
+  > 
+  > 两支新 token 登记进 test\_client\_tokens.mjs 的文本清单，因此要在\*\*全部\*\*表面上达 AA
+  > （含新加的三张代码块表面与它们的 hover 叠加）。最紧的一处是暗色的命令带 + hover：
+  > 注释档 4.86，仍过 4.5。
+
+- merge(阅读端): 跟上集成分支 \#114 ([9ec241d](https://github.com/Miaotofu01/Study-Mate/commit/9ec241dc2da78c22e21fa181d859fb99b16da8b8))
+- merge(阅读端): \#115 亮色三档按宿主 alias 重排（\#114） ([bc69c4c](https://github.com/Miaotofu01/Study-Mate/commit/bc69c4c45144f57c19831883c7b876a492e63ed3))
+- feat(内容格式): 代码块与终端块加 ::: code 框内解释槽 ([ec73b57](https://github.com/Miaotofu01/Study-Mate/commit/ec73b57e3b40d41802156bf44daa9e0ffef2df78))
+
+  > 代码块与终端块原来没有字段位（围栏只有语言标签），解释只能写成框外的一段普通正文，
+  > 学生看不出它说的是哪一块。这一条给它加一个框内的解释槽；形状照 \`::: svg\` 那一套定下来
+  > （工单 \#116 的票面决定），字段名用设计文档 §七.1 的候选 alt / caption。
+  > 
+  > 写法（唯一出处是 \`docs/规范/课件内容格式.md\` §4）：
+  > 
+  >     ::: code term
+  >     alt: 终端里跑一遍，看两个绑定各是什么
+  >     caption: 命令行的提示符写 \`&gt; \`，输出的那两行原样贴
+  > 
+  >     &gt; node -e "console.log(a, b)"
+  >     1 2
+  >     :::
+  > 
+  > 为什么是 \`::: code\` 而不是扩围栏信息串：\` \`\`\`term caption:x \` 会被两套解析器双双拒掉
+  > （服务端 isKnownLang、阅读端围栏正则 /^\`\`\`(\\w\*)\\s\*$/），而且围栏没有独立行号，
+  > 校验器报不出「槽写错在哪一行」。指令形状照搬 \`::: svg\`：头一行是指令、字段行各有行号、
+  > 块尾 \`:::\` 收尾——所以每条坏写法都能指到出问题的那一行。
+  > 
+  > 三处口径（内容格式规范 / 内容侧解析与渲染 / 阅读端解析与渲染）都按规范那一份实现：
+  >  · 语言标签\*\*可选\*\*，认的是围栏同一张白名单；认不出报 code-lang
+  >    （把 caption: 写到指令头也走这一条，报错会说清字段在块里的单独两行）；
+  >  · alt: 落成 role="group" + aria-label——代码块不是图，不冒充 role="img"（那是 ::: svg 的
+  >    落法），组名让读屏软件进这一块时报得出「这是哪一块」；并按 ::: svg 的先例进阅读端检索串；
+  >  · caption: 落在代码块的\*\*框里\*\*、代码下方（与顶栏同一层底色的那一条），走行内语法、
+  >    \*\*不编号\*\*——「图 N ·」是图的序列，代码块不占号，手写的「图 N ·」也原样显示；
+  >  · alt: / caption: 只在\*\*原文之前\*\*认（照 ::: svg 的先例）：原文一开始，长得像字段的那一行
+  >    就是原文本身，所以 yaml 块里真写着 caption: 也不会被吃掉；
+  >  · 槽缺值报 code-field、字段之后一行原文都没有报 code-body，都带行号。
+  > 
+  > 围栏（\`\`\`lang）一个字不改：写法、语义、「未知标签带行号报错」都不动，旧内容照旧读得下去
+  > （规范 §2 那一行没动，\`::: code\` 是它的字段版）。亮暗两套下解释槽的实测对比度
+  > 5.55:1 / 9.25:1，都达 AA（reading\_routes 的取样点在两套主题、三档视口下各量一次）。
+
+- merge(内容格式): 跟上集成分支 \#114（\#115 亮色三档配色已并入） ([a765681](https://github.com/Miaotofu01/Study-Mate/commit/a7656818e3edb78a62674348619f88c99b0b9ea2))
+
+  > 集成分支上又落了 \#115 的返工：代码行三档改用「主文字色往页面底混」的两支新 token
+  > （--smb-code-out / --smb-code-cmt），并换了 lesson\_body\_test.mjs 的三档读数与
+  > test\_client\_tokens.mjs 的文本清单。
+  > 
+  > 冲突只有 lib/client.js 一处：对方改的是 .smb-code\_\_line--cmt / --out 那两行，
+  > 我这一票紧挨着它们插了 .smb-code\_\_caption（框内解释槽）。\*\*两边都留\*\*：
+  > 两行取对方的 --smb-code-cmt / --smb-code-out，caption 那一段原样跟在后面。
+  > 
+  > 另外两处相关文件是自动合并的，复核过两边都在：
+  >  · lesson\_body\_test.mjs：对方的「三档都达 AA、相邻两档差 ≥ 20%」（亮暗两场）
+  >    与我的「解释槽在框内 / 走正文那一档字号 / alt 落成无障碍名字」并存；
+  >  · 我这边没有动 test\_client\_tokens.mjs——caption 用的是 --smb-text-2 与
+  >    --dsw-alias-markdown-code-block-banner，两支原本就登记在文本/表面清单里。
+  > 
+  > 解完三组读数都在：三档行（亮 18.08/12.23/7.30、暗 16.47/12.29/8.85）、
+  > 行号槽（逐行对齐、aria-hidden）、解释槽（框内、正文档字号、亮 5.55:1 / 暗 9.25:1）。
+
+- fix(阅读端): 指令块里的围栏不再误判收尾——跟应用侧同一条扫描 ([78fe827](https://github.com/Miaotofu01/Study-Mate/commit/78fe82701bc3cbcb70c902403421dbb9c590dac3))
+
+  > 阅读端切 \`:::\` 指令块的正文时只找「单独一行 :::」就收尾，没把围栏态算进去；应用侧的
+  > \`parseDirective\` 一直是跳过围栏里那些行的。两套解析器于是会在同一条内容上切出不同的
+  > 原文——\`::: code\` 里贴一段带 \`:::\` 的围栏（Markdown 例子最常见的形态）时，校验器放行、
+  > 课件页却从这里被切短。这正是这张票要消灭的「两边不一致 + 静默丢内容」。
+  > 
+  > 改成与应用侧同一条：进围栏翻一次态（与应用侧的 \`fenceMarker\` 同一条判据：行首 \`\`\` ），
+  > 围栏态里不判收尾。围栏本身的解析与呈现一个字没动。
+  > 
+  > 测试落在两处：\`test\_core\_format.mjs\` 断应用侧能把带 ::: 的围栏整段收进原文并按
+  > data-lang 渲染；\`test\_client\_search\_index.mjs\` 用阅读端的 parseLesson 断切出来的
+  > 原文与应用侧\*\*逐字相同\*\*（\` \`\`\`markdown\\n::: tip 提示\\n:::\\n\`\`\` \`）。
+
+- merge(内容格式): \#116 代码块加 ::: code 框内解释槽（\#114） ([e5fe839](https://github.com/Miaotofu01/Study-Mate/commit/e5fe839376a9f5fde3cbaeb345497d4bde346e40))
+- fix(阅读端): 代码行两档改混带兜底的本地包装，注释对齐实测 ([61dc372](https://github.com/Miaotofu01/Study-Mate/commit/61dc3724166bf5be5d8dcb0015263e132dfa26bd))
+
+  > 全文只有 --smb-code-out / --smb-code-cmt 两支 token 引裸 alias、不带兜底；改成混
+  > --smb-text / --smb-bg 这两支本地包装后，解析出的颜色逐字段不变（混的是同一对宿主
+  > alias），宿主改名时颜色退化成包装里的兜底而不是继承，全文件的 token 定义因此没有
+  > 一支引裸 alias。
+  > 
+  > test\_client\_tokens 的解算器跟着能顺着本地包装往下走（断言一条没动，只是把本地
+  > \`--smb-\*\` 并进解算用的调色板）。
+  > 
+  > 注释里的三档实测值原来是手抄的旧读数，按浏览器实测对齐（亮 12.23 / 7.30、暗
+  > 12.29 / 8.85，相邻差 +47.9% / +67.6%），并把指代改对（那条规则在下面）。
+
+- refactor(阅读端): 删掉代码块对象里没有消费者的 term 字段 ([8723a4f](https://github.com/Miaotofu01/Study-Mate/commit/8723a4f222ab7131054c6454a11425bb75a66d49))
+
+  > 渲染早就改成看 \`lang\`，写死的终端块标题也从检索串里删了（\#115），全仓 grep 不到
+  > \`block.term\`、也没有 \`.smb-code--term\` 这个类名——两处产出（围栏与 ::: code）一起删。
+
+- refactor(内容格式): 围栏与 ::: code 的 &lt;pre&gt; 收敛成一处写法 ([4b27c69](https://github.com/Miaotofu01/Study-Mate/commit/4b27c69f36b5b30b10b708479f360c99857593ba))
+
+  > 规范要求围栏那侧「一个字不改」，而围栏与 \`::: code\` 的框内那一层本来就是同一个东西
+  > （\`&lt;pre data-lang="…"&gt;&lt;code&gt;…&lt;/code&gt;&lt;/pre&gt;\`）；两处各写一份迟早会分叉。抽成一行
+  > \`preCodeHtml\`，两个调用点都改走它（产出的 HTML 逐字不变）。
+  > 
+  > 顺带把 buildCode 的注释改对：首行长得像字段会被吃掉，注释里原来那句把它说成原文。
+
+- test(检查): 对比度探针改用共享那一份，三档关系式抽成一处 ([b97eb9d](https://github.com/Miaotofu01/Study-Mate/commit/b97eb9df3f2e5173bda1581947e45385d45de80f))
+
+  > lesson\_body\_test 自造的 relLum / contrastRatio 删掉（README 写明对比度探针只有
+  > fixtures/contrast-probe.mjs 一份）。探针那边把 channels / over / lum / ratio 写成
+  > 普通 JS，浏览器那段字符串由它们现拼，Node 侧新出的 contrastRatio 与它同源（不四舍
+  > 五入，显示由调用方 toFixed）——三档读数与修前逐字一致：亮 18.08 / 12.23 / 7.30、
+  > 暗 16.47 / 12.29 / 8.85，相邻差 +47.9% / +67.6% 与 +34.0% / +38.9%。
+  > 
+  > 亮暗两场各抄一遍的 against / gap / pct 收成一个 checkCodeTiers，断言与标签都只写
+  > 一份。
+
+- fix(提示词): 课件设计块名表补上 ::: code 的指针 ([8395c00](https://github.com/Miaotofu01/Study-Mate/commit/8395c005ff8863f6a01fdaee12b977029f593b5d))
+
+  > 「块名与用途」表是全指令家族的表，只漏了 \`::: code\`。照 \`::: figure\` 那行的先例
+  > 只补指针：要框内解释就用 \`::: code\`，写法见规范 §4——不复述字段名与语法（那是
+  > 第二处定义）。
+
+- docs(内容格式): 补齐检索串、首行字段边界与空槽口径 ([b1419a7](https://github.com/Miaotofu01/Study-Mate/commit/b1419a701b9ee107e39eba1ce327fedb80290621))
+
+  > - §4 的 \`caption:\` 那半条补上：它和 \`alt:\` 一样写进阅读端的检索串（此前只写了 alt）。
+  > - §4 里那句「\`yaml\` 块里真写着 \`caption:\` 也不会被吃掉」承诺过头：原文\*\*首行\*\*长得像
+  >   字段会被当字段吞掉，服务端与阅读端一致，且都静默（块里还有别的原文时）；空行也不
+  >   管用，字段解析会跳过空行。改成实话，并给出唯一可行的规避——首行本身就是这种形状时
+  >   改用普通围栏。解析器的行为一个字不动。
+  > - §4 补一句写明与 \`::: svg\` 的有意分歧：\`::: code\` 的空槽值报 \`code-field\`，\`::: svg\`
+  >   的空 \`alt:\` 照旧静默放行（不去改它，否则既有内容会开始报错）。
+  > - §6 那条 code-body 反例其实没写字段，名不副实——改成真写了字段。
+
+- fix(发布):修复npm包中的TypeScript加载 ([5aebd48](https://github.com/Miaotofu01/Study-Mate/commit/5aebd48bd7941a52282af98f3e32077caa6cf500))
+
+  > Node 原生类型擦除拒绝 node\_modules 中的 TypeScript，导致 npx 启动和两个宿主插件入口失败。通过 JavaScript 入口先注册仅针对本包源码的加载钩子，再动态导入 TypeScript，保持现有插件导出契约。加入实际 npm 打包、离线安装与独立进程回归，并验证第三方 TypeScript 不被接管。
+
+- Merge pull request \#124 from Miaotofu01/fix/npm-typescript-runtime ([4638b32](https://github.com/Miaotofu01/Study-Mate/commit/4638b326461e787cff3e576ca2d53dbff4c0ac4b))
+
+  > fix(发布):修复npm包中的TypeScript加载
+
+- feat(工具): 核链接收进引擎——并发 · 路由表 · 缓存 · 预算（\#125） ([a2a2318](https://github.com/Miaotofu01/Study-Mate/commit/a2a2318389e3077c063aa34bd4b0b28ab35b8a7b))
+
+  > 一次真实建课（2026-10-07）里，核链接通不通这件事被角色现写了 5 遍、跑了 26 分钟：
+  > \`verify\_deliver.sh\` 逐条串行（118 条实测 10.65 min）、核验在清单定稿前就起跑（补了一节后
+  > URL 从 105 涨到 118，第一遍 12.75 min 整段作废）、三批名单与两遍终验之间没有任何缓存、
+  > 代理地址靠 agent 自己摸、等待时长靠自己猜（18 次问询共 39.4 min）。
+  > 
+  > 根因不是角色笨，是这一层引擎里一个工具都没有：\`lib/\*\*\` 全库唯一的 \`node:http\` 是一句
+  > type-only import，不发请求。于是「怎么探一个 URL」的接口就是实现本身——写在角色自己的
+  > scratch 目录里，跑完随暂存清掉，没有域声明、没有测试面，下一门科目重新长一遍。
+  > 
+  > 这次把它收成一个模块：接口是「一份资源清单的路径」，实现里放并发、每站节流、一次路由表、
+  > 按 URL 的缓存与墙钟预算。刻意不做的事：不硬编码代理端口、不试探本机常见端口（代理只认
+  > 标准环境变量，参数可临时覆盖）；不返回 118 条明细（宿主的结果裁剪阈值是 8192 字符，
+  > 明细进上下文也会被裁掉，所以返回汇总 + 出处分布 + 失败项）。
+  > 
+  > 零运行时依赖不变：\`fetch\` 不支持按请求指定代理，而环境变量代理那条路只在 Node ≥24 有
+  > （本包支持 ^22.19），所以 https 走代理是手写的 CONNECT 隧道 + \`tls.connect\`；
+  > 测试里用一个真的 loopback 代理服务器验它。
+  > 
+  > - 新子系统 \`lib/reach/\*\*\`（域图上只有 tools → reach 一条边，\`registerStudyTool\` 由注册点注入）
+  > - 新原生工具 \`studymate\_verify\_sources\`；新数据域 \`resources\`（只认 \`RESOURCES.md\`，不当通用文件读取器）
+  > - 缓存与台账落 \`&lt;DSH\_HOME&gt;/studymate/reach/\`，不进学习工作区（布局由 ADR-0004 冻着）
+  > - \`resource-scout\` 的规格加一步：交稿前用这个工具核一遍清单里的链接
+
+- Merge pull request \#120 from Miaotofu01/feat/114-代码块与终端块呈现 ([3d4ded0](https://github.com/Miaotofu01/Study-Mate/commit/3d4ded0c4b3a470eaf7a34fed3742cc049c8b9a9))
+
+  > feat(阅读端): 课件正文的代码块与终端块重做（\#114）
+
+- Merge pull request \#127 from Miaotofu01/feat/125-可达性核验 ([506da9b](https://github.com/Miaotofu01/Study-Mate/commit/506da9b3bb5bfde2d279d9fb2bf81949773148bf))
+
+  > feat(工具): 核链接收进引擎——并发 · 路由表 · 缓存 · 预算
+
+- feat(资源清单): 按节冻结与交接门禁摘要——模板补齐分节、核验结果挂内容指纹（\#129） ([6f0bf99](https://github.com/Miaotofu01/Study-Mate/commit/6f0bf994a0f3c1ef2dbeccb3f9008fad06c5dff7))
+
+  > 实测（2026-10-07 terminal-workflow）：19:44 写完清单、19:47 开始核验、19:59 才补上「易变内容的
+  > 官方核对来源」那一节，URL 从 105 涨到 118，第一遍 12.75 分钟的核验整段作废；而下游采图只需要
+  > 被点名的那几节，却要等 118 条全部核完，25.3 分钟落在关键路径上。总控想知道「几节、几条、都来自
+  > 哪些站点」，唯一的办法是把 79 KB 读进上下文。
+  > 
+  > 三处一起收口：
+  > 
+  > - \*\*模板补齐分节\*\*（\`templates/RESOURCES.md\`）：加上技能规格要求的那一节「易变内容的官方核对
+  >   来源」，并把「抓不动的站点」的落点定清——写进文件（\`\#\# Gaps\` 的 \`\#\#\# 抓不动的站点\`），
+  >   实测两门课本来就把它写进了文件，写进文件下游才读得到。分节集合因此是\*\*定义好的\*\*，
+  >   角色不必中途发明一节。
+  > - \*\*门禁返回加深\*\*（\`studymate\_validate\_handoff\`）：多给 \`sections\`——每节的条目数、按域名的
+  >   分布、内容指纹、\`verified\`。总控看摘要就不必把清单读进上下文。
+  > - \*\*核验结果按指纹记账\*\*（\`studymate\_verify\_sources\`）：新增第二本台账
+  >   \`&lt;DSH\_HOME&gt;/studymate/reach/verified.json\`（\`小节指纹 → 核过\`，与 URL 那本同一个落点、
+  >   同一套容错读与原子写）。分节与「指纹的输入文本」在纯函数域 \`lib/core/resources.ts\` 里
+  >   定义一次，核验域与门禁算同一份哈希——于是「改了一节只有那一节要重核」成立，
+  >   \*\*按节冻结\*\*：主干那一节核完，采图与课设就能被派出去。
+  > 
+  > 测试：分节识别 / 条目数与域名分布 / 指纹只跟内容走（含代码块与缩进列表不算、末尾空行归一化）、
+  > 门禁的 \`verified\` 两态、台账「核完的记、没轮到的不记」、工具层端到端（读 \`deliver/RESOURCES.md\`
+  > + 问台账）；模板那条既有断言补上「两部分各有一节的位置」。没有新开测试缝。
+
+- fix(核验): 评审修复——verified 不认空真、同一条链接按节各算一次（\#129） ([1ece1d5](https://github.com/Miaotofu01/Study-Mate/commit/1ece1d54f14f71ff30390d2c971601357ef8b26a))
+
+  > 代码评审（Standards + Spec 两轴）报出的三条，逐条修：
+  > 
+  > 1. \*\*\`verified\` 能被空真绕过\*\*：\`fingerprintSections\` 原来拿整份文件\*\*全局去重\*\*的那一份链接按行
+  >    归属小节，于是「同一条链接先出现在前一节」的后一节、以及只有 \`\[Local: …\]\` 指针的小节，
+  >    \`urls\` 都是空表；\`every(...)\` 对空表恒真，于是那种小节被判成核过、指纹也写进台账——门禁
+  >    随后对一份没核过的内容说「已核」。改成：\*\*每一节自己摘一遍链接\*\*（后出现的那一节同样算到），
+  >    并且 \`verified\` 要求\*\*这一节里至少有一条 http 链接\*\*。核验工具核的是链接，一条都没有的小节
+  >    没有可核的东西，就不该记一份「核过」。
+  > 2. \*\*逐字相同的分节行渲染了两份\*\*（核验工具与交接门禁各一份）：抽成 \`lib/reach/sections.ts\` 的
+  >    \`sectionLine()\`，两处共用。
+  > 3. \*\*\`VerifiedRecord.entries\` 只写不读\*\*：删掉；记录只剩 \`at\`（判定只看「在不在」，\`at\` 只在
+  >    超上限时用来丢最老的）。
+  > 
+  > 另：\`resource-scout\` 里「抓不动的站点照旧写进正文摘要那句」这句\*\*恢复原文\*\*，「写进文件」改成
+  > \*\*另加一条\*\*（技能正文只许加、不许改删）。
+
+- feat(资源清单): 每条来源标出服务哪几个节点——校验器报覆盖率与膨胀（\#130） ([20a9a30](https://github.com/Miaotofu01/Study-Mate/commit/20a9a304cecaa47097204adb302c7f341a928bc1))
+
+  > 清单没有「够了」的判据：五门科目实测条目/节点 = 6.2 / 6.4 / 7.1 / 2.8 / 3.7，总控自己在日志里
+  > 写 \`144 entries — that's a lot\`；而「每讲都指得出一处来源」这件事今天没有任何机器复算。
+  > 
+  > - \*\*每条来源在行末标出它服务哪几个节点\*\*（\`· 服务 node.id\`，多条用「、」分隔）：做在
+  >   \`RESOURCES.md\` 里（模板 + 角色规格），\*\*不动 \`curriculum.yaml\`\*\*——给大纲节点加「用哪条
+  >   来源」字段是数据格式改动、撞 ADR-0004，要单开一张 ADR。
+  > - \*\*覆盖率与条数由数据层校验器报\*\*（\`studymate\_validate\_curriculum\`）：给科目目录（或
+  >   \`RESOURCES.md\` 本身）时多一份 \`kind: 'resources'\` 报告——「还有 N 个节点指不出一处来源」
+  >   （汇总一条 + 逐节点一条）、「清单条目 M 条 &gt; 节点数 N × 2」、「服务」里写了不存在的节点
+  >   id、以及有多少条没写标记。分节与条目的解析在纯函数域（\`lib/core/resources.ts\` 的
+  >   \`resourceEntries\` / \`isSourceSection\`），判断在 \`validateResources\`。
+  > - \*\*站点分布只报不卡\*\*：那一份报告另带 \`hosts\`（聚合「来源条目」那几节，\`\[ { host, entries } \]\`），
+  >   摘要里也写一句「7 个站点——oi-wiki 12 条」。不设站点数硬上限。
+  > - \*\*判据全在提示上\*\*（\`blocking: false\`）：这个标记是这一批新加的写法，现存清单一条都没有，
+  >   判成阻断等于升级即整片变红（与图片完整性那一条同一个口径）；总控看到提示就派「资料收集」
+  >   补收集或精简（规格里已写明「别自己检索、也别自己数」）。
+  > 
+  > 测试：纯函数那一层（条目与分节摘取、社区/Gaps 不算来源、逐节点报「指不出一处来源」、一条服务
+  > 多个节点的计数、条数超限、造词如实报出、没写标记的条数）；工具层端到端（目录给一次就带上
+  > 覆盖率与站点分布、清单不在就不编空报告、直接给 \`RESOURCES.md\` 也认）；模板与角色规格各补
+  > 断言与逐字片段。没有新开测试缝。
+
+- fix(资源清单): 评审修复——膨胀那条如实报出倍数（\#130） ([2a656a7](https://github.com/Miaotofu01/Study-Mate/commit/2a656a7efafcd316bcd8fd895c7112a39a3b1793))
+
+  > 规格的实现决定写的是「如实报出条数、节点数与\*\*倍数\*\*」，原消息只印了「4 条 &gt; 1 × 2 = 2」。
+  > 补上倍数（\`（4 倍）\`），并加一条 \`nodeIds\` 为空时不编「膨胀」结论的守卫（那种大纲本身
+  > 已经被别处报过了，免得除零）。
+
+- feat(提示词): 资料收集的取回失败判据与抓取预算（\#131） ([b56bbd0](https://github.com/Miaotofu01/Study-Mate/commit/b56bbd01dbf3512e644ea5fdc163d49f98396e43))
+
+  > \`resource-scout\` 对「抓不动」只有一句软话术（「照旧写进正文摘要」），没有「最多试几次、何时算
+  > 这轮失败」。实测那次 \`web\_search\` 缺 key、部分域名解析不了，资料落盘跑了 44 个子会话、6 轮编排；
+  > 中途还出现把被 \`web\_fetch\` 返回上限截断的正文用模型手工转写、硬拼 base64 的尝试（单工人最长
+  > 19 分钟）。对比 \`image-scout\` 早就有量化预算。
+  > 
+  > - \*\*取不到完整正文就放弃该来源并记缺口\*\*（记进 \`\#\#\# 抓不动的站点\`），这一条保持原条目不动；
+  >   \*\*禁止对截断内容做拼接或转写\*\*——宁可少一条来源，也不要一段掺了生成内容的「来源正文」。
+  > - \*\*换一个等价来源再试是允许的\*\*：那是换源，不是拼凑。
+  > - \*\*抓取预算\*\*与「采图」对齐：一站 ≤8 页 / 6 份正文、同站 ≤1 请求/秒、尊重 robots，403／超时／
+  >   解析不了／只有 PDF 就跳过换下一条；\*\*别为等限流解除而空转、睡觉或反复重试\*\*。
+  > - \*\*什么时候算这一轮失败\*\*：预算之内试完还取不到完整正文就是这一轮的结论——记清缺口交回总控，
+  >   不自己扩大站点范围。
+  > - 采图那一侧补一句「这张图的结局」（user story 19）：打不开就换下一张候选，不等限流解除。
+  > - 无头宿主（Antigravity）的原生子代理提示是\*\*另一份手抄的浓缩版\*\*，同一套规则也补了进去——
+  >   否则那边读不到这条口径。
+  > 
+  > 测试：既有那套按逐字片段钉角色规格的套件里，为上面每条各登记一条片段（片段必须逐字出现在规格
+  > 正文里）。技能正文只加不删。
+
+- feat(图片库): 按文件头复算格式与尺寸——纯标准库、不加索引列（\#132） ([0180a74](https://github.com/Miaotofu01/Study-Mate/commit/0180a74474f3785669869e2704137e276d975298))
+
+  > 图片库校验器只查文件存在、命名、索引列与体积上限，\*\*不解码、不读文件头\*\*——一张下载了一半的
+  > 位图、或存成 \`.png\` 的 HTML 错误页，可以全绿通过并进入课件（\#100 实测）。规格要求「尺寸看页面
+  > 标注或图片文件头」，今天没有任何机器复算。
+  > 
+  > - \*\*文件头解析是纯函数\*\*（\`lib/core/image.ts\`，只读字节、不碰盘、不联网、不引入图像库）：
+  >   认 PNG / JPEG / GIF / WebP 的格式与\*\*真实宽高\*\*，另认 WebP 的三种块布局（\`VP8 \` 有损 /
+  >   \`VP8L\` 无损 / \`VP8X\` 扩展）。认不出返回 \`null\`——那是结果，不是异常。
+  > - \*\*host 层只递文件头\*\*：图片库视图多一个 \`head\`（64 字节，\`fs.readSync\` 定点读，不把整张图
+  >   读进内存），校验器把字节交给纯函数。
+  > - \*\*三条新判据全是提示\*\*（\`blocking: false\`）：文件头认不出、文件头与扩展名不符、宽高与索引的
+  >   「尺寸」列对不上（顺带：\`尺寸\` 那一格认不出时，把文件头算出来的宽高写给它）。理由是 \#128 定的
+  >   兼容口径——现存工作区里已经躺着的这类问题不该升级即整片变红；但采图角色照旧「把校验器报的
+  >   每一行改到没有为止」。\*\*超体积那条是既有判据，照旧阻断\*\*。
+  > - \*\*不加索引列\*\*：索引第七列已经是「尺寸」（宽×高），复算它即可；加第八列会同时牵动校验器常量、
+  >   角色规格、规则表与两个无头宿主的导出稿，并让所有现存工作区的索引立刻变红。
+  > - \*\*角色规格跟着改\*\*：索引里的 \`尺寸\` 必须写\*\*文件头\*\*里的真实宽高——页面标注可能被缩放过，
+  >   过滤时看页面标注、写索引时看文件头。
+  > 
+  > 测试：\`fixtures/images.mjs\` 现造\*\*结构合法的最小图片字节\*\*（PNG 的 IHDR 带真 CRC、JPEG 是真
+  > SOF0 段、GIF 是 \`GIF89a\` + 逻辑屏描述符、WebP 三种块布局；另加 HTML 错误页与半个头）；
+  > \*\*反证\*\*：一张正常的图必须一条问题都没有（原来那个 1024 字节 \`'a'\` 的夹具按新判据会报「文件头
+  > 认不出」，所以换掉了）；三条新判据逐条带行号断言，体积那条仍断言阻断；纯函数那一层覆盖四种
+  > 格式与三种 WebP 布局。没有新开测试缝。
+  > 
+  > 已知边界：文件头完好、只是\*\*尾部被截断\*\*的位图这三项抓不住（规格把判据定在这三项）；要抓它得看
+  > 文件尾（PNG \`IEND\` / JPEG \`EOI\` / RIFF 长度），那是另一张票。
+
+- Merge pull request \#133 from Miaotofu01/feat/129-资源清单分节与门禁摘要 ([e4a120b](https://github.com/Miaotofu01/Study-Mate/commit/e4a120b4ceba30251253e2170f908142395ff1c2))
+
+  > feat(资源清单): 按节冻结与交接门禁摘要——模板补齐分节、核验结果挂内容指纹（\#129）
+
+- Merge pull request \#134 from Miaotofu01/feat/130-清单覆盖率判据 ([fd69bf7](https://github.com/Miaotofu01/Study-Mate/commit/fd69bf737548a34ee2041399825ac58ecdd4a948))
+
+  > feat(资源清单): 每条来源标出服务哪几个节点——校验器报覆盖率与膨胀（\#130）
+
+- Merge pull request \#135 from Miaotofu01/feat/131-取回失败判据与预算 ([13ac933](https://github.com/Miaotofu01/Study-Mate/commit/13ac93378b1dd6a41d69fc5661192a1ab013ffa0))
+
+  > feat(提示词): 资料收集的取回失败判据与抓取预算（\#131）
+
+- Merge pull request \#136 from Miaotofu01/feat/132-图片完整性复算 ([2cd8393](https://github.com/Miaotofu01/Study-Mate/commit/2cd8393dc655ba76b0edebc2bf7fee6bee2ba237))
+
+  > feat(图片库): 按文件头复算格式与尺寸——纯标准库、不加索引列（\#132）
+
+- fix(检查): 门禁看得见跑不起来的套件 ([a4c3638](https://github.com/Miaotofu01/Study-Mate/commit/a4c36383dbb9e43ddb0a00a91e84a35ed8a3cebf))
+
+  > 按需入口上的套件没有任何 CI 会跑它们：\`test\_dsh\_runtime.mjs\` 自 2026-10-08 起
+  > 是语法错误（多余的 \`}));\`），解析阶段就死、822 行贡献 0 行覆盖；
+  > \`test\_dsh\_plugin\_cli.mjs\` 自 2026-10-05 起模块载不进来（import 了一个已删除的
+  > \`findPython\`），而它的入口参数早就不在任何文档里。两条都没人发现。
+  > 
+  > 覆盖断言只问「这个文件有没有归属」，从不问「它跑不跑得起来」。同一份
+  > \`checks.mjs\` 里补一条存活断言：当前门禁组\*\*之外\*\*的文件都要解析得过
+  > （一个进程批量问，102 个文件约 100ms；批量那条路走不通就退回逐个
+  > \`node --check\`，两条路必须得出同一结论）；\`npm test\` 摸不到的套件要清掉
+  > 宿主环境变量空跑一次，退出码必须是 0 或 3，真跑过就得 \`fail\` 为 0 且注册过
+  > 至少一条测试。判据每次先自检一遍——拿故意坏掉的文件喂它，坏的必须报出来、
+  > 好的必须放过，否则退化成恒真也照样绿。
+  > 
+  > 顺带把三处修回来。\`test\_dsh\_plugin\_cli.mjs\`：Python 的那半边随 \#83/\#70 一起
+  > 退役（CONTRIBUTING「\*\*没有 Python 了\*\*」），\`npm pack\` 的 tar.gz 改用
+  > \`fixtures/tarball.mjs\` 在 Node 里解（与 \`tar(1)\` 逐字节对账过），退役的
+  > 「没有 Python 就让 Web 照跑」那一条删掉。\`test\_dsh\_contract.mjs\` 里三条裸
+  > \`return;\` 改成明确跳过：\`node:test\` 把「回调正常跑完」记成通过，于是没设
+  > 环境变量时有 3 条显示通过而一条断言都没做。
+  > 
+  > 门禁：\`npm test\` 通过（1235 条 / 通过 1233 / 失败 0 / 跳过 2）。存活断言
+  > +760ms（约占门禁 5%）。
+  > 
+  > Refs \#140
+
+- fix(检查): 阅读位置那一套跳过时不再报成功 ([0097223](https://github.com/Miaotofu01/Study-Mate/commit/00972236f5eee1c7d7e5798f8441b41de0978f34))
+
+  > \`reading\_position\_test.mjs\` 在没探测到浏览器时 \`process.exit(0)\`，而同组另外九套走
+  > \`harness.mjs\` 的 \`EXIT\_SKIP = 3\`（「跳过，不算通过」）。\`checks.mjs\` 判成功的方式是
+  > \`status === 0\`，所以单独跑这一套时它报成功而一条断言都没做——而本文件第 13 行的文件头
+  > 写的正是「找不到就明确跳过并说明，不静默绿」。
+  > 
+  > 改成 \`process.exit(EXIT\_SKIP)\`，常量从 \`harness.mjs\` 取，不再自己写一个数字。
+  > 
+  > \*\*范围\*\*：整组在没浏览器时本来就是红的（另外九套退出 3，\`checks.mjs\` 把
+  > \`status !== 0\` 记成失败），所以这不是「整组假绿」；真正的暴露面是单独跑这一套的人、
+  > 按退出码判断「跑过没有」的脚本，以及将来浏览器在而它因为别的原因没跑时的不可知。
+  > 
+  > 验证：无浏览器单独跑 → 退出码 3（改前 0）；另外九套仍是 3；有浏览器时照跑
+  > （29 项通过 / 0 项失败）。
+  > 
+  > Refs \#$NUM
+
+- refactor(提示词): 课件语体不再跟着来源走，§四 由「行文禁忌」改为「行文要求」（\#144） ([bfdc836](https://github.com/Miaotofu01/Study-Mate/commit/bfdc836480177dd32ddfe6f1d5dffd547fb57dbb))
+
+  > 「来源优先」原来把\*\*语体\*\*也交给来源，而讲解角色必须先把来源读进来、兜底那条
+  > 分支几乎不发生，于是教材语体从不生效：MIT 18.06 讲 04 的口语讲稿被逐句转写进
+  > 书面课件，\`oh gosh\`／\`I mean\`／\`just think for a moment\` 这类话语管理词在讲台上
+  > 管节奏，落到页面上就成了空转的前提、宣布与预告（0005-la.lu.md:158）。
+  > 
+  > 实测 9 份真课件、剥掉 frontmatter／围栏／块指令后 740 行散文：词表类模式（赋能／
+  > 标志着／客服腔／进行+动词／随着…的发展／套话收尾）\*\*全部 0 命中\*\*——AI 味不在词表
+  > 里，在语域混着用。而且最忠实的句子最好：讲 04:326 那句 \`in a second or a minute or
+  > a week\` 逐字译过来是全段唯一的好句，坏句全在来源没有对应句的地方。所以补「信达雅」
+  > 会帮倒忙（雅把修辞拉回来），这一轮是\*\*减约束\*\*：来源只定讲法与内容（讲法、顺序、
+  > 例子、数字），语体与语气归 §五。
+  > 
+  > §四 顺带改成「行文要求」，每条带 错误／正确／保留 三段，给禁令补上保留边界——原来
+  > 8 条禁令一条边界都没有，模型只能靠猜（「这一步不是会不会算，是认不认得出」两边各带
+  > 信息，按原禁令该删、按边界该留）。同步钉桩表与条数（517 条），并把「上述行文禁忌」
+  > 这处自指改掉。
+  > 
+  > 明确退役、钉桩表里留了注释说明不是漏改：不代入用户视角、不要先假定学生会往错的方向
+  > 想、「为了方便理解」反而加重用户负担、learning-coach 的「讲法、语气…都以来源为准」。
+  > 另有 3 处\*\*门禁本来就没钉\*\*，一并退役、不另加桩：不造比喻与比喻式小标题（两份文件各
+  > 一处）、learning-coach 的「不凭记忆补」。
+  > 
+  > 删掉的换源／补收集不是丢能力：owner 是 resource-scout 的取回失败判据，learning-coach
+  > 只在 §边界 留了自己该管的「交回总控」那条。
+
+- docs(README): 新增英文版 README，中文版加语言切换链接 ([9ec490b](https://github.com/Miaotofu01/Study-Mate/commit/9ec490be7b544f4242ca87682c474b04a404e8aa))
+- docs(README): 项目结构加系统架构图（中英两版，深浅两色） ([be0aa9c](https://github.com/Miaotofu01/Study-Mate/commit/be0aa9c3b77fdbfc7ef3dfd5afcb939ded45e7b6))
+
+  > 项目结构一节只有文字指针，新读者要来回翻工程约束与文件归属才拼得出整体形状。
+  > 补一张总览图：宿主、插件包三层（提示词层 / Host 半 / Client
+  > 半）、学习工作区、
+  > 安装与分发，以及一次学习循环的六步。图只做总览，目录与文件归属仍以工程约束
+  > §二
+  > 与文件归属为唯一出处。
+  > 
+  > - 源文件 docs/images/architecture.drawio（中文）与
+  > architecture.en.drawio（英文），
+  >   用 draw.io 打开编辑；改完需重新导出对应的两张 PNG
+  > - 每种语言导出 light / dark 两张 4× PNG；README 用 &lt;picture&gt;
+  > 默认显示深色，
+  >   浏览者是浅色主题时换成浅色
+  > - draw.io CLI 不能直接导出深色 PNG：深色版先用 --svg-theme dark 导出
+  > SVG，
+  >   再用 Chrome 无头模式按 4× 渲染成 PNG
+
+- docs(README): 架构图修正答疑落点与总控范围，精简到职责与读写边界 ([1e8a305](https://github.com/Miaotofu01/Study-Mate/commit/1e8a305459f47de1b96cdf9abec7c512cc25242c))
+
+  > 按 PR \#147 的审阅意见改，中英两版图与四张 PNG 同步：
+  > 
+  > - 学习循环第⑥步写错了落点：只有作答数据进 attempts/，提问走阅读端
+  >   「问答」tab 建的独立答疑会话（POST /api/studymate/qa/session 按答疑
+  >   模式预设建 DSH 会话），由宿主保存。改为「学生阅读与作答，作答记录
+  >   存入 attempts/；提问进入独立答疑会话」
+  > - 「总控是唯一与学生对话的角色」范围太宽：阅读端还有独立的答疑会话。
+  >   改为「学习对话中的统一入口」，并补上「问答」tab → 答疑模式预设的连线
+  > - 去掉工具名、路由名、工作区文件清单与协议名：这些在原生工具契约、
+  >   工程约束与文件归属里各有唯一出处，抄进图里会重复且容易漂移。图只保留
+  >   模块职责、连接关系与读写边界（工作区按「角色写入 /
+  > 阅读端写入」分两块）
+  > - 顺带修正协议一行的概括：learning-discovery 是方向探索、evidence-check
+  >   是实验验收，原来写成了「盘问」「核验」
+
+- docs(README): 架构图理顺连线与标签 ([c9f1816](https://github.com/Miaotofu01/Study-Mate/commit/c9f1816842b1ec3b90a2c69ec2736db47c18e913))
+
+  > - 「问答」tab 那条线原来绕整张图一圈，压过「渲染」线和插件包标题。改为
+  >   沿真实路径走：答疑模式预设挪到提示词层底行，与阅读端数据路由、数据层
+  >   同一行；路由 → 答疑模式预设一条短横线「新建会话」，路由 ↔ 数据层
+  >   「HTTP · SSE」
+  > - 宿主行三个方框与下面三栏对齐，往下的线都是直的；全图没有交叉，标签都
+  >   放在两层框之间的缝里，不压框线。「读取 · 校验 · 监听」落在两块写入区
+  >   的缝上，指整个科目目录
+  > - 去掉「一次典型的学习循环」示例框（含「我想学 C++」）和线上的 ①–⑥
+  >   编号：编号离开那张框就没有含义。安装与分发一行改为通栏
+  > - 英文版用词对齐 README.en 与词表：Orchestrator → coordinator、
+  >   syllabus → outline、quizzes → question banks / exercises、
+  >   Learning Workspace → Study workspace、Agent plane → Prompt layer、
+  >   Host applications → Hosts；改掉直译的句子。README.en 图片的 alt 同步
+  >   改为 prompt layer
+  > - 中文版小修：核来源链接 → 检查来源链接、跑实验命令 → 运行实验命令；
+  >   共享记忆按词表写「现有水平 · 有效讲法 · 常见卡点」
+  > - 浅色 PNG 也改走 SVG：draw.io CLI 的 -s 4 配 -b 会把右边和下边裁掉一截
+  >   现在两种主题都先用 --svg-theme light / dark 导出 SVG，再用浏览器无头
+  >   模式按 4× 截图，四张图尺寸相同、边距一致
+
+- Merge pull request \#141 from Miaotofu01/fix/门禁看得见跑不起来的套件 ([781ec5f](https://github.com/Miaotofu01/Study-Mate/commit/781ec5f984cc35220d18d33bd6b7416db6590c01))
+
+  > fix(检查): 门禁看得见跑不起来的套件
+
+- Merge pull request \#143 from Miaotofu01/fix/浏览器套件跳过不算通过 ([82a6702](https://github.com/Miaotofu01/Study-Mate/commit/82a67025591ae85eaf7e325dc93002020e891028))
+
+  > fix(检查): 阅读位置那一套跳过时不再报成功
+
+- Merge pull request \#145 from Miaotofu01/refactor/课件行文要求 ([1dae6bd](https://github.com/Miaotofu01/Study-Mate/commit/1dae6bd9df11d602e087fe93e370f8d588891814))
+
+  > refactor(提示词): 课件语体不再跟着来源走，§四 由「行文禁忌」改为「行文要求」
+
+- Merge pull request \#147 from nonameTAT/docs/readme-en-and-architecture ([34bc935](https://github.com/Miaotofu01/Study-Mate/commit/34bc9355d400357fd78e9a311997388f9722363f))
+
+  > docs(README): 新增英文版 README 与系统架构图（中英两版，深浅两色）
+
+- feat(原生工具): 注册面收进「学习模式」预设（\#138） ([dc0f693](https://github.com/Miaotofu01/Study-Mate/commit/dc0f693c8a5da75852f121e8f80862fe72586646))
+
+  > 九个学习工具 + 五个 studymate\_task\_\* + 一个 studymate\_lab\_run 由预设自己那条插件行
+  > （@yunmiao/studymate/learning-preset，实现在 lib/tools/learning-preset.ts）在\*\*预设作用域\*\*
+  > 里注册；profile 根只留宿主层（导出的任务类型、任务与实验的阅读端路由、文件监听），由
+  > bin/dsh-plugin.ts 调 registerStudyMateHost。答疑预设那半份 restrict({ deny }) 随之拆掉。
+  > 
+  > 安装器只在\*\*原生安装\*\*时把那条行加进主预设（lib/preset.ts）：声明式安装下本包不在 profile
+  > 里，行解析不到——真 DSH 验过，dsh-agent-presets 把「有一行起不来」判成\*\*整条预设 broken\*\*，
+  > 连学习模式都挂不上。
+  > 
+  > 真宿主的探针（npm run test:dsh）跟着改两处——都是在真 DSH 0.2.0-rc.2 上跑出来的红：
+  >   · 读法要带 scope（get(name, scope) / schemas(scope)）：省略 scope 读的是\*\*全局视图\*\*
+  >     （dsh-tools 的 view(scope)），而 \#138 之后全局层上一个工具都没有，会把九个误报成「没注册」；
+  >   · 真 dispatch 要先开一条真「学习模式」会话（openLearningAgent）：tools.execute 的权限策略读
+  >     exec.agent.session，光给预设那条常驻挂载的 scope key 会在权限层抛 reading 'id'。
+  > 
+  > 门禁：npm test 退出码 0；npm run test:dsh 在 0.2.0-rc.2 上 6/6（改这两处之前是 3/6）。
+
+- docs(测试): 真宿主对照版本跟实机走：示例换成 0.2.0-rc.2 ([81bf52a](https://github.com/Miaotofu01/Study-Mate/commit/81bf52a356dff4bbdadbb80f36532d1d9eb3bce9))
+
+  > \`scripts/tests/README.md\` 的安装示例与 \`test\_dsh\_runtime.mjs\` 文件头的
+  > \`STUDYMATE\_DSH\_EXPECTED\_VERSION\` 一直写着 0.1.7-alpha.2，而本机在跑的是 0.2.0-rc.2，
+  > 仓库里其余记宿主版本的地方（工程约束 §三、阅读端验收、ADR-0012）写的也都是它——
+  > 只有这两处是旧的。
+  > 
+  > README 那一句同时点明「示例里的版本就是本机在跑的那个宿主」，免得下次换版本再漂一处。
+  > 
+  > 门禁：npm test 退出码 0。
+
+- Merge pull request \#148 from Miaotofu01/feat/138-工具收进学习模式预设 ([aa365d6](https://github.com/Miaotofu01/Study-Mate/commit/aa365d618bf66602cdcc2364da51058da425f4d2))
+
+  > feat(原生工具): 注册面收进「学习模式」预设（\#138）
+
+- docs(编排): 编排纪律独立成篇，AGENTS.md 给指针 ([1037b3f](https://github.com/Miaotofu01/Study-Mate/commit/1037b3f2468ddefde2ab295f2fd7347a6caf0cb6))
+
+  > 派活、等下属、跑门禁的三条纪律：一票、子集、检查点。
+  > AGENTS.md 只放指针，正文落在 docs/agents/ 这一层。
+  > 
+  > - 等下属不自旋：结束轮次等通知；N 个下属包成一个 job
+  > - 一轮发多个工具调用：已知要读哪几份时批量，有依赖链或参数不确定时串行
+  > - 全量套件一票只跑一次：中途跑覆盖子集；变异验证反过来取覆盖全集
+  > 
+  > 顺带把工程约束 §二 目录树里 agents/ 那行的注释补全。
+
+- Merge pull request \#149 from Miaotofu01/docs/真宿主对照版本跟实机走 ([3b55456](https://github.com/Miaotofu01/Study-Mate/commit/3b55456e6a6f02c2bc63c98acde641fa13c18ed2))
+
+  > docs(测试): 真宿主对照版本跟实机走：示例换成 0.2.0-rc.2
+
+- Merge pull request \#150 from Miaotofu01/docs/编排纪律 ([fc5e0ac](https://github.com/Miaotofu01/Study-Mate/commit/fc5e0accc99b5eff0dfc09fff7826b2df335d85f))
+
+  > docs(编排): 编排纪律独立成篇，AGENTS.md 给指针
+
+- docs(编排): 一节一句——三节从条目清单压成一句话 ([c8d7a17](https://github.com/Miaotofu01/Study-Mate/commit/c8d7a176273f6ade4ab45faee068705c8a4be2fb))
+
+  > 「等下属」「一轮发多个工具调用」「全量套件一票只跑一次」原来各是一串条目加一条例外，
+  > 现在每节一整句读完；\`一票\` / \`子集\` / \`检查点\` 三个词的定义与「四、一个仓库目录」不动。
+  > 
+  > 门禁：npm test 退出码 0。
+
+- Merge pull request \#151 from Miaotofu01/docs/编排纪律压成一句话 ([64bf546](https://github.com/Miaotofu01/Study-Mate/commit/64bf546042eadf697f53bfcae2e35ffed8aca13a))
+
+  > docs(编排): 一节一句——三节从条目清单压成一句话
+
+- feat(阅读端)!: 路线图去掉连线与箭头，载荷不再投影 edges（\#153） ([3fdaae7](https://github.com/Miaotofu01/Study-Mate/commit/3fdaae7e71ba565db69867e36cc37024fe4285a4))
+
+  > 删掉连线几何、连线层与箭头 marker、连线层样式与底部为连线预留的空隙；
+  > 三处「箭头是前置关系」的文案翻面；前置关系照旧写在卡片脚印与视觉隐藏的表里。
+  > 
+  > 迁移：科目载荷与宿主的 curriculum 视图里不再有 \`edges\` 字段；需要前置关系就读
+  > \`nodes\[\].prerequisites\`（大纲 \`curriculum.yaml\` 里的 edges 不变，环检测照旧用它）。
+
+- Merge remote-tracking branch 'origin/main' into feat/路线图去连线 ([af6a7bf](https://github.com/Miaotofu01/Study-Mate/commit/af6a7bfd922f2f9b220dd797f5ab73a8658d08ef))
+- Merge pull request \#154 from Miaotofu01/feat/路线图去连线 ([7dd86cf](https://github.com/Miaotofu01/Study-Mate/commit/7dd86cf6a052d2ddc858ef6d17b47a18960fb6fc))
+
+  > feat(阅读端)!: 路线图去掉连线与箭头，载荷不再投影 edges（\#153）
+
+- fix(发布):发放白名单认下 npm 必打的根级文件（\#155） ([b56ce10](https://github.com/Miaotofu01/Study-Mate/commit/b56ce10339d194fa7c2c53224944edb6aabc2df9))
+
+  > npm 不看 package.json 的 files：根级的 README\* / LICEN\[CS\]E\* / COPYING\* 一定会进
+  > tarball，而 validatePack 的白名单只列了 README.md。于是 \#147 之后每次发布都停在
+  > 「Prepare changelog, version commit and tag」这步，被 README.en.md 拦下。
+  > 
+  > 白名单改成认这批根级文件；package.json 的 files 显式写上 README.en.md（意图写在清单里，
+  > 不靠 npm 的隐式行为）。门禁补一条：test\_bundle 里那份已经打出来的 tarball 直接过一遍
+  > validatePack——真打包出来的东西必须过发放白名单，\#155 之前没人问过这一句。
+  > 
+  > 门禁：npm test 退出码 0（installer 25=24过+1跳、openai 6、antigravity 6、
+  > 引擎与发布 35 + 289 + 814=813过+1跳、静态 60）；npm run test:release 19/19。
+  > 反证：把白名单退回旧写法，test\_bundle 立刻以
+  > 「Unexpected or private file in npm tarball: README.en.md」失败。
+
+- Merge pull request \#156 from Miaotofu01/fix/155-发布白名单认下-npm-必打的根级文件 ([d656b7c](https://github.com/Miaotofu01/Study-Mate/commit/d656b7c668c922f519171fb982ea548796f6504e))
+
+  > fix(发布):发放白名单认下 npm 必打的根级文件（\#155）
+
+
+[完整比较](https://github.com/Miaotofu01/Study-Mate/compare/v1.2.0...v2.0.0)
+<!-- /studymate-release:v2.0.0 -->
+
 <!-- studymate-release:v1.2.0 -->
 ## [1.2.0](https://github.com/Miaotofu01/Study-Mate/releases/tag/v1.2.0) - 2026-10-07
 
