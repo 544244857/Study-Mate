@@ -460,6 +460,47 @@ function bundleSelected(profileDir: string): boolean {
   return bundles.includes(BUNDLE);
 }
 
+/** 档位里**已经装好的那份插件**自己的版本号；没装、包坏了、版本号不是字符串都给 `null`。 */
+function installedBundleVersion(profileDir: string): string | null {
+  const manifest = path.join(profileDir, 'node_modules', ...BUNDLE.split('/'), 'package.json');
+  if (!fs.existsSync(manifest)) return null;
+  try {
+    const data: unknown = JSON.parse(read(manifest));
+    if (!isPlainObject(data)) return null;
+    return typeof data.version === 'string' ? data.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 本包自己的版本号（随包发的 `package.json`，`lib/` 的上一层就是包根）。 */
+function ownVersion(): string | null {
+  try {
+    const data: unknown = JSON.parse(read(fs.realpathSync(new URL('../package.json', import.meta.url))));
+    return isPlainObject(data) && typeof data.version === 'string' ? data.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 两份版本是不是「同一代」（大版相同）。
+ *
+ * 同代：档位里那份插件就是我们这次装的东西（检出被 link 进档位、或刚 `dsh plugin update` 过），
+ * 它认识当前的注册契约，模式的注册与阅读端都该交给它。
+ * 跨代或缺包：一个不认识新契约的旧插件被执行会当场抛错（真宿主用例 `migrated` 钉的就是这条），
+ * 所以那种情况仍由安装器接管：写声明行、停用那条入口。
+ * 读不出大版（版本号缺失/畸形）按跨代算——看不准就别把执行权交出去。
+ */
+function sameSeries(installed: string | null, own: string | null): boolean {
+  if (installed === null || own === null) return false;
+  try {
+    return parseVersion(installed).release[0] === parseVersion(own).release[0];
+  } catch {
+    return false;
+  }
+}
+
 /* ── 托管块 ────────────────────────────────────────────────────────────── */
 
 /**
@@ -556,6 +597,10 @@ export function installPreset(options: InstallPresetOptions): PresetRegistration
 
   const patch = path.join(home, 'profiles', profile, 'cordis.patch.yml');
   const selected = bundleSelected(path.dirname(patch));
+  // 档位里已列本插件、且里面那份就是同一代 → 插件自己管两条模式（启动时注册）与阅读端。
+  // 这种情况下**不写**声明行（同一个预设 id 注册两次，宿主注册表直接抛）也**不停用**那条入口
+  // （阅读页、答疑面板、取课件的接口只长在插件里）。跨代或缺包时才按声明式接管（见 sameSeries）。
+  const pluginOwns = selected && sameSeries(installedBundleVersion(path.dirname(patch)), ownVersion());
   if (handoff && !selected) {
     // 桌面端的保留档位只由它自带的启动器管。
     const launcher = profile === 'desktop' ? '桌面端自带的 dsh' : 'dsh';
@@ -611,12 +656,12 @@ export function installPreset(options: InstallPresetOptions): PresetRegistration
       config.id = preset.id;
       config.plugins = plugins;
       configs.push(config);
-      if (!bundle) {
+      if (!bundle && !pluginOwns) {
         managed.push({ insert: [{ id: presetEntryId(preset.id), name: PLUGIN, disabled: DECLARATIVE_DISABLED, config }] });
       }
     }
   }
-  if (selected && !bundle) managed.push({ id: BUNDLE_ENTRY_ID, name: BUNDLE, disabled: true });
+  if (selected && !bundle && !pluginOwns) managed.push({ id: BUNDLE_ENTRY_ID, name: BUNDLE, disabled: true });
   if (managed.length) updated = insertManaged(clean, document, managed);
   else if (!native && updated !== original && document.empty) {
     // 只有注释的文档在 YAML 里是 null，DSH 拒绝加载；补一个空列表。
