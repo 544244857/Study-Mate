@@ -9,6 +9,8 @@
 | DSH | `dsh plugin --profile <档位> add @yunmiao/studymate`（低于 0.1.7-alpha.1 或要指定工作区时用 `npx -y @yunmiao/studymate@latest install`） | npm 包 |
 | Codex / ChatGPT Work | 下载 `studymate-openai.zip`，通过客户端提供的插件导入入口安装 | 同版本 GitHub Release 附件 |
 
+**无头宿主只支持 `v1.0.0`**：Codex / ChatGPT Work 与 Google Antigravity 这两侧的支持范围停在 `v1.0.0`（见 [Codex 与 ChatGPT](Codex与ChatGPT.md)、[Antigravity](Antigravity.md)）。Release 每个版本仍会构建 `studymate-openai.zip`，但 1.1.0 起不保证在那两侧可用。
+
 无需另外申请 npm 包名。ZIP 内的插件 manifest 版本在构建时跟随 `package.json`；不要手动提前递增版本或添加本次正式发布的 changelog，Release 流程会生成它们。
 
 ## 首次配置

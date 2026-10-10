@@ -1,16 +1,18 @@
 # 在 Codex 和 ChatGPT Work 中使用 StudyMate
 
+**支持范围：只有 `v1.0.0`。** 1.1.0 起的版本不再保证在这一侧可用——下载与导入都用 v1.0.0 那份产物。
+
 StudyMate 的 OpenAI 版本是一个技能插件：包含总控 `learning-system`、五个角色、五个规范，以及生成 HTML 课件所需的脚本、模板和数据结构。它不依赖 DSH，也不需要单独的 MCP 服务。
 
 插件使用 OpenAI 仍支持的 `.codex-plugin/plugin.json` 兼容结构。宿主提供子代理时可委派角色，否则由同一助手按顺序执行；提问、文件操作与页面展示使用宿主已有工具。原有 `preset/skills/` 与 DSH 安装方式保留。
 
 ## 1. 下载、导入与更新
 
-1. 打开 [最新 Release](https://github.com/Miaotofu01/Study-Mate/releases/latest)，下载附件 **studymate-openai.zip**。
+1. 打开 [`v1.0.0` 的 Release](https://github.com/Miaotofu01/Study-Mate/releases/tag/v1.0.0)（[ZIP 直链](https://github.com/Miaotofu01/Study-Mate/releases/download/v1.0.0/studymate-openai.zip)），下载附件 **studymate-openai.zip**。
 2. 通过 Codex 客户端提供的插件导入入口安装该 ZIP。
 3. 新建任务，选择 StudyMate 的 `learning-system` 技能。
 
-**更新时下载最新版 ZIP，在浏览器中打开已有插件的链接，选择上传新版本，然后新建任务。** 继续使用原学习工作区，课程、进度和记忆会保留。DSH 的 npm 包与此 ZIP 由同一条 Release 流程发布，版本一致。
+**更新**：这一侧停在 v1.0.0，没有后续版本可换；换机器或重装时用上面同一个 ZIP。继续使用原学习工作区，课程、进度和记忆会保留。
 
 如果客户端没有 ZIP 导入入口，可把 ZIP 的本地路径交给 `$plugin-creator`，请它导入完整插件；随后在插件目录安装 StudyMate。
 

@@ -31,40 +31,54 @@
 
 ### DeepSeek Harness
 
-**DSH 依赖**：DSH 0.1.7-alpha.1+、Node.js（支持范围见 `package.json` 的 `engines`）、PATH 上的 `pnpm`（`dsh plugin` 转给 pnpm）。**不需要 Python**：引擎是随包发的 TypeScript 插件。
+**DSH 依赖**：DSH 0.1.7-alpha.1+
+#### 安装
+
+- web端
 
 ```bash
 dsh plugin --profile web add @yunmiao/studymate
 ```
 
-装完**重启 DSH**（CLI 重开 `dsh web`，桌面端整个退出再打开），新建会话时选「学习模式」，从侧边栏切到阅读端。插件第一次启动时会自己把引擎路径与两条预设配好；学习工作区默认 `~/StudyMate`，已有配置优先。
+- 桌面端
+  
+```bash
+dsh plugin --profile desktop add @yunmiao/studymate
+```
+#### 更新
 
-- **桌面端（DeepSeek Harness Desktop）**：桌面端自带 DSH。先让它**启动过一次**，再把上面的 `--profile web` 换成 `--profile desktop`；手边没有 `dsh` 命令时，用桌面端的插件市场按包名装。装完**完全退出桌面端再重新打开**。
-- **官方 CLI**：先 `npm install -g @deepseek-ai/dsh@latest`，然后跑上面那条（默认进 `web` 档位），用 `dsh web` 启动。
+- web端
 
-**更新**：`dsh plugin --profile web update @yunmiao/studymate@latest`，然后重启对应的 DSH（桌面端完全退出再打开；CLI 重启并新建会话）。
+```bash
+dsh plugin --profile web update @yunmiao/studymate@latest
+```
 
-**DSH 低于 0.1.7-alpha.1**、或要显式指定学习工作区与桌面端安装位置时，走 `npx -y @yunmiao/studymate@latest install`（`--workspace <目录>`、`--profile <档位>`、`--dsh <桌面端自带的 dsh>`）。它只装「引擎材料 + 两条模式声明」，**不会让阅读端出现**——能升级 DSH 就升级。细节见 [安装说明](docs/使用/安装.md)。
-
+- 桌面端
+  
+```bash
+dsh plugin --profile desktop update @yunmiao/studymate@latest
+```
 - **第一次学习**：新建会话时选「学习模式」，说一句「我想学 [某个科目]」。学习数据直接写进配置好的学习工作区（暂存模式已删，没有"收尾问落点再搬一次"这一步）。
 - **还没想好学什么**：在学习对话里说「我不知道学什么，帮我选方向」，可选探索后再决定是否开课；已有明确科目或恢复学习直接走原流程。
 - **学习工作区默认在 `~/StudyMate`，所有课件与记忆均存放在工作区**；已有配置会沿用。
 - **阅读在 DSH 的阅读端**：装好后新建会话时选「学习模式」，从侧边栏切到阅读端就能读课件、作答、搜资料——页面由阅读端实时渲染，不再预生成 HTML。
-- **要离线看**：在会话里说一句「导出一份能离线看的」，或自己跑 `npx -y @yunmiao/studymate export`，产物落在 `<工作区>/export/`，入口是 `index.html`。
 
 工作区、更新、桌面端与换机器续学、以及老版本 DSH 的替代装法见 [安装说明](docs/使用/安装.md)。
 
 ### Codex 和 ChatGPT Work
 
-从 [最新 Release](https://github.com/Miaotofu01/Study-Mate/releases/latest) 下载 **studymate-openai.zip**，通过 Codex/ChatGPT 提供的插件导入入口导入（详见 [导入说明](docs/使用/Codex与ChatGPT.md)）。
+> **支持范围：只有 `v1.0.0`。** 1.1.0 起的版本不再保证在这一侧可用。
 
-**更新时下载最新版 ZIP，找到已有的插件链接，在浏览器中打开，选择上传新版本**
+从 [`v1.0.0` 的 Release](https://github.com/Miaotofu01/Study-Mate/releases/tag/v1.0.0)（[ZIP 直链](https://github.com/Miaotofu01/Study-Mate/releases/download/v1.0.0/studymate-openai.zip)）下载 **studymate-openai.zip**，通过 Codex/ChatGPT 提供的插件导入入口导入（详见 [导入说明](docs/使用/Codex与ChatGPT.md)）。这一侧没有后续版本可换，换机器时用同一个 ZIP。
 
 ### Google Antigravity
 
-在项目根目录运行以下命令一键构建并安装：
+> **支持范围：只有 `v1.0.0`。** 1.1.0 起的版本不再保证在这一侧可用。
+
+用 `v1.0.0` 那棵树构建并安装（不要用 `main`）：
 
 ```bash
+git checkout v1.0.0
 node bin/studymate.mjs build-antigravity --install
 ```
 
@@ -134,8 +148,6 @@ DSH 侧就是**一个插件包**（`@yunmiao/studymate`）：Host 半注册原�
     <img src="docs/images/architecture.dark.png" width="860" alt="StudyMate 系统架构：宿主、插件包（提示词层 / Host 半 / Client 半）、学习工作区与安装分发" />
   </picture>
 </a>
-
-<sub>架构图源文件：[architecture.drawio](docs/images/architecture.drawio)（用 draw.io 打开编辑，改完重新导出 `architecture.light.png` 与 `architecture.dark.png`）</sub>
 
 学习工作区里面长什么样（科目文件夹、课件、lab、档案、课型与题型），见 [使用说明 §六](docs/使用/使用说明.md#六学习数据存在哪)。
 
