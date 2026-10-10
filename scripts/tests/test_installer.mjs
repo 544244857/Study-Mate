@@ -337,6 +337,73 @@ test('default install manages learning and disables only the selected StudyMate 
   }
 });
 
+/** 档位里「已经装好的那份插件」：安装器按它的版本号判世代（看得见版本才谈得上交给它）。 */
+function installedBundle(profile, version) {
+  const dir = path.join(profile, 'node_modules', '@yunmiao', 'studymate');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: '@yunmiao/studymate', version }));
+}
+
+const ownVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+
+/** 一份「档位已列本插件」的清单，装好的那份插件由 `version` 指定。 */
+function profileSelecting(f, version) {
+  const profile = path.dirname(f.patch);
+  fs.mkdirSync(profile, { recursive: true });
+  if (version !== null) installedBundle(profile, version);
+  fs.writeFileSync(path.join(profile, 'package.json'), JSON.stringify({
+    dependencies: { '@yunmiao/studymate': version === null ? '*' : 'link:../repo' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@yunmiao/studymate'] } },
+  }));
+}
+
+test('档位里是同一代的插件时：入口保持开着，也不写声明行（#157）', t => {
+  const f = fixture(t);
+  const original = '# unrelated plugin\n- id: keep\n  disabled: false\n';
+  profileSelecting(f, ownVersion);
+  fs.writeFileSync(f.patch, original);
+  f.version('0.2.0-rc.2');
+  const result = f.install('--workspace', path.join(f.dir, 'workspace'));
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  // 两条模式由插件启动时自己注册、阅读端也只长在插件里：既不能写声明行（同名注册会撞），
+  // 也不能停用入口。所以这份补丁一个字节都不该动。
+  assert.equal(fs.readFileSync(f.patch, 'utf8'), original, '同一代时不该碰档位补丁');
+  assert.equal(f.yaml(f.config).installModes.web, 'standalone');
+  const before = fs.readFileSync(f.patch, 'utf8');
+  assert.equal(f.install().status, 0);
+  assert.equal(fs.readFileSync(f.patch, 'utf8'), before);
+});
+
+test('档位里是旧一代的插件时：安装器接管——停用那条入口并写声明行（#157）', t => {
+  const f = fixture(t);
+  profileSelecting(f, '0.1.3');
+  fs.writeFileSync(f.patch, '# unrelated plugin\n- id: keep\n  disabled: false\n');
+  f.version('0.2.0-rc.2');
+  const result = f.install('--workspace', path.join(f.dir, 'workspace'));
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  const rows = f.yaml(f.patch);
+  assert.deepEqual(rows.find(row => row.id === 'studymate'),
+    { id: 'studymate', name: '@yunmiao/studymate', disabled: true }, '不认识新契约的旧插件不该被执行');
+  const declarations = rows.flatMap(row => row.insert || []).filter(row => row.config?.id === 'learning');
+  assert.equal(declarations.length, 1, '接管时要写声明行，两条模式不能没人管');
+});
+
+test('从旧状态恢复：把插件更新到同一代之后，重跑一次就放开那条入口（#157）', t => {
+  const f = fixture(t);
+  profileSelecting(f, '0.1.3');
+  fs.writeFileSync(f.patch, '# unrelated plugin\n- id: keep\n  disabled: false\n');
+  f.version('0.2.0-rc.2');
+  assert.equal(f.install('--workspace', path.join(f.dir, 'workspace')).status, 0);
+  assert.ok(fs.readFileSync(f.patch, 'utf8').includes('BEGIN STUDYMATE'), '旧一代时安装器接管');
+  // 用户把插件更新到同一代（或把检出 link 回档位）之后再跑一次安装
+  installedBundle(path.dirname(f.patch), ownVersion);
+  const again = f.install('--workspace', path.join(f.dir, 'workspace'));
+  assert.equal(again.status, 0, again.stderr + again.stdout);
+  const text = fs.readFileSync(f.patch, 'utf8');
+  assert.equal(text.includes('BEGIN STUDYMATE'), false, '接管块要被清掉');
+  assert.equal(f.yaml(f.patch).some(row => row.id === 'studymate'), false, '入口不再被停用');
+});
+
 test('explicit native switch records ownership and removes registration without replacing payload or user files', t => {
   const f = fixture(t);
   fs.mkdirSync(path.dirname(f.patch), { recursive: true });
