@@ -210,6 +210,43 @@ test('#105 建会话：共享记忆为空就不注入（不是注入一条空的
   assert.equal(host.calls.create.length, 1);
 });
 
+test('#163 建会话：给了节点 id 就注入一条课件指针（agent 不用拿文件路径去猜）', async () => {
+  const { workspace } = makeWorkspace();
+  const host = fakeHost();
+  const view = await openAskSession(depsFor(workspace, host),
+    { subject: '网络', node: '子网与掩码', nodeId: 'net.mask', lesson: 'network/0003-mask.md' });
+
+  assert.equal(view.ok, true);
+  assert.equal(host.messages.length, 2, '记忆与指针各一条：' + JSON.stringify(host.messages));
+  const pointer = host.messages[1];
+  const text = pointer.content[0].text;
+  assert.match(text, /net\.mask/);
+  assert.match(text, /network\/0003-mask\.md/);
+  assert.match(text, /studymate_lesson_read/);
+  assert.match(text, /只认节点 id/);
+  // 形状仍照宿主的 createUserMessage（身份 + role + 内容块 + 来源）
+  assert.equal(typeof pointer.id, 'string');
+  assert.equal(pointer.role, 'user');
+  assert.deepEqual(pointer.content, [{ type: 'text', text }]);
+  assert.equal(pointer.source.kind, 'user');
+});
+
+test('#163 建会话：没有可用的节点 id 就不注入指针（不是注入一条空的）', async () => {
+  const { workspace } = makeWorkspace({ withMemory: false });
+  for (const nodeId of [undefined, '', '   ', 'net/mask', 'net\\mask', 'net..mask', 'x'.repeat(65), 42]) {
+    const host = fakeHost();
+    const view = await openAskSession(depsFor(workspace, host), { subject: '网络', nodeId });
+    assert.equal(view.ok, true, String(nodeId));
+    assert.equal(host.messages.length, 0, `${String(nodeId)} 不该注入：` + JSON.stringify(host.messages));
+  }
+  // 课件路径带空白时：指针照给（id 可用），只是不写那句路标
+  const host = fakeHost();
+  await openAskSession(depsFor(workspace, host), { subject: '网络', nodeId: 'net.mask', lesson: 'net mask.md' });
+  assert.equal(host.messages.length, 1);
+  assert.match(host.messages[0].content[0].text, /net\.mask/);
+  assert.doesNotMatch(host.messages[0].content[0].text, /这一课的课件/);
+});
+
 test('#105 降级：宿主没挂 sessionTitle 时不抛、也不假装改过标题', async () => {
   const { workspace } = makeWorkspace();
   const host = fakeHost({ withTitle: false });
