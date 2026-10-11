@@ -392,3 +392,105 @@
 - **第三条（TS 引擎迁移）回复口径**：本版对齐 main 上现行 Python 脚本（0.7.0-beta 当日全部有效）；
   `refactor/reading-end-and-ts-engine` 落地后 Web 需一轮调用面适配（已记 backlog）；并请上游在
   阶段 2（工具注册）/ 阶段 7（CLI 与导出）定调用面时把 Web 这一「第二前台」消费方列入考量。
+
+---
+
+## 2026-10-07 · 上游移出主线后的落地：engine/ 自带引擎叶子 + 单源项现场读（已定稿）
+
+> 性质：**只追加**。上游把 `study-mate-web/` 移出 main（ADR-0013，「自带引擎的第二形态」）后，
+> 按既定方案 A 把引擎叶子收进子项目，并对接上游新布局。本版仍跑在分支 `web/0.7.0-beta` 上
+> （`.dsh/`、`scripts/` 都还在），改动是**为回流铺路**，不改变当前运行行为。
+
+- **`engine/` 自带引擎叶子（方案 A）**：`engine/scripts/` 收 5 个入口（`gen_home` /
+  `render_lesson` / `check_lesson` / `check_curriculum` / `check_pool`）+ 6 个被 import 的
+  helper（`curriculum` / `lessonfile` / `lessonfmt` / `pagetpl` / `statuses`），
+  `engine/templates/` 收 `lesson.html` / `home-index.html` / `subject-index.html` 与
+  `assets/**`（科目层三组件 + 共享层 sayo/katex/learn-theme.*）——全部从分支根
+  `scripts/`、`templates/` **逐字节拷贝**（`cmp` 可验）。后端 `config.SCRIPTS_DIR`、
+  `produce.ensure_subject_assets`、`workspace._UPSTREAM_SCRIPT` 改指 `engine/`。
+- **仅两处偏差（都是 schemas 定位 shim）**：`statuses.py` 的 `SCHEMA_DIR` 与
+  `check_curriculum.py` 的 `SCHEMA_PATH` 改为「环境变量 `STUDYMATE_SCHEMAS_DIR` > 从
+  文件位置向上找第一个含 `schemas/` 的目录 > 原口径」——**schemas 仍是仓库根单源**
+  （回流条件①），不产生第二份；其余 9 个 `.py` 与全部模板 / 资产逐字节原样。来源 /
+  刷新步骤 / 偏差清单写在 `engine/README.md`。
+- **角色规格改动态解析**：上游已把 `.dsh/skills/**` 迁到 `preset/skills/**`（同名 12 个、
+  内容已漂移）。`config._skills_dir()` 按 `preset/skills` → `.dsh/skills` 取第一个存在
+  的：分支上读旧位置、新 main 上读新位置，两头自洽；内容一律现场读、不拷贝。
+- **验证**：`compileall` 过；四个引擎脚本独立可跑；**与仓库根脚本产出逐字节一致**
+  （对真实工作区 8 个 `index.html` 跑两套引擎比对 md5 全同）；全量后端 pytest 见本次运行。
+- **回流进度**：`docs/StudyMate-Web_引擎复用与回流.md` §5 的引擎一条（#1–#4、#8）已落地；
+  剩 schemas 内容对齐（六档→三档等）与技能内容漂移两条单源项，留回流轮做。
+
+---
+
+## 2026-10-10 · K4 子代理与 Chat 角色工具面扩容（#16 与 #29 落地）
+
+> 性质：**只追加**。落实待办 #16（K4 总控全 Agent 化 / generate 统一）与 #29（Chat 角色工具面扩容），彻底消除建课后辅导断档的工具短板。
+
+- **K4 子代理工具 `call_subagent` 落地（#16）**：
+  - 在 `app/tools.py` 新增 `call_subagent` 工具，依照 K 系列尽调规范包装 `roles.dispatch_role`，支持总控分派专业子代理（`generate`、`produce_content`、`produce_quiz`、`grade` 等）。
+  - 返回结构化 `{content, data, files, report, is_error}`，异常沙箱拦截不炸循环，受 `ORCH_MAX_SECONDS` 墙钟控制。
+  - 加入基础工具集 `CHAT_TOOLS`，全会话可用。
+- **`generate.py` 旁路建课门禁统一（#16）**：
+  - 彻底清理 `generate.py` 中重复的子进程门禁与自制 `_gate_problems` 解析逻辑，统一调用 `build.run_curriculum_gate`。
+  - 继承 `build.py` 的防御性不变量（`-B` 防缓存、缺失脚本 503、门禁非零退出无 problems 判失败）。
+  - 提示词内联核心 schema 硬约束，提高生成合规率；保持原有 422 `problems` 响应结构完全向下兼容。
+- **Chat 角色工具面扩容（#29）**：
+  - 新增 `get_course_outline`：结构化读取科目大纲树、各节点课型、学习状态（未开始/学习中/已完成）与掌握度评分，并提供推荐下一课引导。
+  - 新增 `read_misconceptions`：结构化读取科目误解本，支持按重要度（high/medium/low）及节点 id 过滤，赋能教练 Agent 精准答疑。
+  - 新增 `list_learning_records`：结构化汇总当前科目下的历史评估记录与会话摘要。
+  - 上述三工具纳入 `CHAT_ACTION_TOOLS`，会话绑定科目时自动开放；`routers/chat.py` 系统提示词同步更新使用指引。
+- **验证**：
+  - 后端 pytest **500 passed / 1 skipped**；
+  - `python -m compileall app` 通过；
+  - 仓库根 `npm test` 通过；
+  - 文档同步更新：《开发与计划》§1.1 模块职责与 §5 Backlog 归档、《Chat工具面与主动检索设计》RFC 表格。
+
+---
+
+## 2026-10-10 · 引擎复用第 1、2 批落地（engine-node 消费层 + 数据卫生）
+
+> 性质：**只追加**。按 [引擎复用与回流.md](docs/StudyMate-Web_引擎复用与回流.md) §8 rollout 的第 1 批（旁路接入，无行为风险）与第 2 批（yaml 止血 + 存量迁移）实施；主链切换（第 3 批）未动，`STUDYMATE_ENGINE` 默认仍是 python。
+
+- **engine-node/ 落地（新增目录）**：`package.json`（钉 `@yunmiao/studymate@1.2.0` + react/react-dom 19.3.0——上游发布包不声明 react 依赖，消费方自装）、`setup.mjs`（幂等：npm ci → 整包拷出 node_modules 成 `vendor/studymate`（node 拒绝 type-strip node_modules 内 .ts）→ React 三件套落 vendor + scheduler 补 `react-dom/node_modules/` 嵌套 → 自检三 CLI 用到的模块导出面）、三个 CLI（`sm-export.mjs` / `sm-validate.mjs` / `sm-workspace.mjs`）与共用件 `sm-lib.mjs`。**契约**：sm-export `--json` 一行 `{ok,entry,files,bytes,subjects,react,…}` 退出码 0/1/130；sm-validate `lesson|curriculum|progress|subject` 一行报告 `{file,blocking,blockingCount,problems[{file,line,message,blocking}],summary}`（lesson 另附 anchors/orphans）退出码 0 放行 / 2 阻断 / 1 自身错误；sm-workspace 输出工作区绝对路径，查找顺序与冻结 Python `gen_home.py::learn_workspace()` 逐字对齐（STUDYMATE_WORKSPACE → LEARN_WORKSPACE → STUDYMATE_CONFIG/$DSH_HOME 配置）。schema 一律用包内 `schemas/*.json`——校验规则的单源就是上游包本身。
+- **CLI 契约测试 18 例全绿**（`engine-node/tests/`，`node --test`）：夹具形状以包内 schema 为准（curriculum 节点必填六字段、课件 front matter 只有 title/goal），覆盖好课件放行、缺题库 / orphans / title 不一致 / 未知围栏 / 缺图阻断、YAML 解不开、旧六档进度被新 schema 拒、export 最小工作区成功与非工作区透传 `EXPORT_NO_WORKSPACE`、workspace 三分支。
+- **后端接线（旁路，不动主链）**：新增 `app/engine_node.py`（node 可执行查找 / 子进程超时 export 60s validate 15s / stdout JSON 解析 / `engine_mode()` 读 `STUDYMATE_ENGINE` 默认 python / 旁路 `_bypass` 绝不抛只落审计）；`config.py` 增 `ENGINE_NODE_DIR` 与三 CLI 路径；`produce.render_and_check` 检查通过后旁路 `bypass_validate_lesson`（node 校验课件源文件，结论落审计 `engine_bypass` 事件，供 node 切换前持续对照两边判定）；`build.run_curriculum_gate` 临时大纲落盘后旁路 `bypass_validate_data("curriculum")`——generate.py 的门禁已统一复用 build（同日 #16 落地），三处大纲门禁自然全覆盖。
+- **坑③第二形态（本轮新发现）**：值**本身含真实换行**的字符串，pyyaml 无论 width 都写出跨行引号标量，上游解析器必拒；实测上游只支持**单行双引号 `\n` 转义**（块标量 `|`/`>` 也不支持）。止血 = 新增 `app/yaml_out.dump_yaml` 统一写出层（`width=10**9` + 含换行值强制双引号 style + SafeDumper representer 全进程生效），六个写出点全部换用（curriculum_store / build / generate / draft / misconceptions / records）；金样测试钉死「含换行值经 node parseYaml 读回无损」。
+- **存量迁移与卫生**：新增 `backend/scripts/migrate_yaml.py`（dry-run 默认、`--apply` 先逐文件备份到 `data/migrations/<时间戳>/` 再原子写回；含独立注释行的文件跳过并点名，留人审）；新增 `app/yaml_hygiene.py`（采样 ≤50 份、60s 缓存），`GET /api/health` 增 `yaml_hygiene` 字段（只报不迁）。**真实工作区已迁移**：两轮共归一 8 份（git/linear-algebra/computer-networks 的 curriculum 与 subject、linear-algebra 的 progress/misconceptions、11 科目的 progress/misconceptions——后两份是"含换行值"形态，第一轮 round-trip 幂等未识别，统一归一逻辑后抓到）；备份在 `data/migrations/20261010-233841` 与 `20261010-234812`。
+- **CI（web-ci.yml）**：web job 在 setup-node 后新增 engine-node 步骤（`node setup.mjs` + `node --test`），engine-node lock 并入 npm 缓存键；pytest 侧 node 缺席时用例自动跳过并打标（`pytest.mark.skipif`）。
+- **验证（同一状态）**：engine-node 契约 **18/18**；后端全量 **501 passed / 1 skipped**；**迁移后真实工作区 `sm-export` 全工作区导出通过**（31 文件、6 科目、react 19.3.0，`export.json` 落盘）；health 冒烟 `yaml_hygiene.checked=25`。
+
+---
+
+## 2026-10-11 · 引擎复用批 3、4、5 完成（node 主链 + 阅读入口 + 冻结 Python 退役）
+
+> 性质：**只追加**。逐批明细见 [引擎复用与回流.md](docs/StudyMate-Web_引擎复用与回流.md) §8 与本文；版本号按维护者指示暂不动（后于 0.8.0-beta 提升）。
+
+- **批 3（主链切换）**：产课链门禁 = `sm-validate lesson`（无独立渲染步骤，阻断进打回轮）；
+  大纲门禁 = `sm-validate curriculum`；工作区发现 = `sm-workspace`；`ensure_subject_assets`
+  node 退役；旁路校验（批 1 的审计对照）随双模式退役删除。
+- **批 4（阅读入口）**：新增 `app/exporter.py` 统一导出层（按需导出 + `.stamp` 新鲜度 +
+  暂存原子替换）与 `GET /api/courses/{slug}/reading`；`StaticFiles(/api/exports)` 伺服产物；
+  `/api/home` = 全工作区导出入口（`data/exports/_home/`）；前端 `LessonView` / `HomeEmbed`
+  全部嵌导出应用（应用内导航，无深链是既定取舍）；课件清单列 `*.md` 源文件；
+  `production_task.lesson_link` 口径放宽 `.md`。
+- **批 5（删冻结 Python）**：`engine/` 收缩到 **`scripts/check_pool.py` 一个文件**（图片库
+  对账，`image_scout` 唯一调用方）；templates 全删；`STUDYMATE_ENGINE` 双模式语义退役；
+  后端清理 python 渲染/门禁/发现/导出分支与 `engine_mode()`；`generate.py` 残留脚本检查
+  删除（曾致建课 503）。测试基座全面转 node 语义（含 fixture 大纲去 `mastery`——新 schema
+  拒绝额外字段；python 门禁三用例改写为 node 门禁行为）；E2E `review-workspace` /
+  `produce-selection` 改造 + 新增 `reading.spec.ts`。
+- **验证**：后端 **502 passed / 1 skipped**；engine-node 契约 **18/18**；组件 **122 passed**；
+  lint **0 errors / 51 warnings**；`next build` 通过；E2E 与真机走查结果见 HANDOFF 同日条目。
+
+---
+
+## 2026-10-11 · 回流专题四篇合一 + 0.8.0-beta 发布准备
+
+> 性质：**只追加**。把回流相关的四篇过程文档（《回流变动报告-2026-10-07》、《引擎复用 Spike 结论-2026-10-10》、《引擎复用落地方案-2026-10-10》、《引擎复用批 3-5 完成-2026-10-11》）合并为一篇长青专题 [docs/StudyMate-Web_引擎复用与回流.md](docs/StudyMate-Web_引擎复用与回流.md)；版本 0.7.0-beta → **0.8.0-beta**。
+
+- **专题合并**：四篇（盘点 → 技术探测 → 实施方案 → 完成记录）按「背景与结论 / 终局架构 / 数据卫生 / 上游包装坑与能力取舍 / 根资源引用现状 / 回流条件与剩余项 / 引擎升版守门 / 落地轨迹」八节重写为长青文档，过程性验证数据留在本文与 HANDOFF。引用方全部改指新篇：HANDOFF、AGENTS.md、README、`engine/README.md`、`engine-node/README.md`、`backend/app/yaml_out.py`、`backend/scripts/migrate_yaml.py`、`engine-node/setup.mjs`。
+- **版本提升（维护者本轮授权）**：0.7.0-beta → **0.8.0-beta**，三处一致：`frontend/package.json`（含 `package-lock.json`）、`backend/app/main.py`、侧边栏读 package.json。版本号仅标识 StudyMate Web，与上游 `@yunmiao/studymate` 独立。
+- **长青文档事实修正**：`StudyMate-Web_开发与计划.md` §2 铁律 3 / 7 / 8、§4 与 `StudyMate-Web_PRD.md` 的工作区发现、技能目录、产课链收口、校验口径仍写着已退役的 `engine/scripts/` 叶子清单、`learn_workspace()`、`check_lesson.py`，随本次合并一并改写成 node 消费层口径；E2E 流程表里 `export.spec.ts` 的「真跑 gen_home」改为「真跑 sm-export」。
+- **遗留事实修正**：并发整理时被外部恢复的 `frontend/tests/e2e/lesson-quiz.spec.ts` 再次删除——它断言的是旧 Python 渲染链产物（`.quiz__opt` / `0002-net.link.html` / `lesson-nav__link--next`），上游导出 SPA 的阅读端里这些类名与逐课 HTML 一概不存在，保留必红；阅读端覆盖由 `reading.spec.ts` 承担。
+- **验证（同一状态复跑）**：后端 **502 passed / 1 skipped**；`compileall` 通过；engine-node `setup.mjs` 就绪、契约 **18/18**；组件 **122 passed（17 文件）**；lint **0 errors / 51 warnings**；`next build` 通过；根 `npm test` 通过；**E2E 97 passed / 0 failed / 3 skipped**。本轮改动只涉及文档与版本字符串，E2E 条数与上一状态一致。

@@ -11,6 +11,8 @@ study-mate-web/
 ├── start-web.bat / stop-web.bat   # 一键启动 / 停止（GBK + CRLF）
 ├── tools/studymate-web.ps1        # 启动器助手：构建新鲜度判定 + 按端口停服（纯 ASCII）
 ├── data/                          # 运行时数据（settings、sessions、drafts、audit、uploads、exports）
+├── engine-node/                   # 上游引擎包消费层（@yunmiao/studymate：setup + 三个 CLI + 契约测试）
+├── engine/                        # 冻结 Python 收缩层（只剩 scripts/check_pool.py：图片库对账）
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                # 入口（lifespan：建工作区目录、上传清扫）
@@ -27,7 +29,7 @@ study-mate-web/
 │   │   ├── curriculum_store.py    # 课程仓储层（<WS>/.learning/subjects/<slug>/*.yaml）
 │   │   ├── workspace.py           # 工作区发现（复用上游 learn_workspace()）+ 配置写回
 │   │   ├── workspace_ctx.py       # 请求级工作区绑定（会话级工作区的唯一收口点）
-│   │   ├── prompts.py             # 提示词分层：persona + 按链路注入 .dsh/skills/<名>/SKILL.md
+│   │   ├── prompts.py             # 提示词分层：persona + 按链路注入 preset/skills（回落 .dsh/skills）/<名>/SKILL.md
 │   │   ├── roles.py               # 角色派工基建（SKILL 全文注入 + envelope 落盘/搬位）
 │   │   ├── produce.py             # 产课链编排（派工 → 渲染 → 检查 → 打回 → 工单）
 │   │   ├── build.py               # 建课链编排（大纲 + 采图并行 → 门禁 → 落盘）
@@ -228,7 +230,7 @@ CI smoke 5 passed、lint 0 errors / 51 warnings、`tsc` / `build` / `compileall`
 
 ## 版本
 
-- 当前版本：**0.7.0-beta**。
+- 当前版本：**0.8.0-beta**。
 - StudyMate Web 遵循语义化版本控制；该版本号**仅标识 StudyMate Web 本身**（前后端一体），
   与上游项目 `@yunmiao/studymate` 的版本相互独立。
 - 版本号唯一记录处：本节与代码内版本常量（`frontend/package.json`、后端 `app/main.py`、

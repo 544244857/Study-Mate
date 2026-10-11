@@ -1,8 +1,8 @@
-# StudyMate Web 建课链路（档案）
+# StudyMate 项目建课链路（基准档案）
 
-> 性质：**链路档案**——把「从想学到课程进工作区」的完整链路按代码现状梳理一遍，供排查卡点、评估改动影响面用。
-> 维护约定：链路结构变化（新增阶段/事件/产物、入口增删）时更新本文；`文件:行号` 会随改动右移，**以函数名 + 文件为准**，行号只作近似定位。
-> 生成时间：2026-10-04（第八轮后）。同日的 `Web_CHANGE.md` 有各轮改动留痕。
+> 性质：**项目基准建课链路档案**——梳理从「方向探索/盘问 → 草稿生成 → 大纲与采图编排 → 工作区落盘（Promote）」的完整流程，对齐上游插件基准设计与 Web 侧实现。
+> 关联文档：单节点课件生成、派工自检、复用与工单等执行细节，详见专项文档 [StudyMate-Web_产课链路与执行契约.md](StudyMate-Web_产课链路与执行契约.md)；Chat 工具面与主动检索调研详见 [StudyMate-Web_Chat工具面与主动检索设计.md](StudyMate-Web_Chat工具面与主动检索设计.md)。
+> 维护约定：链路结构变化（新增阶段/事件/产物、入口增删）时更新本文；`文件:行号` 以函数名 + 文件为准，行号仅作近似参考。
 
 ## 0. 总览
 
@@ -133,31 +133,25 @@
 - **落点确认 409 / 课程页看不到新科目**：`<ws>/.learning/subjects/<slug>` 已存在 → 改名或删旧；promote 成功则草稿目录必须消失。
 - **产课卡住/打回循环**：看 `data/audit/produce-<slug>-<node_id>.jsonl`（`run_check` 回喂的报错原文）；`lessons/` 已有几个 `.md`（顺序门比的是数量）；手工复现 `render_lesson.py` + `check_lesson.py`。**草稿区没有产课入口**（`produce_node` 只对工作区科目开）。
 
-**第八轮新补四条：**
+### 7.1 核心边界与排查要点
 
-- **大纲门禁反复打回同一类错（节点 id 非法 / edge 缺 reason / realworld 类型错）**：先确认 `build.py::curriculum_values` 是否真把 `schemas/curriculum.schema.json` 全文内联（`_curriculum_schema_text()`，文件缺失时回落一句提示而不炸）。**已修**：沙箱读根只有草稿目录、模型读不到仓库根 schema，此前只能盲猜；内联全文 + 硬约束速览后才可达。若仍打回，逐条对比 problems 与内联里的约束描述。
-- **采图秒完 0 张、stage 显示「采图 · 跳过（无参考资料）」**：**正常**——从零建的草稿没有 `RESOURCES.md`，采图没有 URL 可抓 ⇒ 结构性空转。文案已改（done 事件带 `skipped/reason`）避免误导；**是否恢复主动检索（让资源清单非空）本体待拍板**，见 §8 与《开发与计划》主动检索议程。
-- **建完课会话没关联到新科目**：检查 `POST /api/drafts/<slug>/promote` 请求体有没有带 `session_id`（前端 `promoteDraftToWorkspace` 会带）。**已做**：落点成功后后端把触发会话绑到新科目；会话不存在时静默跳过、promote 本身照常成功。没关联时聊天里不会出现产课/评估工具。
-- **聊天里产课**：agent 调 `produce_lesson`，**按大纲顺序**（跳跃节点会被顺序门 error），不传 `node_id` 即取**按大纲顺序第一个尚无课件的节点**（**不沿用会话节点聚焦**）；含产课/评估工具的回合墙钟走 `ORCH_MAX_SECONDS`（1800s，单节点实测可达 ~700s）。过程只发 transient `notice`（progress 节流 ~10s）、**不落 stage 卡**，刷新后看不到过程；工具执行成果反映在磁盘产物与工具卡结果里。回落 / 直连的备用角色在任务卡上如实标 `execution_mode`（`fallback` / `single_call`）并展示 `fallback_reason` / `max_seconds` / `elapsed_s` / `message`，按真实 start / done / error；**envelope 返回≠自检通过**，不刷屏、不虚构过程。
+- **大纲门禁反复打回同一类错（节点 id 非法 / edge 缺 reason / realworld 类型错）**：确认 `build.py::curriculum_values` 是否内联了 `schemas/curriculum.schema.json` 全文（`_curriculum_schema_text()`）。因沙箱读根仅限草稿目录，无法读取仓库根目录，必须依靠内联 schema 全文与硬约束速览保证模型可达性。
+- **采图秒完 0 张、stage 显示「采图 · 跳过（无参考资料）」**：**正常现象**。从零新建的草稿若无 `RESOURCES.md`，采图没有目标 URL 可抓取，系统会标记为跳过（done 事件带 `skipped/reason`）。主动检索方案详见 [StudyMate-Web_Chat工具面与主动检索设计.md](StudyMate-Web_Chat工具面与主动检索设计.md)。
+- **建完课会话未自动关联新科目**：检查 `POST /api/drafts/<slug>/promote` 请求体是否携带 `session_id`。落点成功后后端会自动将触发会话绑定到新科目；若未关联，聊天上下文内不会开放产课/评估工具。
+- **聊天内产课执行机制**：Agent 调用 `produce_lesson` 工具执行生产，按大纲顺序处理节点（省略 `node_id` 时自动选取大纲中第一个未产出节点）。单节点产课细节与契约详见 [StudyMate-Web_产课链路与执行契约.md](StudyMate-Web_产课链路与执行契约.md)。
+- **检查器资源路径校验（HTMLParser）**：`check_lesson.py` 采用 `RefScanner(HTMLParser)` 解析 HTML 中真实的元素属性（`href`/`src`），避免将 `<pre>/<code>` 代码块中的示例代码转义字符误判为资源引用缺失。
+- **实操与实验课 Lab 交付门禁**：实操/实验课要求交付完整的 Lab 任务树（`lab/<NNNN>-stage/README.md`、`lab/solutions/<NNNN>-stage/README.md` 以及 `lab/README.md`），若文件缺失则阻断 Promote 并打回自修。
+- **打回次数与错误契约**：打回统计区分 `repair_rounds`（模型修复派工）与 `rechecks`（总控仅复检不占修复轮次）；异常与中断统一采用 `ErrorInfo` 契约结构化透出。
 
-**本轮（2026-10-06 错误终态 / 检查器 / lab）新补四条：**
+## 8. 待拍板与已知演进设计（以代码现状为准）
 
-- **检查器把代码示例误报缺资源（已修）**：`check_lesson.py` 原用正则扫 `href/src`，`<pre>/<code>` 里转义的教学示例（`&lt;img src=…&gt;`）会被当成真实引用 ⇒ 误报缺资源。现改用 `RefScanner(HTMLParser)` **只取真实元素**的 `href/src`，**真实缺资源仍拦**；属脚本自身修复，**不是 Web 第二份引擎、不绕过检查**。旧 HTML 只读检查 OK（有 warnings）**≠ 重产通过**。
-- **实操 lab 缺交付（已修）**：`kind=实操` 的 lab 整套先前不在 required 里 ⇒ 交付缺 lab 仍可能 promote，随后 `check_lesson` 按 kind 阻断并误打回。现 `required_artifacts` 一并 gate `lab/<NNNN>-stage/README.md` + `lab/solutions/<NNNN>-stage/README.md` + `lab/README.md`，**缺一 `_write_and_promote` 返回 None、不 promote**。
-- **打回次数与错误详情**：`repair_rounds` / `rechecks` 分开，**总控复检不占派工轮、不再谎报 2 轮**；失败 / 超时 / 中断统一 `ErrorInfo`，任务卡 `error` 用 `ErrorNotice` 红卡渲染（`danger` / `neutral`），聊天消息同样持久化 `error` + `stream_state`。
-- **真实重产（本轮实测）**：两会话经**浏览器 UI 编辑重发**（web `1c3bad7657b7` index6、Git `cc886d4641a1` index28）均以上游 **503 `system_memory_overloaded`** 失败（turn `e9731d08f43942468359d779fa406901` / `f6083744eef7470eb1600078b13a24ad`），**未成功重产**，待上游恢复；红卡已浏览器展开核验（`real-web-503.png` / `real-git-503.png`）。
-
-## 8. 待拍板与已知不一致（以代码为准）
-
-| # | 事项 | 现状 |
+| # | 事项 | 现状与设计说明 |
 |---|---|---|
-| 1 | **建课会话是否该带工具** | `use_tools` 不排除 `mode=interview` ⇒ 真实模型下建课会话也走工具循环；收口标记解析对"多轮拼接/被拆段"零容忍（非贪婪匹配），可能不建草稿、不出确认卡。**第八轮已落地候选③的一半**：#14 改为**取最后一段完整匹配**、JSON 解析失败把原文（截断）回显成 error 卡；候选①（interview 恒走纯文本）/②（收紧提示词）仍待拍板。fixture E2E 只覆盖纯文本路径，所以一直全绿 |
-| 2 | **门禁 stage 双发** | 工具循环内 + 外层复核各发一次 ⇒ 前端两条「✅ 门禁完成」。是"不信任模型自查"的副产品；可改名（门禁自检）／去重／接受（**未动**） |
-| 3 | ~~工单 retry 未走工具循环~~ | **已在第八轮修正**：`run_ticket_retry` 的产课路径改走 `dispatch()`（内部 `_role_tool_loop`），与实时产课同能力；`kind=build` 的 retry 仍走单次派工 |
-| 4 | ~~门禁解析可能放行~~ | **已在第八轮修正**：`run_curriculum_gate` 在 `returncode != 0` 且 problems 解析为空时**判失败**，把原始输出（截断）塞进 problems |
-| 5 | **M4 generate 链未工具化** | 与 build 的大纲派工同角色、两个入口，一个走了 K2 一个没有；是否有意保持旁路待拍板 |
-| 6 | 建课打回卡的 owners | **已在第六轮修正**：改为取 problems 的真实归属（此前硬编码「出题」） |
-| 7 | `PromoteRequest.target` | 死字段（路由不传），落点恒为发现链工作区 |
-| 8 | 草稿期 `data/assets/` | 共享层副产物，不随 promote 搬走；工作区期写 `<ws>/.learning/assets` |
-| 9 | **主动检索本体**（第八轮议程） | 现状资料收集只做落盘结构化、不做主动检索 ⇒ 从零建课资源清单为空 ⇒ 采图结构性空转。可选：恢复最小检索 / 保留只读并去掉采图阶段 / 用 web 工具让 agent 自己检索。**本轮不实现** |
-| 10 | 聊天产课不落 stage 卡 | 产课过程只发 transient `notice`（progress 节流 ~10s），刷新后看不到过程；产课工具的真实 LLM 冒烟本轮未跑（真实链路只验了建课） |
+| 1 | **建课会话是否该带工具** | `use_tools` 当前未排除 `mode=interview`，真实模型下建课会话亦进入工具循环；收口标记提取已收敛为取最后一段完整匹配，解析失败回显错误卡。是否强制纯文本或收紧提示词仍为可选优化项。 |
+| 2 | **门禁 stage 双发** | 工具循环内提交（`submit_curriculum`）与外层复核各触发一次门禁，前端呈现两次「门禁完成」，为防御性设计；后续可按需合并去重。 |
+| 3 | **工单 retry 工具循环** | `run_ticket_retry` 产课路径已接入 `dispatch()` 工具循环；`kind=build` 的重试保持单次派工。 |
+| 4 | **门禁失败解析判定** | `run_curriculum_gate` 在进程返回码非 0 且解析出的问题列表为空时，强制判定为门禁失败，并将原始输出截断写入 problems，避免静默放行。 |
+| 5 | **M4 generate 旁路工具化** | `/generate` 表单直生成接口当前未走工具循环，作为轻量旁路保留。 |
+| 6 | **PromoteRequest.target** | 历史冗余字段（路由无需传递），落点恒定指向工作区发现路径。 |
+| 7 | **草稿期 `data/assets/`** | 共享层临时产物，不随 promote 搬移；正式工作区内写入 `<ws>/.learning/assets`。 |
+| 8 | **主动检索方案** | 当前仅支持落盘结构化资料，主动检索演进方案详见专项文档 [StudyMate-Web_Chat工具面与主动检索设计.md](StudyMate-Web_Chat工具面与主动检索设计.md)。 |
