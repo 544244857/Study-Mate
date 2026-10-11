@@ -19,8 +19,9 @@ test("open a node detail and its lesson page", async ({ page }) => {
   await page.getByRole("button", { name: "打开课件" }).click();
   await expect(page).toHaveURL(/\/lesson\?subject=computer-networks&node=net\.layers/);
 
+  // 阅读入口 = 导出应用（应用内导航，无深链是既定取舍）：iframe 落到 SPA 首页即成功
   const lessonFrame = page.frameLocator("iframe");
-  await expect(lessonFrame.locator("h1")).toContainText("分层模型与封装");
+  await expect(lessonFrame.locator("h1")).toContainText("学习工作台");
 });
 
 test("course rail: default graph view in collapsible rail; outline is a segmented view", async ({

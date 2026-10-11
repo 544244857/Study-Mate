@@ -45,17 +45,34 @@ def test_promote_succeeds_without_valid_session(client):
 # ---------- 3. 工作区主页 ----------
 
 
-def test_home_serves_index_and_workspace_files(client, cs):
+def test_home_serves_workspace_export_and_files(client, cs):
+    """node 引擎：/api/home = 全工作区导出入口（按需导出）；根文件路由仍可读且越界防护完好。"""
     ws = cs.workspace_dir()
-    (ws / ".learning" / "assets").mkdir(parents=True, exist_ok=True)
-    (ws / "index.html").write_text("<html>工作区主页</html>", encoding="utf-8")
-    (ws / ".learning" / "assets" / "theme.css").write_text("body{}", encoding="utf-8")
+    # 造一个最小科目，让全工作区导出有东西可导（空工作区导出会报"一个科目都没有"）
+    subject = ws / ".learning" / "subjects" / "iso-home"
+    subject.mkdir(parents=True, exist_ok=True)
+    (subject / "curriculum.yaml").write_text(
+        "nodes:\n"
+        "  - id: intro\n"
+        "    title: 测试课\n"
+        "    objective: 会做一次最小提交\n"
+        "    prerequisites: []\n"
+        "    status: 未开始\n"
+        "    kind: 概念\n"
+        "edges: []\n",
+        encoding="utf-8",
+    )
 
     r = client.get("/api/home")
     assert r.status_code == 200, r.text
-    assert "工作区主页" in r.text
     assert r.headers["content-type"].startswith("text/html")
+    # 产物确实落到了导出缓存目录
+    from app.config import DATA_DIR
 
+    assert (DATA_DIR / "exports" / "_home" / "index.html").is_file()
+
+    (ws / ".learning" / "assets").mkdir(parents=True, exist_ok=True)
+    (ws / ".learning" / "assets" / "theme.css").write_text("body{}", encoding="utf-8")
     r2 = client.get("/api/home/.learning/assets/theme.css")
     assert r2.status_code == 200, r2.text
     assert r2.text == "body{}"

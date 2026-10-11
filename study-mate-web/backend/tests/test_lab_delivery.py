@@ -97,7 +97,6 @@ def test_control_only_recheck_does_not_claim_repair_rounds(tmp_path, monkeypatch
         checks.append(True)
         return False, [{"path": "assets/style.css", "message": "公共资源异常", "owner": "总控"}]
 
-    monkeypatch.setattr(produce, "ensure_subject_assets", lambda base: None)
     monkeypatch.setattr(produce, "render_and_check", check)
     monkeypatch.setattr(produce.tickets_svc, "create_ticket", lambda **kw: {"id": "ticket", **kw})
     asyncio.run(produce.run_produce(base, "subject", "practice", {"model": "mock"}, emit))

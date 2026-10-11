@@ -63,51 +63,56 @@ class _FakeProc:
         self.stderr = stderr
 
 
-def test_gate_nonzero_unparseable_is_failure(monkeypatch):
-    from app import build
+def test_gate_cli_failure_becomes_actionable_problem(monkeypatch):
+    """node 门禁自身失败（CLI 崩/超时）→ 一条可操作的总控问题，绝不能判通过。"""
+    from app import build, engine_node
     from app.llm import FIXTURE_CURRICULUM
 
-    monkeypatch.setattr(
-        build.subprocess,
-        "run",
-        lambda *a, **k: _FakeProc(1, "奇怪的输出，没有任何可识别前缀\n", ""),
-    )
+    def boom(kind, file):
+        raise engine_node.EngineNodeError("CLI 崩溃（模拟）")
+
+    monkeypatch.setattr(build.engine_node, "validate_data", boom)
     problems = asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM))
-    assert problems, "非零退出但解析不出问题绝不能判通过"
-    assert any("门禁退出码 1" in p["message"] for p in problems)
-    assert any("奇怪的输出" in p["message"] for p in problems), "原始输出要回喂给模型"
+    assert problems, "门禁失败绝不能判通过"
+    assert any("node 门禁失败" in p["message"] for p in problems)
+    assert any("CLI 崩溃" in p["message"] for p in problems), "失败原因要回喂给模型"
 
 
-def test_gate_zero_returncode_still_passes(monkeypatch):
+def test_gate_blocking_report_becomes_problems(monkeypatch):
+    """node 门禁报阻断 → problems 清单（schema 级问题逐条进打回依据）。"""
     from app import build
     from app.llm import FIXTURE_CURRICULUM
 
-    monkeypatch.setattr(
-        build.subprocess, "run", lambda *a, **k: _FakeProc(0, "  [PASS] schema 校验通过\n", "")
-    )
+    def blocked(kind, file):
+        return {
+            "file": str(file),
+            "blocking": True,
+            "blockingCount": 2,
+            "summary": "阻断——2 条阻断问题（共 2 条）",
+            "problems": [
+                {"file": str(file), "line": 3, "message": "缺少必填字段 objective", "blocking": True},
+                {"file": str(file), "line": 5, "message": "kind 不在枚举里", "blocking": True},
+            ],
+        }
+
+    monkeypatch.setattr(build.engine_node, "validate_data", blocked)
+    problems = asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM))
+    assert len(problems) == 2
+    assert all(p["path"] == "curriculum.yaml" for p in problems)
+    assert any("objective" in p["message"] for p in problems)
+
+
+def test_gate_pass_report_passes(monkeypatch):
+    """node 门禁放行 → 空清单（与旧 python 门禁的 PASS 同结论）。"""
+    from app import build
+    from app.llm import FIXTURE_CURRICULUM
+
+    def ok(kind, file):
+        return {"file": str(file), "blocking": False, "blockingCount": 0, "summary": "放行——没有问题", "problems": []}
+
+    monkeypatch.setattr(build.engine_node, "validate_data", ok)
     assert asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM)) == []
 
-
-def test_gate_nonzero_parseable_keeps_parsed_problems(monkeypatch):
-    from app import build
-    from app.llm import FIXTURE_CURRICULUM
-
-    monkeypatch.setattr(
-        build.subprocess,
-        "run",
-        lambda *a, **k: _FakeProc(
-            1,
-            "  [FAIL] 1 个问题：\n    - edges/0: 'reason' is a required property\n",
-            "",
-        ),
-    )
-    problems = asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM))
-    assert problems and any("reason" in p["message"] for p in problems)
-    # 解析成功时不再塞原始输出兜底
-    assert all("门禁退出码" not in p["message"] for p in problems)
-
-
-# ---------- 3. 采图跳过标记 ----------
 
 
 def _collector():

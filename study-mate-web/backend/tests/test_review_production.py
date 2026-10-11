@@ -95,16 +95,17 @@ def test_recheck_does_not_false_close_when_check_fails_unparsed(client, monkeypa
     assert tickets_svc.get_ticket(ticket["id"])["status"] == "待处理"
 
 
-# ---------- 3. 非零退出不可解析 → 兜底问题（不产生 problems=[] 的工单） ----------
+# ---------- 3. 检查器自身失败 → 兜底问题（不产生 problems=[] 的工单） ----------
 
 
-def test_render_and_check_falls_back_on_unparsed_failure(monkeypatch, tmp_path):
+def test_render_and_check_falls_back_on_cli_failure(monkeypatch, tmp_path):
+    """node 检查器自身崩溃 → 一条可操作的总控问题，绝不能判通过或产出空清单。"""
     from app import produce as ps
 
-    async def fake_run_script(args):
-        return 1, "Traceback (most recent call last):\nValueError: boom"
+    def boom(lesson_file, subject_dir=None):
+        raise ps.engine_node.EngineNodeError("ValueError: boom（模拟 CLI 崩溃）")
 
-    monkeypatch.setattr(ps, "_run_script", fake_run_script)
+    monkeypatch.setattr(ps.engine_node, "validate_lesson", boom)
     base = tmp_path / "subject"
     base.mkdir()
 
@@ -113,17 +114,18 @@ def test_render_and_check_falls_back_on_unparsed_failure(monkeypatch, tmp_path):
 
     ok, problems = asyncio.run(ps.render_and_check(base, "n1", 1, noop))
     assert ok is False
-    assert problems and problems[0]["message"].startswith("渲染退出码 1")
+    assert problems and problems[0]["message"].startswith("node 检查器失败")
+    assert "ValueError: boom" in problems[0]["message"], "失败原因要回喂给模型"
     assert problems[0]["owner"] == "总控"
 
 
 def test_produce_ticket_never_has_empty_problems(client, monkeypatch, new_subject):
     slug, _base = _produce_intro(client, new_subject)
 
-    async def neither(args):
-        return 1, "some unparsable output"
+    def neither(lesson_file, subject_dir=None):
+        raise produce_svc.engine_node.EngineNodeError("some unparsable output")
 
-    monkeypatch.setattr(produce_svc, "_run_script", neither)
+    monkeypatch.setattr(produce_svc.engine_node, "validate_lesson", neither)
     # 先删掉已产出产物，让顺序门允许重产（本用例只关心打回工单内容）
     r = client.post(f"/api/courses/{slug}/nodes/demo.intro/produce", json={})
     names = [line[7:] for line in r.text.splitlines() if line.startswith("event: ")]
@@ -590,7 +592,8 @@ def test_real_produce_failure_ticket_records_workspace_and_roundtrips(client, mo
 
 
 def test_export_failure_keeps_previous_export(client, monkeypatch, new_subject):
-    from app.routers import export as export_mod
+    """导出失败保旧产物（暂存后原子替换的不变量，对两种引擎同责任）。"""
+    from app import exporter as exporter_mod
 
     slug, _base = new_subject
     assert client.put(f"/api/courses/{slug}/curriculum", json=FIXTURE_CURRICULUM).status_code == 200
@@ -599,14 +602,12 @@ def test_export_failure_keeps_previous_export(client, monkeypatch, new_subject):
     export_root = DATA_DIR / "exports" / slug
     old_index = (export_root / "index.html").read_text(encoding="utf-8")
 
-    class _FakeProc:
-        returncode = 1
-        stdout = ""
-        stderr = "gen_home boom"
+    def boom(*_a, **_k):
+        raise exporter_mod.engine_node.EngineNodeError("sm-export boom")
 
-    monkeypatch.setattr(export_mod.subprocess, "run", lambda *a, **k: _FakeProc())
+    monkeypatch.setattr(exporter_mod.engine_node, "export_workspace", boom)
     second = client.post(f"/api/courses/{slug}/export")
-    assert second.status_code == 500, second.text
+    assert second.status_code == 502, second.text
     # 旧导出必须原样保留，暂存目录清干净
     assert (export_root / "index.html").read_text(encoding="utf-8") == old_index
     assert not list((DATA_DIR / "exports").glob(f".{slug}.tmp-*"))

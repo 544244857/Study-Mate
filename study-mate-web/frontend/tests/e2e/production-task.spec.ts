@@ -169,13 +169,9 @@ test("production task renders a single card with a lesson entry and persists the
   const stages = card.getByTestId("task-stages");
   await expect(stages).toContainText("讲解");
   await expect(stages).toContainText("出题");
-  await expect(stages).toContainText("渲染");
   await expect(stages).toContainText("检查");
-  // 真实历史阶段：渲染 / 检查 都已 done（终态卡不靠 task-stage-current 撑门面）
-  await expect(card.getByTestId("task-stage").filter({ hasText: "渲染" })).toHaveAttribute(
-    "data-status",
-    "done",
-  );
+  // 真实历史阶段：检查已 done（终态卡不靠 task-stage-current 撑门面）；
+  // node 引擎没有独立渲染步骤（渲染由导出应用按需承担）
   await expect(card.getByTestId("task-stage").filter({ hasText: "检查" })).toHaveAttribute(
     "data-status",
     "done",

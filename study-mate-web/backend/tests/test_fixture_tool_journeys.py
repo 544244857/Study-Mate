@@ -90,11 +90,10 @@ def test_produce_journey_runs_chain_and_writes_artifacts(client, bound_subject):
     assert result["is_error"] is False
     assert "已产出节点" in result["content"]
 
-    # 产课链真跑（讲解 → 出题 → 渲染 → 检查），三份产物落到科目目录
+    # 产课链真跑（讲解 → 出题 → 检查），源产物落到科目目录（渲染由导出应用承担）
     for rel in (
         f"lessons/0001-{NET_LAYERS}.md",
         f"lessons/0001-{NET_LAYERS}.quiz.json",
-        f"lessons/0001-{NET_LAYERS}.html",
     ):
         assert (base / rel).is_file(), rel
 
