@@ -55,7 +55,9 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: study-mate-web/frontend/package-lock.json
+          cache-dependency-path: |
+            study-mate-web/frontend/package-lock.json
+            study-mate-web/engine-node/package-lock.json
 
       - uses: actions/setup-python@v7
         with:
@@ -64,6 +66,14 @@ jobs:
           cache-dependency-path: |
             study-mate-web/backend/requirements.lock.txt
             study-mate-web/backend/requirements-dev.lock.txt
+
+      # engine-node：上游 npm 包消费层的安装 + 整形 + 自检（幂等；node 由 setup-node 提供）。
+      # 后端 pytest 的 node 模式用例与旁路校验依赖 vendor/ 产物，必须在测试前就位。
+      - name: Set up engine-node
+        working-directory: study-mate-web/engine-node
+        run: |
+          node setup.mjs
+          node --test "tests/*.test.mjs"
 
       - name: Install frontend dependencies
         working-directory: study-mate-web/frontend

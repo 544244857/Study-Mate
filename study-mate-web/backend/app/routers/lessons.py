@@ -16,7 +16,7 @@ from .courses import bound_workspace
 
 router = APIRouter(prefix="/api", tags=["lessons"])
 
-LESSON_RE = re.compile(r"^(\d+)-(.+)\.html$")
+LESSON_RE = re.compile(r"^(\d+)-(.+)\.(html|md)$")
 CONTENT_TYPES = {
     ".html": "text/html",
     ".css": "text/css",
@@ -46,9 +46,10 @@ def list_lessons(slug: str, workspace: str | None = None) -> dict[str, list[dict
         require_subject(slug)
         lessons_dir = cs.subject_dir(slug) / "lessons"
         nodes = _node_map(slug)
+        # 渲染 html 已退役：课件清单直接列源文件
         items: list[dict[str, Any]] = []
         if lessons_dir.is_dir():
-            for path in lessons_dir.glob("*.html"):
+            for path in lessons_dir.glob("*.md"):
                 match = LESSON_RE.match(path.name)
                 if not match:
                     continue

@@ -51,7 +51,7 @@ INTERVIEW_MARKER_OPEN = "<!--INTERVIEW_RESULT-->"
 INTERVIEW_MARKER_CLOSE = "<!--/INTERVIEW_RESULT-->"
 
 # 工具结果里可随工具卡下发的结构化元数据（tool_result 与 tool_activities 一并保留）。
-TOOL_METADATA_KEYS = ("task", "lesson", "assessment")
+TOOL_METADATA_KEYS = ("task", "lesson", "assessment", "outline", "misconceptions", "records")
 
 # assess_node 判失败、工具未自带 assessment 时给模型的受控纠正：约束收尾不要把失败说成成功。
 ASSESS_FAILURE_CORRECTION = (

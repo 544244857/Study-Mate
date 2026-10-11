@@ -21,6 +21,7 @@ from typing import Any
 import yaml
 
 from . import workspace_ctx
+from .yaml_out import dump_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ def _read_yaml(path: Path) -> dict[str, Any] | None:
 
 def _write_yaml(path: Path, data: dict[str, Any]) -> None:
     """原子落盘：先写同目录临时文件、再 os.replace（读侧永远看不到半个文件）。"""
-    payload = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+    payload = dump_yaml(data)
     with _data_lock:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex[:8]}.tmp")

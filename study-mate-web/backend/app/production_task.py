@@ -47,7 +47,7 @@ _INTERVIEW_BLOCK_RE = re.compile(
 )
 _INTERVIEW_START = "<!--INTERVIEW_RESULT-->"
 
-_LESSON_HTML_RE = re.compile(r"^(\d+)-(.+)\.html$")
+_LESSON_FILE_RE = re.compile(r"^(\d+)-(.+)\.(?:html|md)$")
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -469,23 +469,23 @@ def lesson_link(
     artifacts: Any,
     node_ids: set[str] | None = None,
 ) -> dict[str, Any] | None:
-    """真实校验后的课件入口（相对 lessons/HTML 路径）。
+    """真实校验后的课件入口（相对 lessons/ 的源文件路径）。
 
-    只在 HTML 产物确实存在、可读，且与 listLessons 口径一致（
-    `lessons/<NNNN>-<node_id>.html`，且该节点仍在课表里）时返回；失败/handoff/
-    伪造路径一律返回 None——不凭产物清单伪造入口。
+    只在课件文件确实存在、可读，且与 listLessons 口径一致（
+    `lessons/<NNNN>-<node_id>.md`；旧 python 渲染链的 .html 也认，该节点仍在
+    课表里）时返回；失败/handoff/伪造路径一律返回 None——不凭产物清单伪造入口。
     """
     if node_ids is not None and str(node_id) not in node_ids:
         return None
     resolved_base = base.resolve()
     for raw in artifacts or []:
         norm = str(raw).replace("\\", "/")
-        if not norm.startswith("lessons/") or not norm.endswith(".html"):
+        if not norm.startswith("lessons/") or not norm.endswith((".html", ".md")):
             continue
         name = norm[len("lessons/") :]
         if "/" in name:
             continue
-        match = _LESSON_HTML_RE.match(name)
+        match = _LESSON_FILE_RE.match(name)
         if not match or match.group(2) != node_id:
             continue
         target = (resolved_base / norm).resolve()

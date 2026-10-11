@@ -1,6 +1,6 @@
 {
   "name": "studymate-web-frontend",
-  "version": "0.7.0-beta",
+  "version": "0.8.0-beta",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3800",

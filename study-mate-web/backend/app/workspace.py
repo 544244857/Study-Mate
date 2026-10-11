@@ -1,25 +1,22 @@
-"""工作区发现：唯一入口，发现规则复用上游 scripts/gen_home.py::learn_workspace()。
+"""工作区发现：唯一入口，发现规则走上游 npm 包（sm-workspace CLI，node 引擎）。
 
-优先级（与上游一致）：显式 `STUDYMATE_WORKSPACE` > `LEARN_WORKSPACE` >
-`STUDYMATE_CONFIG`/`$DSH_HOME/studymate-config.yaml` 的 workspace 字段 >
-插件默认 `~/StudyMate`。中间两级交给上游函数（子进程调用，隔离其 import
-副作用），Web 不实现第二份发现规则；上游缺失或报错时兜底插件默认值。
+优先级（与冻结期 gen_home.py::learn_workspace() 一致）：显式 `STUDYMATE_WORKSPACE` >
+`LEARN_WORKSPACE` > `STUDYMATE_CONFIG`/`$DSH_HOME/studymate-config.yaml` 的 workspace
+字段 > 插件默认 `~/StudyMate`。中间两级在 engine-node CLI 内实现（Web 不写第二份
+发现规则）；node 未就绪或解析不到时兜底插件默认值。
 """
 from __future__ import annotations
 
 import logging
 import os
 import re
-import subprocess
-import sys
 from pathlib import Path
 
-from .config import REPO_ROOT
+from . import engine_node
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_WORKSPACE = Path.home() / "StudyMate"
-_UPSTREAM_SCRIPT = REPO_ROOT / "scripts" / "gen_home.py"
 _source: str | None = None
 _fallback: Path | None = None
 
@@ -31,29 +28,20 @@ def config_file_path() -> Path:
     return Path(os.getenv("DSH_HOME") or Path.home() / ".dsh").expanduser() / "studymate-config.yaml"
 
 
-def _discover_via_upstream() -> Path | None:
-    if not _UPSTREAM_SCRIPT.is_file():
-        logger.warning("上游 scripts/gen_home.py 不存在，工作区发现走默认 %s", DEFAULT_WORKSPACE)
+
+def _discover_via_engine() -> tuple[Path, str] | None:
+    """node 模式：工作区发现走上游 lib/workspace 语义（sm-workspace CLI）。"""
+    if not engine_node.available():
+        logger.warning("node 引擎未就绪，工作区发现走默认 %s", DEFAULT_WORKSPACE)
         return None
-    code = (
-        f"import sys; sys.path.insert(0, {str(_UPSTREAM_SCRIPT.parent)!r}); "
-        "import gen_home; print(gen_home.learn_workspace())"
-    )
     try:
-        proc = subprocess.run(
-            [sys.executable, "-c", code],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.warning("调用上游 learn_workspace() 失败：%s", exc)
+        found = engine_node.discover_workspace()
+    except engine_node.EngineNodeError as exc:
+        logger.warning("node 工作区发现失败：%s", exc)
         return None
-    if proc.returncode != 0:
-        logger.warning("上游 learn_workspace() 未给出工作区（stderr: %s）", proc.stderr.strip())
+    if found is None:
         return None
-    line = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
-    return Path(line).expanduser() if line else None
+    return found, "node 引擎发现（LEARN_WORKSPACE / studymate-config.yaml）"
 
 
 def discover() -> tuple[Path, str]:
@@ -63,11 +51,11 @@ def discover() -> tuple[Path, str]:
     if override:
         return Path(override).expanduser(), "环境变量 STUDYMATE_WORKSPACE"
     if _fallback is None:
-        found = _discover_via_upstream()
-        if found is not None:
-            _fallback, _source = found, "上游发现（LEARN_WORKSPACE / studymate-config.yaml）"
+        outcome = _discover_via_engine()
+        if outcome is not None:
+            _fallback, _source = outcome
         else:
-            _fallback, _source = DEFAULT_WORKSPACE, "默认（~/StudyMate，上游未配置）"
+            _fallback, _source = DEFAULT_WORKSPACE, "默认（~/StudyMate，未配置）"
     return _fallback, _source or ""
 
 

@@ -22,6 +22,30 @@ export function LessonView() {
   const [lessons, setLessons] = useState<LessonInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  // 阅读入口 = 导出应用（上游 sm-export 产物，含判分；后端按需导出 + 缓存命中）。
+  const [readingSrc, setReadingSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!subject) {
+      setReadingSrc(null);
+      return;
+    }
+    let alive = true;
+    api
+      .getReading(subject, workspace)
+      .then((info) => {
+        if (alive) setReadingSrc(info.url);
+      })
+      .catch((err) => {
+        if (alive) {
+          setReadingSrc(null);
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [subject, workspace]);
 
   useEffect(() => {
     if (!subject) {
@@ -51,16 +75,8 @@ export function LessonView() {
     [lessons, nodeId],
   );
 
-  // file 字段可能自带 lessons/ 前缀，统一剥掉后拼到 files/lessons/ 下；带上 workspace 让课件
-  // 与它的共享资源（../../../assets/...）都从所属工作区解析。
-  const fileSrc =
-    subject && lesson
-      ? api.courseFileUrl(
-          subject,
-          `lessons/${lesson.file.replace(/^\/?lessons\//, "")}`,
-          workspace,
-        )
-      : null;
+  // src 走 reading 接口返回的导出应用入口（应用内导航，无深链是既定取舍）
+  const fileSrc = readingSrc;
 
   const back = () => {
     router.push(subject ? `/courses?subject=${encodeURIComponent(subject)}` : "/courses");
@@ -112,7 +128,7 @@ export function LessonView() {
                 <AlertCircle className="h-5 w-5 text-red-500" />
                 <p className="text-sm text-red-500">{error}</p>
               </>
-            ) : lessons === null ? (
+            ) : lessons === null || !readingSrc ? (
               <Loader2 className="h-5 w-5 animate-spin opacity-50" />
             ) : !lesson ? (
               <p className="text-sm opacity-60">该节点没有课件</p>

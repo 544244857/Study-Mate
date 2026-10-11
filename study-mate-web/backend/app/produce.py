@@ -27,8 +27,8 @@ import yaml
 from . import audit
 from . import curriculum_store as cs
 from . import draft as draft_svc
+from . import engine_node
 from . import roles, tickets as tickets_svc
-from .config import REPO_ROOT, SCRIPTS_DIR
 
 MAX_RETRIES = 2
 # 派工路由 → 归属展示名（与 stage 标签一致；重试事件给 UI 显示用）
@@ -133,8 +133,7 @@ def is_draft(base: Path) -> bool:
 def workspace_of_subject(base: Path) -> Path:
     """<WS>/.learning/subjects/<slug> → <WS>（工单归属用）。
 
-    注意与 `ensure_subject_assets` 的共享层 `base.parent.parent`（= <WS>/.learning）
-    区分：工件目录是三层父级，别混用。
+    注意与共享层 `base.parent.parent`（= <WS>/.learning）区分：工件目录是三层父级，别混用。
     """
     return base.parent.parent.parent
 
@@ -146,34 +145,6 @@ def _relativize(path: str, base: Path) -> str:
     except ValueError:
         return str(path).replace("\\", "/")
 
-
-def parse_problems(text: str, base: Path) -> list[dict[str, str]]:
-    """渲染/检查输出 → 问题清单：`<文件>:<行> <问题>` 与 `FAIL <文件>: <问题；…>`。
-
-    check_lesson 的 FAIL 前缀是渲染产物 .html（归属映射表达不了"消息指向哪份产物"），
-    归属再按消息正文里引用的产物路径判一次——这是 learning-system「课件三份产物的
-    归属」表对检查器报错的机械延伸，不是第二份规则。
-    """
-    problems: list[dict[str, str]] = []
-    for raw in (text or "").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("WARN") or line.startswith("OK"):
-            continue
-        fail = re.match(r"^FAIL\s+(.+?):\s+(.+)$", line)
-        if fail:
-            rel = _relativize(fail.group(1), base)
-            for message in fail.group(2).split("；"):
-                problems.append({"path": rel, "line": "", "message": message.strip()})
-            continue
-        rendered = re.match(r"^(.+?):(\d+)\s+(.+)$", line)
-        if rendered:
-            rel = _relativize(rendered.group(1), base)
-            problems.append(
-                {"path": rel, "line": rendered.group(2), "message": rendered.group(3).strip()}
-            )
-    for problem in problems:
-        problem["owner"] = _owner_of_problem(problem)
-    return problems
 
 
 def _owner_of_problem(problem: dict[str, str]) -> str:
@@ -205,49 +176,6 @@ def problem_owner_for_node(problem: dict[str, str], kind: str) -> str:
     return owner
 
 
-async def _run_script(args: list[str]) -> tuple[int, str]:
-    """上游脚本子进程；to_thread 不冻结事件循环（渲染+检查一轮最长数分钟）。"""
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-
-    def _invoke() -> tuple[int, str]:
-        try:
-            proc = subprocess.run(
-                [sys.executable, "-B", *args],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=120,
-                env=env,
-            )
-            return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return 1, f"{type(exc).__name__}: {exc}"
-
-    return await asyncio.to_thread(_invoke)
-
-
-def ensure_subject_assets(base: Path) -> None:
-    """总控补齐科目组件与共享层组件（record-keeping「新建」+ 渲染引用解析）。"""
-    templates = REPO_ROOT / "templates" / "assets"
-    base_assets = base / "assets"
-    base_assets.mkdir(parents=True, exist_ok=True)
-    for name in ("style.css", "quiz.js", "lesson-toc.js"):
-        source = templates / name
-        target = base_assets / name
-        if source.is_file() and not target.exists():
-            shutil.copyfile(source, target)
-    shared = base.parent.parent / "assets"
-    shared.mkdir(parents=True, exist_ok=True)
-    for name in ("learn-theme.css", "learn-theme.js"):
-        source = templates / name
-        target = shared / name
-        if source.is_file() and not target.exists():
-            shutil.copyfile(source, target)
-    sayo_source = templates / "sayo"
-    sayo_target = shared / "sayo"
-    if sayo_source.is_dir() and not sayo_target.exists():
-        shutil.copytree(sayo_source, sayo_target)
 
 
 # ---------- 基目录感知的读写（草稿或工作区科目） ----------
@@ -916,52 +844,55 @@ def _delivered_digest(envelope: dict[str, Any]) -> str:
 # ---------- 渲染 + 检查 ----------
 
 
-def _unparsed_problem(stage: str, code: int, output: str) -> list[dict[str, str]]:
-    """非零退出但解析不出问题时，把原始输出折成一条可操作问题（对齐 build 门禁兜底）。
-
-    检查器/渲染器可能以 traceback 或非 `FAIL ...`/`文件:行` 格式失败；没有这条兜底
-    会生成 problems=[] 的打回与工单，学习者拿不到任何证据，复检还会被误判通过。
-    """
-    raw = (output or "").strip() or "（无输出）"
-    return [
-        {
-            "path": f"（{stage}）",
-            "line": "",
-            "message": f"{stage}退出码 {code}，但未能解析出问题；原始输出（截断）：{raw[:800]}",
-            "owner": "总控",
-        }
-    ]
-
 
 async def render_and_check(
     base: Path, node_id: str, index: int, emit: Emit
 ) -> tuple[bool, list[dict[str, str]]]:
-    await emit({"event": "stage", "stage": "渲染", "status": "start"})
-    code, output = await _run_script([str(SCRIPTS_DIR / "render_lesson.py"), str(base), node_id])
-    if code != 0:
-        problems = parse_problems(output, base) or _unparsed_problem("渲染", code, output)
-        await emit({"event": "stage", "stage": "渲染", "status": "fail", "problems": problems})
-        return False, problems
-    await emit({"event": "stage", "stage": "渲染", "status": "done"})
+    """检查门禁：`sm-validate lesson` 校验课件源文件（格式 + 锚点对账 + 图片存在性）。
 
-    page = base / lesson_rel(index, node_id, "html")
+    渲染由导出应用承担（上游 `sm-export`，按需触发），产课链没有独立渲染步骤。
+    阻断问题按归属表转打回轮；exit 1（CLI 自身错误）按"门禁跑不起来"兜底为一条总控问题。
+    """
+    source_rel = lesson_rel(index, node_id, "md")
+    page = base / source_rel
     await emit({"event": "stage", "stage": "检查", "status": "start"})
-    code, output = await _run_script(
-        [
-            str(SCRIPTS_DIR / "check_lesson.py"),
-            str(page),
-            "--subject",
-            str(base),
-            "--node",
-            node_id,
+    if not engine_node.available():
+        problems = [
+            {
+                "path": source_rel,
+                "line": "",
+                "message": "node 引擎未就绪（先在 engine-node 里跑 `node setup.mjs`）",
+                "owner": "总控",
+            }
         ]
-    )
-    if code != 0:
-        problems = parse_problems(output, base) or _unparsed_problem("检查", code, output)
+        await emit({"event": "stage", "stage": "检查", "status": "fail", "problems": problems})
+        return False, problems
+    try:
+        report = await asyncio.to_thread(engine_node.validate_lesson, page, base)
+    except engine_node.EngineNodeError as exc:
+        problems = [
+            {"path": source_rel, "line": "", "message": f"node 检查器失败：{exc}", "owner": "总控"}
+        ]
+        await emit({"event": "stage", "stage": "检查", "status": "fail", "problems": problems})
+        return False, problems
+    if report.get("blocking"):
+        problems: list[dict[str, str]] = []
+        for problem in report.get("problems") or []:
+            if not problem.get("blocking"):
+                continue
+            item = {
+                "path": _relativize(str(problem.get("file") or source_rel), base),
+                "line": str(problem.get("line") or ""),
+                "message": str(problem.get("message") or ""),
+            }
+            item["owner"] = _owner_of_problem(item)
+            problems.append(item)
         await emit({"event": "stage", "stage": "检查", "status": "fail", "problems": problems})
         return False, problems
     await emit({"event": "stage", "stage": "检查", "status": "done"})
     return True, []
+
+
 
 
 def _evidence_block(problems: list[dict[str, str]]) -> str:
@@ -1012,12 +943,6 @@ async def run_produce(
     stage_root = base / ".stage" / f"{node_id}-{uuid.uuid4().hex[:8]}"
 
     try:
-        ensure_subject_assets(base)
-        if not (SCRIPTS_DIR / "render_lesson.py").is_file() or not (
-            SCRIPTS_DIR / "check_lesson.py"
-        ).is_file():
-            await emit({"event": "error", "message": "上游脚本缺失：render_lesson.py / check_lesson.py"})
-            return
 
         if kind == "实验":
             await emit({"event": "stage", "stage": "出题", "status": "start"})
@@ -1108,7 +1033,6 @@ async def run_produce(
         rechecks = 0
         while not ok and round_no < MAX_RETRIES:
             owners = sorted({str(p.get("owner") or "总控") for p in problems})
-            ensure_subject_assets(base)
             if not any(owner in ("讲解", "出题") for owner in owners):
                 rechecks += 1
                 await emit({"event": "stage", "stage": "总控复检", "status": "start",
@@ -1257,7 +1181,6 @@ async def run_ticket_recheck(ticket_id: str, emit: Emit) -> None:
         if node is None:
             await emit({"event": "error", "message": f"节点不存在：{node_id}"})
             return
-        ensure_subject_assets(base)
         # 判定只看 ok：非零退出但解析不出问题时 render_and_check 已回填兜底问题；
         # 不能再用 `if problems:` 判定，否则 problems 为空会被误判「复检通过」关单。
         ok, problems = await render_and_check(base, node_id, nodes.index(node) + 1, emit)
@@ -1344,8 +1267,7 @@ async def run_ticket_retry(
             ]
             ticket = {**ticket, "problems": retry_problems}
             owners = {str(p.get("owner") or "总控") for p in retry_problems}
-            ensure_subject_assets(base)
-
+    
             if kind != "实验" and "讲解" in owners:
                 evidence = content_values(base, slug, node, index) + hint_block
                 current = base / lesson_rel(index, node_id, "md")

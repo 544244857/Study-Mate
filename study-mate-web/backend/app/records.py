@@ -18,6 +18,7 @@ from fastapi import HTTPException
 from jsonschema import Draft7Validator
 
 from . import curriculum_store as cs
+from .yaml_out import dump_yaml
 from .config import SCHEMAS_DIR
 
 logger = logging.getLogger(__name__)
@@ -299,7 +300,7 @@ def log_format_repair(what: str, kind: str, note: str = "") -> None:
 
 
 def dump_front_matter(meta: dict[str, Any]) -> str:
-    return "---\n" + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False) + "---\n"
+    return "---\n" + dump_yaml(meta) + "---\n"
 
 
 def next_seq(directory: Path) -> int:

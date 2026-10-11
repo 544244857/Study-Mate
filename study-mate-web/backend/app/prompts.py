@@ -1,6 +1,7 @@
-"""提示词分层：各链路按需注入 .dsh/skills/<名>/SKILL.md 全文。
+"""提示词分层：各链路按需注入 preset/skills/<名>/SKILL.md 全文。
 
-skill 目录定位在 engine root（仓库根 .dsh/skills）；链路 → 技能映射按
+skill 目录定位在仓库根（preset/skills，旧基线回落 .dsh/skills，见 config._skills_dir）；
+链路 → 技能映射按
 《开发与计划》§5.1 B 行（chat 链路收口 2026-10-03 拍板⑧：关联科目的会话
 退回 local-qa，建课会话注入 learning-system + learning-discovery）。
 注入是机械读盘（缓存），缺失时由调用方 503，不做裁剪、不实现第二份规则。
@@ -10,11 +11,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from .config import REPO_ROOT
+from .config import SKILLS_DIR
 
 logger = logging.getLogger(__name__)
-
-SKILLS_DIR = REPO_ROOT / ".dsh" / "skills"
 
 WEB_RUNTIME_ADAPTION = (
     "【运行环境适配】以下技能规范来自 StudyMate 宿主版本，本会话运行在 StudyMate Web 运行时："

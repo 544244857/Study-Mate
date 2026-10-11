@@ -16,6 +16,7 @@ from typing import Any
 import yaml
 
 from . import curriculum_store as cs
+from .yaml_out import dump_yaml
 
 REQUIRED_FIELDS = ("topic", "question", "misunderstanding", "answer_summary")
 EDITABLE_FIELDS = (
@@ -63,7 +64,7 @@ def _read_file(slug: str) -> list[dict[str, Any]] | None:
 def _write_file(slug: str, items: list[dict[str, Any]]) -> None:
     path = _file_path(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write(path, yaml.safe_dump(items, allow_unicode=True, sort_keys=False))
+    _atomic_write(path, dump_yaml(items))
 
 
 def _sync(slug: str, items: list[dict[str, Any]]) -> None:

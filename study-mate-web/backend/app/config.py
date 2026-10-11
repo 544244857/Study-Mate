@@ -35,7 +35,32 @@ SESSIONS_DIR = DATA_DIR / "sessions"
 UPLOADS_DIR = DATA_DIR / "uploads"
 PENDING_UPLOADS_DIR = UPLOADS_DIR / "pending"
 SCHEMAS_DIR = REPO_ROOT / "schemas"
-SCRIPTS_DIR = REPO_ROOT / "scripts"
+# node 侧引擎消费层（见 engine-node/README.md）：校验 / 导出 / 工作区发现全部从上游
+# npm 包 @yunmiao/studymate 消费，规则零分叉；引擎主链只有 node 一条路
+# （STUDYMATE_ENGINE 与 python 渲染链已随 2026-10-10 批 5 退役）。
+# engine/ 只剩冻结的 check_pool.py（图片库对账，唯一调用方 image_scout）。
+ENGINE_DIR = WEB_ROOT / "engine"
+SCRIPTS_DIR = ENGINE_DIR / "scripts"
+ENGINE_NODE_DIR = WEB_ROOT / "engine-node"
+SM_EXPORT_MJS = ENGINE_NODE_DIR / "sm-export.mjs"
+SM_VALIDATE_MJS = ENGINE_NODE_DIR / "sm-validate.mjs"
+SM_WORKSPACE_MJS = ENGINE_NODE_DIR / "sm-workspace.mjs"
+
+
+def _skills_dir() -> Path:
+    """角色规格目录：上游已把 `.dsh/skills/**` 迁到 `preset/skills/**`。
+
+    按 preset/skills → .dsh/skills 取第一个存在的：旧基线（分支）上后者在、
+    新 main 上前者在，两头自洽；内容一律现场读仓库根（回流条件①的单源项），
+    不拷副本。都不存在时给 preset 路径，让缺文件的报错指向新位置。
+    """
+    for candidate in (REPO_ROOT / "preset" / "skills", REPO_ROOT / ".dsh" / "skills"):
+        if candidate.is_dir():
+            return candidate
+    return REPO_ROOT / "preset" / "skills"
+
+
+SKILLS_DIR = _skills_dir()
 
 API_FORMATS = ("openai_chat", "openai_responses", "anthropic")
 INPUT_MODALITIES = ("text", "image", "video", "pdf")

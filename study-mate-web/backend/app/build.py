@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -20,10 +18,12 @@ import yaml
 from . import audit
 from . import curriculum_store as cs
 from . import draft as draft_svc
+from . import engine_node
 from . import image_scout, roles, tickets as tickets_svc
 from . import workspace_ctx
-from .config import REPO_ROOT, SCHEMAS_DIR, SCRIPTS_DIR
+from .config import SCHEMAS_DIR, SCRIPTS_DIR
 from .produce import fixture_curriculum_envelope, is_draft
+from .yaml_out import dump_yaml
 
 MAX_RETRIES = 2
 Event = dict[str, Any]
@@ -103,56 +103,56 @@ def _gate_problems(stdout: str, stderr: str) -> list[dict[str, str]]:
 
 
 async def run_curriculum_gate(data: dict[str, Any]) -> list[dict[str, str]]:
-    """进程内 schema 校验 + 上游 check_curriculum.py 门禁；返回问题清单（空 = 通过）。"""
+    """进程内 schema 校验 + 引擎门禁（node=上游 sm-validate / python=check_curriculum.py）；空 = 通过。"""
     problems = cs.validate_curriculum(data)
     if problems:
         return [{"path": "curriculum.yaml", "line": "", "message": p, "owner": roles.owner_of("curriculum.yaml")} for p in problems]
-    gate = SCRIPTS_DIR / "check_curriculum.py"
-    if not gate.is_file():
+    return await _gate_via_node(data)
+
+
+def _node_gate_problems(report: dict[str, Any]) -> list[dict[str, str]]:
+    """node 校验报告 → 门禁问题清单（schema 级问题上游全部标 blocking）。"""
+    return [
+        {
+            "path": "curriculum.yaml",
+            "line": str(problem.get("line") or ""),
+            "message": str(problem.get("message") or ""),
+            "owner": roles.owner_of("curriculum.yaml"),
+        }
+        for problem in (report.get("problems") or [])
+        if problem.get("blocking")
+    ][:20]
+
+
+async def _gate_via_node(data: dict[str, Any]) -> list[dict[str, str]]:
+    """node 门禁：同一份临时大纲交给上游校验器（规则单源 = 上游包）。"""
+    if not engine_node.available():
         return [
-            {"path": "curriculum.yaml", "line": "", "message": "上游脚本缺失：scripts/check_curriculum.py", "owner": "总控"}
+            {
+                "path": "curriculum.yaml",
+                "line": "",
+                "message": "node 引擎未就绪（先在 engine-node 里跑 `node setup.mjs`），或设 STUDYMATE_ENGINE=python 回退",
+                "owner": "总控",
+            }
         ]
     tmp_name = ""
     try:
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", encoding="utf-8", delete=False) as tmp:
-            yaml.safe_dump(data, tmp, allow_unicode=True, sort_keys=False)
+            tmp.write(dump_yaml(data))
             tmp_name = tmp.name
-        proc = await asyncio.to_thread(
-            subprocess.run,
-            [sys.executable, "-B", str(gate), tmp_name],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=120,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
-            cwd=str(REPO_ROOT),
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return [{"path": "curriculum.yaml", "line": "", "message": f"门禁启动失败：{exc}", "owner": "总控"}]
+        report = await asyncio.to_thread(engine_node.validate_data, "curriculum", Path(tmp_name))
+    except (OSError, engine_node.EngineNodeError) as exc:
+        return [{"path": "curriculum.yaml", "line": "", "message": f"node 门禁失败：{exc}", "owner": "总控"}]
     finally:
         if tmp_name:
             Path(tmp_name).unlink(missing_ok=True)
-    if proc.returncode != 0:
-        problems = _gate_problems(proc.stdout or "", proc.stderr or "")
-        if not problems:
-            # 不信任模型自查，同样不信任"解析不出问题"：门禁非零退出却一条问题都
-            # 提取不到，绝不能当通过。把原始输出（截断）塞进问题清单，模型才有可
-            # 操作的线索；否则这个漏洞会让带病大纲直接落盘。
-            raw = "\n".join(part for part in (proc.stdout or "", proc.stderr or "") if part).strip()
-            problems = [
-                {
-                    "path": "curriculum.yaml",
-                    "line": "",
-                    "message": (
-                        f"门禁退出码 {proc.returncode}，但未能解析出问题；原始输出（截断）："
-                        f"{raw[:800] or '（无输出）'}"
-                    ),
-                    "owner": roles.owner_of("curriculum.yaml"),
-                }
-            ]
-        return problems
+    if report.get("blocking"):
+        problems = _node_gate_problems(report)
+        return problems or [
+            {"path": "curriculum.yaml", "line": "", "message": "node 门禁判定阻断但未给出问题清单", "owner": "总控"}
+        ]
     return []
+
 
 
 async def _dispatch_curriculum(
@@ -207,9 +207,6 @@ async def run_build(slug: str, provider: dict[str, Any], emit: Emit) -> None:
         return
     stage_root = base / ".stage"
     try:
-        from .produce import ensure_subject_assets
-
-        ensure_subject_assets(base)
         interview = interview_of(base)
         values = curriculum_values(base, interview)
 
