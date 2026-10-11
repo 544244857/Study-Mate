@@ -34,7 +34,6 @@ SETTINGS_PATH = DATA_DIR / "settings.json"
 SESSIONS_DIR = DATA_DIR / "sessions"
 UPLOADS_DIR = DATA_DIR / "uploads"
 PENDING_UPLOADS_DIR = UPLOADS_DIR / "pending"
-SCHEMAS_DIR = REPO_ROOT / "schemas"
 # node 侧引擎消费层（见 engine-node/README.md）：校验 / 导出 / 工作区发现全部从上游
 # npm 包 @yunmiao/studymate 消费，规则零分叉；引擎主链只有 node 一条路
 # （STUDYMATE_ENGINE 与 python 渲染链已随 2026-10-10 批 5 退役）。
@@ -47,17 +46,34 @@ SM_VALIDATE_MJS = ENGINE_NODE_DIR / "sm-validate.mjs"
 SM_WORKSPACE_MJS = ENGINE_NODE_DIR / "sm-workspace.mjs"
 
 
+def engine_schema_path(name: str) -> Path:
+    """引擎 schema 定位：规则单源 = 上游 npm 包内的 `schemas/*.json`（AGENTS.md 规矩 3）。
+
+    优先 setup.mjs 整形出的 `vendor/studymate`，其次 `node_modules` 里的原包——两者
+    内容一致，前者是 node 能直接 strip `.ts` 的布局。都没有说明 engine-node 还没装，
+    调用方按「引擎未就绪」报错并指引 `node setup.mjs`，**不回落到仓库根那份**：根
+    `schemas/` 是回流前要对齐的旧基线，拿它当判定源会和门禁（包内 schema）各说各话。
+    """
+    for candidate in (
+        ENGINE_NODE_DIR / "vendor" / "studymate" / "schemas",
+        ENGINE_NODE_DIR / "node_modules" / "@yunmiao" / "studymate" / "schemas",
+    ):
+        if (candidate / name).is_file():
+            return candidate / name
+    return ENGINE_NODE_DIR / "vendor" / "studymate" / "schemas" / name
+
+
 def _skills_dir() -> Path:
     """角色规格目录：上游已把 `.dsh/skills/**` 迁到 `preset/skills/**`。
 
-    按 preset/skills → .dsh/skills 取第一个存在的：旧基线（分支）上后者在、
-    新 main 上前者在，两头自洽；内容一律现场读仓库根（回流条件①的单源项），
-    不拷副本。都不存在时给 preset 路径，让缺文件的报错指向新位置。
+    只认 `preset/skills`——2026-10-11 已随上游同步把 `.dsh/` 删掉，回落分支是历史遗留。
+    内容一律现场读仓库根（回流条件①的单源项），不拷副本。目录不存在时返回该路径，
+    让缺文件的报错指向唯一正确位置。
     """
-    for candidate in (REPO_ROOT / "preset" / "skills", REPO_ROOT / ".dsh" / "skills"):
-        if candidate.is_dir():
-            return candidate
-    return REPO_ROOT / "preset" / "skills"
+    candidate = REPO_ROOT / "preset" / "skills"
+    if candidate.is_dir():
+        return candidate
+    return candidate
 
 
 SKILLS_DIR = _skills_dir()

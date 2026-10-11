@@ -1,7 +1,7 @@
 """提示词分层：各链路按需注入 preset/skills/<名>/SKILL.md 全文。
 
-skill 目录定位在仓库根（preset/skills，旧基线回落 .dsh/skills，见 config._skills_dir）；
-链路 → 技能映射按
+skill 目录定位在仓库根 `preset/skills`（上游唯一位置，`.dsh/skills` 已随同步删除，
+见 config._skills_dir）；链路 → 技能映射按
 《开发与计划》§5.1 B 行（chat 链路收口 2026-10-03 拍板⑧：关联科目的会话
 退回 local-qa，建课会话注入 learning-system + learning-discovery）。
 注入是机械读盘（缓存），缺失时由调用方 503，不做裁剪、不实现第二份规则。

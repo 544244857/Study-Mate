@@ -21,7 +21,7 @@ from . import draft as draft_svc
 from . import engine_node
 from . import image_scout, roles, tickets as tickets_svc
 from . import workspace_ctx
-from .config import SCHEMAS_DIR, SCRIPTS_DIR
+from .config import SCRIPTS_DIR, engine_schema_path
 from .produce import fixture_curriculum_envelope, is_draft
 from .yaml_out import dump_yaml
 
@@ -46,15 +46,23 @@ def interview_of(base: Path) -> dict[str, Any]:
 def _curriculum_schema_text() -> str:
     """读大纲 schema 全文用于内联派工值；文件缺失时安全回落（不因缺文件而炸）。
 
-    工具循环沙箱的 read_roots 只有草稿目录，模型自己读不到仓库根的
-    schemas/curriculum.schema.json——实测只能靠猜，门禁连续打回（节点 id 大写、
-    edges 缺 reason、realworld 类型错）。把全文内联进派工值才真正可达。
+    工具循环沙箱的 read_roots 只有草稿目录，模型自己读不到引擎 schema——实测只能靠猜，
+    门禁连续打回（节点 id 大写、edges 缺 reason、realworld 类型错）。把全文内联进派工值
+    才真正可达。
+
+    读的是**包内** schema（规则单源），与门禁 `sm-validate curriculum` 判定用的是同一份：
+    早先读仓库根那份旧基线（六档 status + mastery），模型照它写出来的值会被包内三档
+    schema 拦下，提示词与门禁互相打架。
     """
-    path = SCHEMAS_DIR / "curriculum.schema.json"
+    path = engine_schema_path("curriculum.schema.json")
     try:
         return path.read_text(encoding="utf-8")
     except OSError:
-        return "（schema 文件缺失：schemas/curriculum.schema.json）"
+        return (
+            f"（引擎 schema 缺失：{path}——先在 engine-node 里跑 `node setup.mjs`；"
+            "节点必填键：id、title、objective、prerequisites、status、kind，"
+            "边必填键：from、to、reason，realworld 必须是字符串）"
+        )
 
 
 def curriculum_values(base: Path, interview: dict[str, Any]) -> str:
@@ -70,14 +78,14 @@ def curriculum_values(base: Path, interview: dict[str, Any]) -> str:
             f"【配套项目】{interview.get('project') or '未定（设计时预留可挂项目的实操素材）'}",
             f"【实验载体】{interview.get('carrier') or '未定（实验任务写成与载体无关的可执行任务书）'}",
             "【输出契约】data 键 = {\"nodes\": [...], \"edges\": [...]}，"
-            "节点字段全量以 schemas/curriculum.schema.json 为准（全文已内联在下方，规格是权威）。",
+            "节点字段全量以引擎 schema（curriculum.schema.json）为准（全文已内联在下方，规格是权威）。",
             "【硬约束（逐条核对）】节点 id 必须匹配 ^[a-z0-9]+([.-][a-z0-9]+)*$"
             "（小写字母/数字，`.` 或 `-` 分隔，不能有大写字母，如 `nE1` 非法）；"
             "节点必填键：id、title、objective、prerequisites、status、kind；"
             "边（edges）必填键：from、to、reason（reason 必须有）；"
             "realworld 必须是字符串（不是数组）。",
             "",
-            "【schemas/curriculum.schema.json 全文】",
+            "【引擎 schema（curriculum.schema.json）全文】",
             _curriculum_schema_text(),
             "",
             "【资源清单】",

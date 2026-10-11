@@ -52,7 +52,7 @@ def workspace_course_file(token: str, slug: str, file_path: str):
 
 @router.get("/workspace-files/{token}/courses/assets/{file_path:path}")
 def workspace_shared_asset(token: str, file_path: str):
-    """委托 lessons.get_shared_asset：先 token 工作区 assets，缺则回退仓库 templates/assets。"""
+    """委托 lessons.get_shared_asset：只认 token 工作区的 assets（仓库 templates/assets 已退役）。"""
     return lessons.get_shared_asset(file_path, str(_workspace_from_token(token)))
 
 

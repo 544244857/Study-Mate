@@ -11,7 +11,6 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from .. import curriculum_store as cs
 from ..common import require_subject
-from ..config import REPO_ROOT
 from .courses import bound_workspace
 
 router = APIRouter(prefix="/api", tags=["lessons"])
@@ -109,20 +108,21 @@ def list_attachments_area(slug: str, workspace: str | None = None) -> dict[str, 
 
 @router.get("/courses/assets/{file_path:path}")
 def get_shared_asset(file_path: str, workspace: str | None = None) -> FileResponse:
-    """课件里的 `../../../assets/...`（KaTeX/主题/sayo）落到这里：先工作区 assets，缺则回退仓库 templates/assets。"""
+    """课件里的 `../../../assets/...`（KaTeX/主题/sayo）落到这里：只认工作区 `.learning/assets`。
+
+    仓库 `templates/assets` 那份回退已随上游退役一并删除——导出应用自带前端资源，
+    共享资源由科目工作区自己提供。
+    """
     name = file_path.replace("\\", "/")
     if name.startswith("/") or ".." in name.split("/"):
         raise HTTPException(400, "路径非法")
     with bound_workspace(workspace):
-        for raw_base in (cs.workspace_dir() / ".learning" / "assets", REPO_ROOT / "templates" / "assets"):
-            base = raw_base.resolve()
-            target = (base / name).resolve()
-            if target == base or base not in target.parents:
-                continue
-            if target.is_file():
-                media_type = CONTENT_TYPES.get(target.suffix.lower(), "application/octet-stream")
-                return FileResponse(target, media_type=media_type)
-        raise HTTPException(404, f"共享资源不存在：{file_path}")
+        base = (cs.workspace_dir() / ".learning" / "assets").resolve()
+        target = (base / name).resolve()
+        if target == base or base not in target.parents or not target.is_file():
+            raise HTTPException(404, f"共享资源不存在：{file_path}")
+        media_type = CONTENT_TYPES.get(target.suffix.lower(), "application/octet-stream")
+        return FileResponse(target, media_type=media_type)
 
 
 @router.get("/courses/{slug}/quiz/{node_id}")

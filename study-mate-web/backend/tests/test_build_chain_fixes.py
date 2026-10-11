@@ -31,15 +31,22 @@ def produce_subject(client, new_subject):
 
 def test_curriculum_values_inlines_schema_and_constraints(tmp_path):
     from app import build
-    from app.config import SCHEMAS_DIR
+    from app.config import engine_schema_path
 
     base = tmp_path / "draft"
     base.mkdir()
     values = build.curriculum_values(base, {"name": "示例科目"})
 
-    schema = (SCHEMAS_DIR / "curriculum.schema.json").read_text(encoding="utf-8")
+    # 内联的必须是**引擎包内**那份 schema（规则单源），与门禁 sm-validate 判定同源
+    schema_path = engine_schema_path("curriculum.schema.json")
+    assert schema_path.is_file(), f"引擎 schema 不在：{schema_path}（先跑 node setup.mjs）"
+    schema = schema_path.read_text(encoding="utf-8")
     assert schema in values, "schema 全文必须内联进派工值"
     assert '"realworld"' in schema  # 内联的确实是这份 schema
+
+    # 包内 schema 是三档建课快照；内联旧基线（六档 + mastery）会让提示词与门禁打架
+    assert '"已学完"' in schema
+    assert '"mastery"' not in schema
 
     # 硬约束逐条在派工值里（模型据此写，不再靠猜）
     assert "^[a-z0-9]+([.-][a-z0-9]+)*$" in values
@@ -49,7 +56,7 @@ def test_curriculum_values_inlines_schema_and_constraints(tmp_path):
     assert "realworld 必须是字符串（不是数组）" in values
 
     # 原有契约句式与资源清单仍在（没有缩短 values 契约）
-    assert "节点字段全量以 schemas/curriculum.schema.json 为准" in values
+    assert "节点字段全量以引擎 schema（curriculum.schema.json）为准" in values
     assert "【资源清单】" in values
 
 

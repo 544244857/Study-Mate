@@ -37,7 +37,8 @@ def node_executable() -> str | None:
 
 
 def available() -> bool:
-    """node 可执行 + vendor 产物齐全。不齐时调用方应回落冻结 Python（旁路静默跳过）。"""
+    """node 可执行 + vendor 产物齐全。不齐时调用方明确报错并指引 `node setup.mjs`——引擎主链
+    只有 node 一条路，没有 python 回落可退。"""
     return (
         node_executable() is not None
         and (ENGINE_NODE_DIR / "vendor" / "studymate" / "package.json").is_file()

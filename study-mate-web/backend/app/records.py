@@ -1,6 +1,7 @@
 """评估/小结记录：front matter 解析、schema 校验、落盘与扫描。
 
-schema 文件来自仓库根 schemas/*.schema.json（REPO_ROOT = BASE_DIR.parent.parent）。
+schema 文件来自引擎包内 `schemas/*.schema.json`（规则单源 = 上游 npm 包，见
+`config.engine_schema_path`）；仓库根那份是回流前要对齐的旧基线，不作判定源。
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ from jsonschema import Draft7Validator
 
 from . import curriculum_store as cs
 from .yaml_out import dump_yaml
-from .config import SCHEMAS_DIR
+from .config import engine_schema_path
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,11 @@ _BLOCK_SCALAR_RE = re.compile(r"[:：]\s*[|>][+-]?\s*$")
 
 
 def _load_schema(name: str) -> dict[str, Any]:
-    path = SCHEMAS_DIR / f"{name}.schema.json"
+    path = engine_schema_path(f"{name}.schema.json")
     if not path.is_file():
-        raise HTTPException(503, f"上游 schema 缺失：{path}")
+        raise HTTPException(
+            503, f"上游 schema 缺失：{path}（先在 engine-node 里跑 `node setup.mjs`）"
+        )
     return json.loads(path.read_text(encoding="utf-8"))
 
 
