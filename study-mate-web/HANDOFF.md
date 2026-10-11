@@ -13,6 +13,8 @@
   - 版本号在三处保持严格一致：`frontend/package.json`、`backend/app/main.py` 及前端侧边栏读取点。版本变更需维护者同意。
 - **引擎架构演进现状**：
   - **主链 Node 化**：上游 npm 发布物（`@yunmiao/studymate`）接入已就绪，`engine-node/` 承担 `sm-validate lesson`（课件校验）、`sm-validate curriculum`（大纲校验）及 `sm-workspace`（工作区发现）。
+  - **规则单源 = 包内 schema**：建课派工值内联的 `curriculum.schema.json` 与 `records.py` 的 schema 校验都走 `config.engine_schema_path()` 读**引擎包内**那份（2026-10-11 修正，此前读仓库根旧基线，与门禁各说各话）；仓库根 `schemas/` 已随上游同步到三档，仅作对齐副本。
+  - **根资源部分对齐上游**：`preset/`（含 `preset/skills` 12 个技能）与根 `README` / `README.en` / `GLOSSARY` / `CONTRIBUTING` / `AGENTS` 已同步到上游 `main`。根 `schemas/`、`docs/`、`.dsh/`、`templates/` 引擎资产、`examples/` **未同步也未删**——它们与旧根 `scripts/`+`bin/` 是耦合单元，只动几样会让根 `npm test` 变红，要同步就得连 `scripts/` 一起（见回流专题 §5 注）。E2E 种子课件已迁入 `backend/seed/computer-networks/`，不再依赖 `examples/`。
   - **导出阅读端集成**：课件阅读与全工作区主页采用统一导出层（`app/exporter.py` 按需导出与 `.stamp` 缓存），前端 `LessonView` 与 `HomeEmbed` 内嵌自包含阅读端应用；旧 Python 渲染链路已退役，`engine/` 仅保留 `check_pool.py` 用于采图自检。
 - **Agent 工具面与生产编排**：
   - 生产侧（建课 `build.py` 与产课 `produce.py`）采用工具化 Agent 循环与统一门禁自修；建课向导 `generate.py` 已统一复用 `build.run_curriculum_gate` 门禁与硬约束。
@@ -26,8 +28,8 @@
 ## 2. 接下来做什么（真实待办与演进方向）
 
 1. **回流准备（上游新 main 对齐，专题见 [引擎复用与回流.md](docs/StudyMate-Web_引擎复用与回流.md) §6）**：
-   - **`schemas/` 数据契约对齐**：上游课程节点状态已由六档收敛为三档，需按《目标态规格》同步映射 `curriculum_store.py` 内部状态机及进度结构。
-   - **`preset/skills` 规格漂移核验**：核对上游新增的技能规范，确保动态读取机制不破坏现有的提示词全文注入链路。
+   - **`curriculum_store.py` 状态机六档 → 三档映射**：根 `schemas/` 与包内 `progress.schema.json` 都已是三档（2026-10-11 已同步），但 `TRANSITIONS` / `DONE_STATUSES` 仍是旧六档，需按上游《目标态规格》§5.2 改造。
+   - ~~`preset/skills` 规格漂移核验~~ **已闭环**（2026-10-11 随上游同步，9 条链路路由全部解析到）。
    - 回流时机等维护者；**忌** `git merge web/0.7.0-beta`（合并后树上什么都不发生，属空操作）。
 2. **主动检索（Resource Scout）方案拍板（规划项 #9）**：
    - 解决从零建课时资料清单为空导致采图跳过的问题；三种演进路线评估详见专题文档 [Chat工具面与主动检索设计.md](docs/StudyMate-Web_Chat工具面与主动检索设计.md)。
@@ -81,7 +83,7 @@
 9. **E2E 断言防御性陷阱**：
    - 避免模糊匹配（如 `toBeHidden()` 需单一定位、`<details>` 内部 summary 避让、Canvas 多层穿透等）；工具卡常显时注意 `process-panel` 可能整块不渲染。
 10. **大纲与课件沙箱可达性**：
-    - 工具沙箱读根仅限工作区，无法读取仓库根目录；建课大纲派工值必须内联 `schemas/curriculum.schema.json` 全文与关键约束，否则模型易盲猜引发门禁反复打回。
+    - 工具沙箱读根仅限工作区，无法读取仓库根目录；建课大纲派工值必须内联**引擎包内** `curriculum.schema.json` 全文与关键约束，否则模型易盲猜引发门禁反复打回。
 
 ---
 

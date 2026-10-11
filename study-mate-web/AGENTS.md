@@ -30,19 +30,21 @@
 1. **验证门禁**：改 `backend/` 后跑 `python -m pytest tests`（测试依赖见 `backend/requirements-dev.txt`）
    + `python -m compileall app`，并按需起服务 curl 关键端点；改 `frontend/` 后
    `npm run build`（含 TS 严格检查）。改对话/设置/附件等功能后跑 `npm run test:e2e`。
-2. **数据合同**：课程/进度口径与根目录 `schemas/*.schema.json` 一致；掌握度状态机的唯一实现是
-   `backend/app/curriculum_store.py` 的 `TRANSITIONS`；新词表（importance/lab_status/verdict 等）
-   只在该文件定义一次。改词表要两边同步并跑通两边验证。
+2. **数据合同**：判定用的 schema 一律取**引擎包内** `schemas/*.json`（`config.engine_schema_path`
+   定位，规则单源 = 上游 npm 包）；仓库根 `schemas/` 只是随上游对齐的副本，**不作判定源**。
+   掌握度状态机的唯一实现是 `backend/app/curriculum_store.py` 的 `TRANSITIONS`；新词表
+   （importance/lab_status/verdict 等）只在该文件定义一次。**已知缺口**：`TRANSITIONS` 还是
+   旧六档，包内 `progress.schema.json` 已是三档（未开始/学习中/已学完）——按上游《目标态规格》
+   §5.2 映射改造是回流条件①的剩余项（见[引擎复用与回流](docs/StudyMate-Web_引擎复用与回流.md) §6）。
 3. **引擎 = 上游 npm 包，规则零分叉（2026-10-10 起）**：校验 / 导出 / 工作区发现全部走
    **`engine-node/`**（上游 `@yunmiao/studymate` 的消费层：setup.mjs 整形 + sm-export /
    sm-validate / sm-workspace 三 CLI，后端 `app/engine_node.py` 是唯一调用入口）。schema
    一律用包内 `schemas/*.json`——校验规则的单源就是上游包本身；升版 checklist 见
    [engine-node/README.md](engine-node/README.md)。**冻结 Python 只剩
    `engine/scripts/check_pool.py`**（图片库对账，唯一调用方 `image_scout`）；旧
-   `STUDYMATE_ENGINE` 双模式与 python 渲染链已退役，别再加回。**schemas/ 与角色规格仍是
-   仓库根单源**：schemas 现场读根目录（引擎数据合同以包内 schema 为准做判定、仓库根那份
-   回流时对齐）；角色规格按 `preset/skills` → `.dsh/skills` 顺序现场读
-   （`config._skills_dir`），都不拷副本。学习工作区发现复用上游 `lib/workspace` 语义
+   `STUDYMATE_ENGINE` 双模式与 python 渲染链已退役，别再加回。**角色规格现场读
+   `preset/skills/<名>/SKILL.md`**（`config._skills_dir` 只认这一处；`.dsh/skills` 仍在仓库里，
+   但那是旧根安装器才用的副本，Web 不读），不拷副本。学习工作区发现复用上游 `lib/workspace` 语义
    （优先级：显式参数 > `STUDYMATE_WORKSPACE` > `LEARN_WORKSPACE` >
    `STUDYMATE_CONFIG`/`$DSH_HOME/studymate-config.yaml`），布局与插件同构
    （`<WS>/.learning/subjects`）；node 未就绪时明确报错指引 `node setup.mjs`，不静默降级。

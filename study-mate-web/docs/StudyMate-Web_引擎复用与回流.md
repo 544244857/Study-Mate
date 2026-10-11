@@ -108,31 +108,44 @@
 
 ## 5. 根资源引用现状（回流对照）
 
-上游移出主线后曾逐项核对 Web 对仓库根资源的引用与上游新 `main` 的差距，现状如下：
+上游移出主线后曾逐项核对 Web 对仓库根资源的引用与上游新 `main` 的差距。2026-10-11 按
+「旧根工具链还受得了的范围」对齐了一部分，现状如下：
 
 | 根资源 | 上游现状 | Web 现状 |
 |---|---|---|
 | `scripts/{render_lesson,check_lesson,gen_home,check_curriculum}.py` | 已删 | **退役**：渲染 / 主页 / 课件与大纲门禁全部走 `engine-node/`（上游 npm 包） |
 | `scripts/check_pool.py` | 已删 | **内建冻结** `engine/scripts/check_pool.py`（`image_scout` 唯一调用方，子进程） |
-| `.dsh/skills/<名>/SKILL.md` | 迁 `preset/skills/`，12 个同名、内容已漂移 | **现场读单源**：`config._skills_dir()` 按 `preset/skills` → `.dsh/skills` 取第一个存在的，不拷副本 |
-| `schemas/*.schema.json` | 文件在、内容已演进 | 引擎判定用**包内 schema**；仓库根 `schemas/` 现场读，**内容对齐待做**（§6） |
-| `templates/MEMORY.md` 等 | 仍在 | 不动 |
-| `templates/assets/**`（科目组件） | 已删 | **退役**：导出应用自带前端资源 |
+| 技能规格 | 迁 `preset/skills/`，12 个技能 | **已同步**：`preset/` ← 上游 `main`；`config._skills_dir()` 只认 `preset/skills`（含上游新增的 `curriculum-designer`），`.dsh/skills` 回落分支已删 |
+| `schemas/*.schema.json` | 内容已演进（三档、删 `mastery`） | **未同步**（见下）；引擎判定走 `config.engine_schema_path()` 读**包内** schema，根那份不读 |
+| `.dsh/` | 已删 | **仍在**（旧根安装器 `bin/studymate.mjs` 仍拷 `.dsh/skills`，删了根 `npm test` 红） |
+| `templates/MEMORY.md` 等 6 份 | 仍在 | 不动（`memory.py` 读 MEMORY.md） |
+| `templates/` 引擎渲染资产（`lesson.html` / `assets/**` 等 72 文件） | 已删 | **仍在**（`scripts/tests/test_openai_plugin.mjs` 仍要求 `templates/lesson.html` 进导出 ZIP） |
+| `examples/**` | 已删 | **仍在**（`scripts/build_examples.py` 仍生成它）；但 E2E 种子已于 2026-10-11 迁入 `backend/seed/computer-networks/`，不再依赖它 |
 | 工作区发现（`studymate-config.yaml` + `DSH_HOME`） | `lib/workspace.ts` 口径未变 | **零适配**（`sm-workspace`） |
+
+> **为什么根 `schemas/`、`docs/`、`.dsh/`、`templates/` 引擎资产、`examples/` 没能一起同步/删除**：
+> 它们和旧根 `scripts/`+`bin/` 是一个**耦合单元**——旧 `scripts/tests` 会交叉校验 schema 配色表
+> （`statuses.py` 还是六档）与 `docs/规范/工程约束.md` §四 的脚本清单，旧安装器仍拷
+> `.dsh/skills` 与整个 `templates/`。只同步其中几样，根 `npm test` 立刻报
+> 「schema 里每个节点状态都有配色 — ['已学完']」等红。上游是把资源和安装器/测试**一起**改掉的
+> （其 `bin/studymate.mjs` 已读 `preset/skills`，注释写明「别挪回 `.dsh/skills`」；其 openai 插件
+> 测试把 `templates/lesson.html` 列进 **unwanted**）。**要同步就连 `scripts/` 一起同步**，
+> 否则维持 `92d1122` 原状——本轮按约定未碰 `scripts/`。
 
 ## 6. 回流（合回 `main`）条件与剩余项
 
 ADR-0013 的两个回流条件：
 
-- **条件① 单源项必须单一来源**（schemas、角色规格）——剩余两条：
-  1. **`schemas/` 内容对齐**：`curriculum.schema.json` 的节点 `status` 由**六档**（未开始 / 学习中 /
-     初步理解 / 能独立应用 / 需要复习 / 已通过项目验证）改为**三档建课快照**（未开始 / 学习中 /
-     已学完），运行期状态只写 `progress.yaml`；`progress` / `question`（新增）/ `attempts`（全新）/
-     `misconceptions` / `assessment` / `session-summary` 均有变。**代码对应点**：`curriculum_store.py`
-     的六档状态机要按上游《目标态规格》§5.2 的映射改造（对齐 `progress.schema.json` 的 enum）；
-     `records.py` 的 schema 校验改为直接读上游 schemas。
-  2. **`preset/skills` 的 SKILL.md 内容漂移核对**：同名 12 个、20 文件有变；我们只读不拷，但要确认
-     新内容不破坏现有注入链路。
+- **条件① 单源项必须单一来源**（schemas、角色规格）：
+  1. **技能规格已闭环**（2026-10-11）：`preset/skills` 已同步，9 条链路路由全部解析到。
+  2. **`curriculum_store.py` 的六档状态机要按上游《目标态规格》§5.2 映射改造**：包内
+     `progress.schema.json` 已是三档（未开始 / 学习中 / 已学完），但 `TRANSITIONS` 与
+     `DONE_STATUSES`（`能独立应用` / `已通过项目验证`）仍是旧六档——这两个值在三档 enum 里不存在。
+     目前只是潜在：后端只调 `validate_data("curriculum")`，从没用包内 progress 校验器验过
+     `progress.yaml`；建课提示词与门禁已同用包内 schema（2026-10-11 修），不会再互相打架。
+  3. **根 `schemas/` 内容对齐仍未做**：它必须和根 `scripts/`+`bin/` 一起同步（见 §5 注），
+     单独同步会让根 `npm test` 变红。判定源已切包内，所以这一项不再影响 Web 行为，
+     只在回流时作为整体单元处理。
 - **条件② 允许引擎实现各写一份**——现行做法更优：**消费上游发布物**，规则零分叉。
 
 > **回流手法（ADR-0013 的坑，实操时照抄）**：**不要** `git merge web/0.7.0-beta`——合并基就是当初

@@ -494,3 +494,49 @@
 - **长青文档事实修正**：`StudyMate-Web_开发与计划.md` §2 铁律 3 / 7 / 8、§4 与 `StudyMate-Web_PRD.md` 的工作区发现、技能目录、产课链收口、校验口径仍写着已退役的 `engine/scripts/` 叶子清单、`learn_workspace()`、`check_lesson.py`，随本次合并一并改写成 node 消费层口径；E2E 流程表里 `export.spec.ts` 的「真跑 gen_home」改为「真跑 sm-export」。
 - **遗留事实修正**：并发整理时被外部恢复的 `frontend/tests/e2e/lesson-quiz.spec.ts` 再次删除——它断言的是旧 Python 渲染链产物（`.quiz__opt` / `0002-net.link.html` / `lesson-nav__link--next`），上游导出 SPA 的阅读端里这些类名与逐课 HTML 一概不存在，保留必红；阅读端覆盖由 `reading.spec.ts` 承担。
 - **验证（同一状态复跑）**：后端 **502 passed / 1 skipped**；`compileall` 通过；engine-node `setup.mjs` 就绪、契约 **18/18**；组件 **122 passed（17 文件）**；lint **0 errors / 51 warnings**；`next build` 通过；根 `npm test` 通过；**E2E 97 passed / 0 failed / 3 skipped**。本轮改动只涉及文档与版本字符串，E2E 条数与上一状态一致。
+
+
+---
+
+## 2026-10-11 · 引擎 schema 读取点收口 + 根资源按可同步范围对齐上游
+
+> 性质：**只追加**。上游 `web/0.7.0-beta` 停在 `92d1122`（10-07），`main` 已走到 2.0.1。本条目修掉建课提示词与门禁互相打架的老问题，并把根目录资源**按旧根工具链还受得了的范围**对齐。
+
+- **引擎 schema 读取点切到包内（修真实矛盾）**：`build.py::_curriculum_schema_text()` 与
+  `records.py::_load_schema()` 原先读仓库根 `schemas/`——那份还是旧六档 + `mastery`，而门禁
+  `sm-validate` 用的是包内三档 schema。模型照内联的全景写出六档 status 或带上 `mastery`，
+  我们自己的六档校验放行、上游门禁再拦下。现在两处都走新增的 `config.engine_schema_path()`
+  （vendor → node_modules 两级定位，**不回落到根目录**），**提示词与门禁判定同源**。
+  批 5 只修了 fixture，没修这条链路，本次补上；测试同步钉死「内联的是包内三档、无 mastery」。
+- **技能规格同步**：`preset/` ← 上游 `main`（12 文件，`preset/skills` 12 个技能，含上游新增的
+  `curriculum-designer`）。`config._skills_dir()` 改为**只认 `preset/skills`**（`.dsh/skills` 回落
+  分支删除），9 条链路路由（chat / interview / assess / summary / grade / generate /
+  produce_content / produce_quiz / produce_experiment）引用的技能全部解析到。
+- **根文档同步**：`README.md` / `README.en.md` / `GLOSSARY.md` / `CONTRIBUTING.md` / `AGENTS.md`
+  ← 上游 `main`（纯声明性文档，不被根工具链交叉校验）。
+- **E2E 种子迁入子项目**：`global-setup.ts` 原先从 `examples/.learning/subjects/computer-networks`
+  取课件 / 术语表 / 科目资产——上游已删 `examples/`，这条依赖随时会断。已把这三样
+  （GLOSSARY.md + lessons/ + assets/，约 190KB）迁进 `backend/seed/computer-networks/`，与既有三份
+  YAML 种子合并，`global-setup.ts` 改读同一目录。**E2E 全量复跑 97 passed / 0 failed / 3 skipped，
+  与迁移前一致。**
+- **CI 触发路径修正**：`web-ci.yml` 去掉 `scripts/**` / `.dsh/skills/**` / `examples/**`
+  （这三样本子项目已不消费），改列 `preset/skills/**` 与 `engine-node/**`。
+- **想删但删不动的三样（实测记录，留作后续同步的依据）**：`.dsh/`、`templates/` 的引擎渲染资产
+  （`lesson.html` / `home-index.html` / `subject-index.html` / `assets/**`）、`examples/`——
+  逐一删过，**每一样都让根 `npm test` 变红**：根安装器 `bin/studymate.mjs` 仍拷
+  `.dsh/skills` + 整个 `templates/`，`scripts/build_examples.py` 仍生成 `examples/`，
+  `scripts/tests/test_openai_plugin.mjs` 仍要求 `templates/lesson.html` 在导出 ZIP 里。
+  上游是把这三样和安装器 / 测试**一起**改掉的（其 `bin/studymate.mjs` 已读 `preset/skills`，
+  注释写明「别挪回 `.dsh/skills`」；其 openai 插件测试把 `templates/lesson.html` 列进
+  **unwanted**）。同理，根 `schemas/` 与 `docs/` 也**不能单独同步**：旧 `scripts/` 会交叉校验
+  它们（`statuses.py` 配色表还是六档、`工程约束` §四 脚本清单还是旧引擎脚本），只同步这两样
+  会让 `npm test` 报「schema 里每个节点状态都有配色 — ['已学完']」等 3 条红。
+  **结论：根 `scripts/`+`bin/`+`schemas/`+`docs/`+`templates/`+`.dsh/`+`examples/` 是一个耦合单元，
+  要同步就连 `scripts/` 一起同步（本轮按约定未碰 `scripts/`），否则维持 `92d1122` 原状。**
+- **回流条件①进展**：资源层**部分**闭环——技能规格已同步、判定源已切包内；`curriculum_store.py`
+  的 `TRANSITIONS` / `DONE_STATUSES` 仍是旧六档（`能独立应用` / `已通过项目验证` 不在包内三档
+  enum 里），需按上游《目标态规格》§5.2 映射。当前只是潜在：后端只调
+  `validate_data("curriculum")`，从没用包内 progress 校验器验过 `progress.yaml`。
+- **验证**：后端 **502 passed / 1 skipped**；`compileall` 通过；E2E **97 passed / 0 failed / 3 skipped**；
+  `engine-node` 契约 **18/18**；组件 **122 passed**；lint **0 errors / 51 warnings**；`next build` 通过；
+  根 `npm test` **通过（exit 0）**。
