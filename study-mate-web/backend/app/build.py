@@ -2,7 +2,7 @@
 
 大纲 = curriculum-designer 派工（SKILL.md 全文注入，输出 JSON 图，`data` 键交回）；
 采图 = image_scout（纯后端爬虫），两支并行（learning-system「建池与拟大纲并行」）。
-门禁 = cs.validate_curriculum + scripts/check_curriculum.py（上游脚本零重写），
+门禁 = 上游引擎 sm-validate（权威）+ cs.validate_curriculum（本地结构化补充，两边都跑合并去重），
 打回与工单规则同产课链；进度经 emit 回吐进会话。
 """
 from __future__ import annotations
@@ -111,11 +111,22 @@ def _gate_problems(stdout: str, stderr: str) -> list[dict[str, str]]:
 
 
 async def run_curriculum_gate(data: dict[str, Any]) -> list[dict[str, str]]:
-    """进程内 schema 校验 + 引擎门禁（node=上游 sm-validate / python=check_curriculum.py）；空 = 通过。"""
-    problems = cs.validate_curriculum(data)
-    if problems:
-        return [{"path": "curriculum.yaml", "line": "", "message": p, "owner": roles.owner_of("curriculum.yaml")} for p in problems]
-    return await _gate_via_node(data)
+    """大纲门禁：上游引擎判定（权威）+ 本地结构化补充检查，两边都跑，问题合并去重，上限 20。
+
+    2026-10-11 同步上游后改口径：cs.validate_curriculum 降为结构化补充检查
+    （id/前置/edges 完整性），权威 enum 在引擎包内 schema——旧逻辑「本地有问题就
+    return」会让上游门禁根本不跑，本地旧口径还会单方面打回上游认可的合法值
+    （如三档 `已学完`）。上游不可用/失败仍按问题报出，绝不静默放行。
+    """
+    upstream = await _gate_via_node(data)
+    local = [
+        {"path": "curriculum.yaml", "line": "", "message": p, "owner": roles.owner_of("curriculum.yaml")}
+        for p in cs.validate_curriculum(data)
+    ]
+    merged: dict[str, dict[str, str]] = {}
+    for problem in upstream + local:
+        merged.setdefault(problem["message"], problem)
+    return list(merged.values())[:20]
 
 
 def _node_gate_problems(report: dict[str, Any]) -> list[dict[str, str]]:

@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from app import draft as draft_svc
+from app import draft as draft_svc, engine_node
 
 
 @pytest.fixture()
@@ -119,6 +119,72 @@ def test_gate_pass_report_passes(monkeypatch):
 
     monkeypatch.setattr(build.engine_node, "validate_data", ok)
     assert asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM)) == []
+
+
+# ---------- 2.5 同步上游后的门禁口径：两边都跑，本地只是结构化补充 ----------
+
+
+def test_local_validator_accepts_three_tier_status():
+    """三档 `已学完` 是上游合法值：本地结构化检查不得单方面打回（旧六档 status 检查已删）。"""
+    import copy
+
+    from app import curriculum_store as cs
+    from app.llm import FIXTURE_CURRICULUM
+
+    data = copy.deepcopy(FIXTURE_CURRICULUM)
+    data["nodes"][0]["status"] = "已学完"
+    assert cs.validate_curriculum(data) == []
+
+
+@pytest.mark.skipif(
+    not engine_node.available(), reason="engine-node 未就绪（node 或 vendor 产物缺失）"
+)
+def test_mastery_key_blocked_by_upstream_gate_only(tmp_path):
+    """mastery 键：本地不再查（放行），上游 schema（additionalProperties:false）必拦。"""
+    import copy
+
+    from app import build
+    from app import curriculum_store as cs
+    from app.llm import FIXTURE_CURRICULUM
+
+    data = copy.deepcopy(FIXTURE_CURRICULUM)
+    data["nodes"][0]["mastery"] = 0.9
+    assert cs.validate_curriculum(data) == [], "本地这道不应再管 mastery"
+    problems = asyncio.run(build.run_curriculum_gate(data))
+    assert problems, "带 mastery 键的大纲必须被上游门禁拦下"
+    assert any("mastery" in p["message"] for p in problems), problems
+
+
+def test_gate_merges_local_and_upstream_problems(monkeypatch):
+    """两边都跑：本地结构问题与上游 schema 问题合并出现（旧逻辑本地有问题就不跑上游）。"""
+    import copy
+
+    from app import build
+    from app.llm import FIXTURE_CURRICULUM
+
+    data = copy.deepcopy(FIXTURE_CURRICULUM)
+    # 本地能抓的结构问题：边引用不存在的节点
+    data["edges"].append({"from": "demo.intro", "to": "ghost.node", "reason": "测试悬空边"})
+    # 本地（按新口径）不再管的：mastery 键，由上游拦
+    data["nodes"][0]["mastery"] = 0.9
+
+    def upstream_blocked(kind, file):
+        return {
+            "file": str(file),
+            "blocking": True,
+            "blockingCount": 2,
+            "summary": "阻断——2 条阻断问题（共 3 条）",
+            "problems": [
+                {"file": str(file), "line": 2, "message": '不允许额外字段 ["mastery"]（位置 /nodes/0）', "blocking": True},
+                {"file": str(file), "line": 2, "message": '不允许额外字段 ["mastery"]（位置 /nodes/0）', "blocking": True},
+            ],
+        }
+
+    monkeypatch.setattr(build.engine_node, "validate_data", upstream_blocked)
+    problems = asyncio.run(build.run_curriculum_gate(data))
+    assert any("ghost.node" in p["message"] for p in problems), f"本地结构问题必须在清单里：{problems}"
+    assert any("mastery" in p["message"] for p in problems), f"上游 schema 问题必须在清单里：{problems}"
+    assert sum(1 for p in problems if "mastery" in p["message"]) == 1, "重复问题要去重"
 
 
 

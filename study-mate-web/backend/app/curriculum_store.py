@@ -244,16 +244,10 @@ def validate_curriculum(data: dict[str, Any]) -> list[str]:
         kind = node.get("kind")
         if kind is not None and kind not in KINDS:
             problems.append(f"节点 {node_id} 的 kind 非法：{kind!r}")
-        status = node.get("status")
-        if status is not None and status not in NODE_STATUSES:
-            problems.append(f"节点 {node_id} 的 status 非法：{status!r}")
-        mastery = node.get("mastery")
-        if mastery is not None and (
-            not isinstance(mastery, (int, float))
-            or isinstance(mastery, bool)
-            or not 0 <= mastery <= 1
-        ):
-            problems.append(f"节点 {node_id} 的 mastery 必须是 0~1 的数字")
+        # 注意：status / mastery 的合法性不在这里查——权威 enum 在引擎包内 schema
+        # （三档 status；schema additionalProperties:false 连 mastery 键都拒）。
+        # 本地旧六档口径会单方面打回上游认可的合法值，这两条检查已删（2026-10-11），
+        # 上游门禁（build.run_curriculum_gate → sm-validate）才是权威判定。
 
     for i, node in enumerate(nodes):
         if not isinstance(node, dict):
