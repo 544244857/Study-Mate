@@ -15,6 +15,7 @@ const TAG_MARKER = 'StudyMate release metadata\n';
 const OPENAI_ASSET = 'studymate-openai.zip';
 const INSTALLATION_START = '<!-- studymate-installation -->';
 const INSTALLATION_END = '<!-- /studymate-installation -->';
+const GITHUB_RELEASE_BODY_LIMIT = 125_000;
 const STATE = () => join(process.env.RUNNER_TEMP || tmpdir(), 'studymate-release-state.json');
 
 function command(name, args, { cwd = process.cwd(), input, allowFailure = false } = {}) {
@@ -172,18 +173,23 @@ function requireWorkflow() {
 export function validatePack(pack) {
   if (pack.name !== PACKAGE || !VERSION.test(pack.version)) throw new Error('Unexpected npm package identity.');
   const files = pack.files.map(file => file.path);
-  const allowed = /^(?:package\.json|cordis\.patch\.yml|README\.md|LICENSE|CHANGELOG\.md|bin\/[^/]+\.mjs|openai\/studymate\/(?:\.codex-plugin\/plugin\.json|requirements\.txt|scripts\/[^/]+\.py|skills\/learning-system\/references\/[^/]+\.md)|\.dsh\/skills\/.+|antigravity\/studymate\/.+|preset\/learning\/.+|scripts\/[^/]+\.py|schemas\/[^/]+\.json|templates\/.+|docs\/(?:[^/]+\/)*[^/]+\.md|docs\/images\/.+)$/;
+  // lib/ 是 Client 半（阅读端）与 Host 半的共享模块：package.json 的 exports["./client"]
+  // 指向 lib/client.js，宿主按这个字段取 bundle，所以它必须随包发出去。
+  // 根级的 README* / LICEN[CS]E* / COPYING* **不归 files 管**：npm 一定会把它们打进 tarball
+  // （`files: ["lib"]` 的包照样进 README.en.md，npm 11 实测）。白名单认下这批——npm 塞进来、
+  // 我们自己拦下，发布就卡在打包校验这步：#155（README.en.md，2026-10-10 的 Release）。
+  const allowed = /^(?:package\.json|cordis\.patch\.yml|CHANGELOG\.md|README(?:\.[^/]*)?|LICEN[CS]E(?:\.[^/]*)?|COPYING(?:\.[^/]*)?|bin\/[^/]+\.(?:mjs|ts)|lib\/.+|openai\/studymate\/(?:\.codex-plugin\/plugin\.json|scripts\/[^/]+\.mjs|skills\/learning-system\/references\/[^/]+\.md)|antigravity\/studymate\/.+|preset\/(?:learning|qa|skills)\/.+|schemas\/[^/]+\.json|templates\/.+|docs\/(?:[^/]+\/)*[^/]+\.md|docs\/images\/.+)$/;
   for (const file of files) {
     if (!allowed.test(file) || /(^|\/)(?:\.env(?:\..*)?|\.npmrc|\.git|node_modules|__pycache__|\.DS_Store|[^/]+\.pyc)(\/|$)/.test(file)) {
       throw new Error(`Unexpected or private file in npm tarball: ${file}`);
     }
   }
-  for (const required of ['cordis.patch.yml', 'bin/dsh-plugin.mjs', 'bin/studymate.mjs', 'bin/skill-compat.mjs', 'bin/openai-plugin.mjs', 'bin/openai-skill-compat.mjs', 'openai/studymate/.codex-plugin/plugin.json', 'openai/studymate/requirements.txt', 'docs/使用/Codex与ChatGPT.md', 'preset/learning/agent.cordis.yml', 'scripts/install_preset.py', 'scripts/gen_home.py', '.dsh/skills/learning-system/SKILL.md', 'antigravity/studymate/plugin.json']) {
+  for (const required of ['cordis.patch.yml', 'bin/dsh-plugin.ts', 'bin/studymate.mjs', 'bin/skill-compat.mjs', 'bin/openai-plugin.mjs', 'bin/openai-skill-compat.mjs', 'lib/preset.ts', 'openai/studymate/.codex-plugin/plugin.json', 'docs/使用/Codex与ChatGPT.md', 'preset/learning/agent.cordis.yml', 'preset/qa/agent.cordis.yml', 'preset/skills/learning-system/SKILL.md', 'antigravity/studymate/plugin.json']) {
     if (!files.includes(required)) throw new Error(`npm tarball is missing ${required}.`);
   }
   for (const prefix of ['schemas/', 'templates/', 'docs/']) if (!files.some(file => file.startsWith(prefix))) throw new Error(`npm tarball is missing ${prefix}.`);
   for (const required of ['bin/openai-interaction.mjs', 'bin/openai-skill-ui.mjs',
-    'openai/studymate/scripts/interaction_state.py', 'openai/studymate/skills/learning-system/references/codex-interaction.md']) {
+    'openai/studymate/scripts/interaction_state.mjs', 'openai/studymate/skills/learning-system/references/codex-interaction.md']) {
     if (!files.includes(required)) throw new Error(`npm tarball is missing ${required}.`);
   }
 }
@@ -225,18 +231,34 @@ export function withInstallationNotes(body, version) {
   return body.slice(0, start) + installation + body.slice(end + INSTALLATION_END.length);
 }
 
+function githubReleaseBody(notes, version) {
+  const body = withInstallationNotes(notes, version);
+  if (body.length <= GITHUB_RELEASE_BODY_LIMIT) return body;
+  // Keep full commit bodies in CHANGELOG; GitHub limits the complete API body,
+  // including installation instructions. Summarize at section boundaries only.
+  const notice = `本页因 GitHub 正文长度限制省略部分详情，请查看[完整更新记录](https://github.com/${REPOSITORY}/blob/v${version}/CHANGELOG.md)。`;
+  const compact = notes.split('\n').filter(line => !line.startsWith('  > ')).join('\n');
+  const commits = compact.indexOf('\n### 所有提交\n');
+  const overview = commits < 0 ? `## ${version}` : compact.slice(0, commits).trim();
+  for (const summary of [compact, overview, `## ${version}`]) {
+    const candidate = withInstallationNotes(`${summary.trim()}\n\n${notice}`, version);
+    if (candidate.length <= GITHUB_RELEASE_BODY_LIMIT) return candidate;
+  }
+  throw new Error('GitHub release installation information exceeds the body limit.');
+}
+
 export async function ensureGithubRelease(state, notes, request = github) {
   let release = await request(`/releases/tags/${state.tag}`, { missing: true });
   if (!release) {
     return request('/releases', { method: 'POST', body: {
       tag_name: state.tag, target_commitish: state.commit, name: state.tag, make_latest: 'legacy',
-      body: withInstallationNotes(notes, state.version), draft: false, prerelease: false,
+      body: githubReleaseBody(notes, state.version), draft: false, prerelease: false,
     } });
   }
   if (release.draft || release.prerelease || release.tag_name !== state.tag) {
     throw new Error(`GitHub ${state.tag} is not the expected stable release; inspect it before retrying.`);
   }
-  const body = withInstallationNotes(release.body || notes, state.version);
+  const body = githubReleaseBody(release.body || notes, state.version);
   if (body !== release.body) {
     release = await request(`/releases/${release.id}`, { method: 'PATCH', body: { body } });
   }
@@ -394,6 +416,19 @@ async function publish() {
   const state = jsonFile(STATE());
   if (state.source !== process.env.GITHUB_SHA || git(['rev-parse', 'HEAD']) !== state.commit || git(['rev-parse', `${state.tag}^{commit}`]) !== state.commit) {
     throw new Error('Release state, checkout and tag do not agree.');
+  }
+  // 导出泄漏守卫（#82 / F11）：现造一份工作区跑一遍真导出，产物里漏进 Node 专用东西就不发布。
+  // 用夹具 React（scripts/tests/fixtures/export_workspace.mjs），所以发布机上不需要装 React。
+  // 放在插件构建与 npm 发布**之前**：一条泄漏就该拦住整次发布。
+  const { exportGuardRun } = await import('./export_guard.mjs');
+  const guard = await exportGuardRun({});
+  if (!guard.ok) {
+    const problems = [
+      ...guard.violations.map(violation => `${violation.path}:${violation.line} [${violation.rule}] ${violation.what}`),
+      ...guard.problems,
+    ];
+    throw new Error(`导出泄漏守卫失败（${problems.length} 条）：${problems.join('；')}。`
+      + '修掉导出器再发布；本地用 `npm run guard:export` 复现。');
   }
   // A plugin build failure must happen before the immutable npm publication.
   const plugin = buildReleasePlugin(state.version);

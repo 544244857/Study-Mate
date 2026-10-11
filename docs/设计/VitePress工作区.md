@@ -1,6 +1,8 @@
-﻿# VitePress 课程工作区（提案）
+# VitePress 课程工作区（提案）
 
-> 状态：提案，尚未实现。对接 [Issue #22](https://github.com/Miaotofu01/Study-Mate/issues/22)。
+> 状态：**提案已被取代**。目标态选了另一条路——阅读端做成宿主内的客户端插件（React），而不是独立的 VitePress 站点；静态页面降为导出能力。见 [目标态规格](目标态规格.md) 与 [ADR-0003](../adr/0003-阅读端只嵌DSH.md)。
+> 保留本文件是为了记住当时评估过的替代方案与它的代价；**不要据此实现**。
+> 对接 [Issue #22](https://github.com/Miaotofu01/Study-Mate/issues/22)。
 > 定位：给维护者一个可分阶段落地的前端演进方案。本文件只定义迁移边界与内容协议，不替换现有 HTML 引擎。
 > 产品视角仍以 [设计方案](设计方案.md) 为准，工程硬约束仍以 [工程约束](../规范/工程约束.md) 为准。课件语法仍以 [课件内容格式](../规范/课件内容格式.md) 为准。
 
@@ -30,7 +32,7 @@ Issue 作者的个人原型在 [yulaoshizuikeai/Study-Mate-vue](https://github.c
 
 **做：**
 
-- 新增独立前端目录（建议 `site/`），不改 `.dsh/skills/` 的职责划分；
+- 新增独立前端目录（建议 `site/`），不改 `preset/skills/` 的职责划分；
 - 只读消费学习工作区里已经存在的结构化数据；
 - 用 Vue 组件承接路线图、练习、进度、课元信息和「继续学习」；
 - 暗色模式、目录、搜索、移动端由 VitePress 主题提供，不再各页复制一套；
@@ -89,7 +91,7 @@ Issue 作者的个人原型在 [yulaoshizuikeai/Study-Mate-vue](https://github.c
 - 用一个同步或加载脚本把 `curriculum.yaml` 映射成侧边栏，不把工作区 Markdown 复制进 git；
 - `examples/` 仍由 `python3 scripts/build_examples.py` 生成 HTML。阅读端是平行入口，不是替换品。
 
-阶段 1 的验收：clone 后 `npm --prefix site run docs:dev` 能点开 `examples/` 里的线性代数与计算机网络；不改任何 `.dsh/skills/`。
+阶段 1 的验收：clone 后 `npm --prefix site run docs:dev` 能点开 `examples/` 里的线性代数与计算机网络；不改任何 `preset/skills/`。
 
 ### 阶段 2：组件对齐现有交互
 

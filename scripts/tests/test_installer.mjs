@@ -5,12 +5,12 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { supportsDsh, findPython, findDsh, isDesktopLauncher, desktopResourceDirs, defaultProfile } from '../../bin/studymate.mjs';
+import { supportsDsh, findDsh, isDesktopLauncher, desktopResourceDirs, defaultProfile } from '../../bin/studymate.mjs';
 import { adaptSkill } from '../../bin/skill-compat.mjs';
+import { parseYaml } from '../../lib/yaml.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const cli = path.join(root, 'bin/studymate.mjs');
-const python = findPython();
 const launcher = process.platform === 'win32' ? 'dsh.cmd' : 'dsh';
 
 /** Write a runnable dsh at a Desktop-shaped location and return its path. */
@@ -47,11 +47,10 @@ function fixture(t) {
   function install(...args) {
     return spawnSync(process.execPath, [cli, 'install', ...args], { cwd: dir, env, encoding: 'utf8', timeout: 30000 });
   }
+  // 读配置与补丁用**本仓库自己的解析器**（与安装器同一份，所以读到的东西不会两边不一样）。
   function yaml(file) {
-    const result = spawnSync(python.command, [...python.prefix, '-c',
-      'import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1],encoding="utf-8"))))', file], { encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
-    return JSON.parse(result.stdout);
+    return parseYaml(fs.readFileSync(file, 'utf8'),
+      { file, tags: 'scalar', blockScalars: true, documentMarkers: true });
   }
   version('0.1.7-alpha.1');
   return { dir, home, env, preset, patch, config, version, breakDsh, install, yaml };
@@ -182,7 +181,7 @@ test('a Desktop installation is found when no dsh is on PATH', { skip: process.p
   const profile = path.join(f.env.DSH_HOME, 'profiles', 'desktop');
   fs.mkdirSync(profile, { recursive: true });
   fs.writeFileSync(path.join(profile, 'package.json'), JSON.stringify({ name: 'dsh-profile-desktop' }));
-  // Keep the system PATH (Python must stay reachable) but let dsh fail, and point the
+  // Keep the system PATH (node must stay reachable) but let dsh fail, and point the
   // Windows installation roots at the fixture so no real Desktop installation decides this.
   f.breakDsh();
   const env = { ...f.env, LOCALAPPDATA: local,
@@ -195,28 +194,27 @@ test('a Desktop installation is found when no dsh is on PATH', { skip: process.p
 });
 
 test('installed skill copies get the write-boundary conventions in machine terms', () => {
-  const sample = ['暂存模式：`<WS>` = `/tmp/studymate-stage/<slug>`',
+  const sample = ['临时目录：`/tmp/studymate-scratch/<slug>`',
     '角色产出走 `<subject_path>/.stage/practice-evaluator-<节点id>/deliver/`',
-    'cp -r /tmp/practice-evaluator-<节点id>/deliver/. <subject_path>/'].join('\n');
+    '原样合并 `/tmp/practice-evaluator-<节点id>/deliver/.` 到科目目录'].join('\n');
   const adapted = adaptSkill(sample, {
-    platform: 'win32', pythonExecutable: 'C:\\Python\\python.exe',
+    platform: 'win32',
     configFile: 'C:\\Users\\me\\.dsh\\studymate-config.yaml', tempDirectory: 'C:/Temp',
   });
   assert.ok(!adapted.includes('`/tmp`'), '临时目录应换成本机实值');
-  assert.match(adapted, /C:\/Temp\/studymate-stage\/<slug>/);
+  assert.match(adapted, /C:\/Temp\/studymate-scratch\/<slug>/);
   assert.match(adapted, /先写科目自己的 `<subject_path>\/\.stage\//);
 });
 
-test('installed script commands retain Python flags and use the detected interpreter', () => {
-  const source = 'python3 -B <root>/scripts/check_handoff.py <subject_path> --role learning-coach';
-  for (const platform of ['win32', 'linux']) {
-    const adapted = adaptSkill(source, {
-      platform, pythonExecutable: '/Python with spaces/python',
-      configFile: '/home/me/studymate-config.yaml', tempDirectory: '/tmp',
-    });
-    assert.equal(adapted.split('\n')[0],
-      `${platform === 'win32' ? '& ' : ''}'/Python with spaces/python' -X utf8 -B '<root>/scripts/check_handoff.py' '<subject_path>' --role learning-coach`);
-  }
+test('技能副本的本机命令约定不再提 Python 与引擎脚本（#83 退役）', () => {
+  // 引擎脚本随 #83 退役，`adaptSkill` 里的 python 规整也一并删掉：本机命令约定现在只讲
+  // 环境变量、路径引用与临时目录。这条守着它不会回来——样例里刻意不写脚本扩展名，
+  // 仓库里不再出现那两个字样。
+  const adapted = adaptSkill('临时目录：`/tmp/studymate-scratch/<slug>`', {
+    platform: 'linux', configFile: '/home/me/studymate-config.yaml', tempDirectory: '/tmp',
+  });
+  assert.doesNotMatch(adapted, /python/i, '命令约定里不该再提 Python');
+  assert.ok(adapted.includes('本机命令约定（安装器生成）'));
 });
 
 test('install, reinstall and downgrade preserve workspace and unrelated profile configuration', t => {
@@ -241,16 +239,17 @@ test('install, reinstall and downgrade preserve workspace and unrelated profile 
   collect(row.config.plugins);
   assert.equal(plugins.find(plugin => plugin.id === 'workflow-ptc').name, '@deepseek-ai/dsh-workflow-ptc');
   assert.deepEqual(plugins.find(plugin => plugin.id === 'skill-filesystem').config.customSkillDirs,
-    [path.join(f.env.DSH_HOME, 'studymate', 'engine', '.dsh', 'skills').split(path.sep).join('/')]);
+    [path.join(f.env.DSH_HOME, 'studymate', 'engine', 'preset', 'skills').split(path.sep).join('/')]);
   assert.match(fs.readFileSync(f.preset, 'utf8'), /@deepseek-ai\/dsh-workflow-ptc/);
   // 安装完必须说清"会话开在哪"：会话目录不在工作区里时，StudyMate 每一步落盘都要授权。
   assert.match(result.stdout, /启动会话时把工作目录设为/);
-  // 装出来的技能副本是本机口径：暂存约定保留，`/tmp` 写成这台机器的临时目录
-  // （Linux 上两者常常都是 /tmp，所以真正钉住改写的是下面那条注入临时目录的断言）。
+  // 装出来的技能副本是本机口径：产物交接的 `.stage/` 约定保留，`/tmp` 写成这台机器的
+  // 临时目录（Linux 上两者常常都是 /tmp，所以真正钉住改写的是上面那条注入临时目录的断言）；
+  // **工作区暂存模式已删**（ADR-0008），副本里不该再有会话目录下的暂存根。
   const skillCopy = fs.readFileSync(path.join(f.env.DSH_HOME, 'studymate', 'engine',
-    '.dsh', 'skills', 'learning-system', 'SKILL.md'), 'utf8');
+    'preset', 'skills', 'learning-system', 'SKILL.md'), 'utf8');
   assert.match(skillCopy, /<subject_path>\/\.stage\//);
-  assert.ok(skillCopy.includes('.studymate-stage/<slug>'), '暂存根应落在会话目录下');
+  assert.ok(!skillCopy.includes('.studymate-stage'), '暂存模式已删：副本里不该再有工作区暂存根');
   const config = f.yaml(f.config);
   config.custom = 'keep';
   fs.writeFileSync(f.config, JSON.stringify(config));
@@ -336,6 +335,73 @@ test('default install manages learning and disables only the selected StudyMate 
     assert.equal(f.install().status, 0);
     assert.equal(fs.readFileSync(f.patch, 'utf8'), before);
   }
+});
+
+/** 档位里「已经装好的那份插件」：安装器按它的版本号判世代（看得见版本才谈得上交给它）。 */
+function installedBundle(profile, version) {
+  const dir = path.join(profile, 'node_modules', '@yunmiao', 'studymate');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: '@yunmiao/studymate', version }));
+}
+
+const ownVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+
+/** 一份「档位已列本插件」的清单，装好的那份插件由 `version` 指定。 */
+function profileSelecting(f, version) {
+  const profile = path.dirname(f.patch);
+  fs.mkdirSync(profile, { recursive: true });
+  if (version !== null) installedBundle(profile, version);
+  fs.writeFileSync(path.join(profile, 'package.json'), JSON.stringify({
+    dependencies: { '@yunmiao/studymate': version === null ? '*' : 'link:../repo' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@yunmiao/studymate'] } },
+  }));
+}
+
+test('档位里是同一代的插件时：入口保持开着，也不写声明行（#157）', t => {
+  const f = fixture(t);
+  const original = '# unrelated plugin\n- id: keep\n  disabled: false\n';
+  profileSelecting(f, ownVersion);
+  fs.writeFileSync(f.patch, original);
+  f.version('0.2.0-rc.2');
+  const result = f.install('--workspace', path.join(f.dir, 'workspace'));
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  // 两条模式由插件启动时自己注册、阅读端也只长在插件里：既不能写声明行（同名注册会撞），
+  // 也不能停用入口。所以这份补丁一个字节都不该动。
+  assert.equal(fs.readFileSync(f.patch, 'utf8'), original, '同一代时不该碰档位补丁');
+  assert.equal(f.yaml(f.config).installModes.web, 'standalone');
+  const before = fs.readFileSync(f.patch, 'utf8');
+  assert.equal(f.install().status, 0);
+  assert.equal(fs.readFileSync(f.patch, 'utf8'), before);
+});
+
+test('档位里是旧一代的插件时：安装器接管——停用那条入口并写声明行（#157）', t => {
+  const f = fixture(t);
+  profileSelecting(f, '0.1.3');
+  fs.writeFileSync(f.patch, '# unrelated plugin\n- id: keep\n  disabled: false\n');
+  f.version('0.2.0-rc.2');
+  const result = f.install('--workspace', path.join(f.dir, 'workspace'));
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  const rows = f.yaml(f.patch);
+  assert.deepEqual(rows.find(row => row.id === 'studymate'),
+    { id: 'studymate', name: '@yunmiao/studymate', disabled: true }, '不认识新契约的旧插件不该被执行');
+  const declarations = rows.flatMap(row => row.insert || []).filter(row => row.config?.id === 'learning');
+  assert.equal(declarations.length, 1, '接管时要写声明行，两条模式不能没人管');
+});
+
+test('从旧状态恢复：把插件更新到同一代之后，重跑一次就放开那条入口（#157）', t => {
+  const f = fixture(t);
+  profileSelecting(f, '0.1.3');
+  fs.writeFileSync(f.patch, '# unrelated plugin\n- id: keep\n  disabled: false\n');
+  f.version('0.2.0-rc.2');
+  assert.equal(f.install('--workspace', path.join(f.dir, 'workspace')).status, 0);
+  assert.ok(fs.readFileSync(f.patch, 'utf8').includes('BEGIN STUDYMATE'), '旧一代时安装器接管');
+  // 用户把插件更新到同一代（或把检出 link 回档位）之后再跑一次安装
+  installedBundle(path.dirname(f.patch), ownVersion);
+  const again = f.install('--workspace', path.join(f.dir, 'workspace'));
+  assert.equal(again.status, 0, again.stderr + again.stdout);
+  const text = fs.readFileSync(f.patch, 'utf8');
+  assert.equal(text.includes('BEGIN STUDYMATE'), false, '接管块要被清掉');
+  assert.equal(f.yaml(f.patch).some(row => row.id === 'studymate'), false, '入口不再被停用');
 });
 
 test('explicit native switch records ownership and removes registration without replacing payload or user files', t => {
