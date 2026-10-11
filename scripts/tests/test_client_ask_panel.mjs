@@ -233,10 +233,13 @@ test('#105 建会话：面板 POST /api/studymate/qa/session，请求体只有 {
   assert.equal(calls[0].url, '/api/studymate/qa/session');
   assert.equal(calls[0].options.method, 'POST');
   const body = JSON.parse(calls[0].options.body);
-  // 面板**不背会话**：送出去的只有拼标题要的两个展示名
-  assert.deepEqual(Object.keys(body).sort(), ['node', 'subject']);
+  // 面板**不背会话**：送出去的是拼标题要的两个展示名 + 课件指针（节点 id 与课件名，见 #163）
+  assert.deepEqual(Object.keys(body).sort(), ['lesson', 'node', 'nodeId', 'subject']);
   assert.equal(body.subject, '计算机网络');
   assert.equal(body.node, '子网与掩码');
+  // 节点 id 是 agent 唯一能喂给取课件工具的东西；这一份夹具的节点没有 lesson，就空着
+  assert.equal(body.nodeId, 'net.mask');
+  assert.equal(body.lesson, '');
   for (const forbidden of ['messages', 'history', 'sessionId', 'conversation', 'question']) {
     assert.equal(Object.hasOwn(body, forbidden), false, `请求体里出现了 ${forbidden}（那是旧的「面板自己拼会话」）`);
   }
