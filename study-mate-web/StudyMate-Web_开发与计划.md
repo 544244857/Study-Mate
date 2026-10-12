@@ -130,6 +130,7 @@
 | 15 | Lab 代码沙箱执行 | 建设本地子进程代码安全执行环境，支持实操与实验课代码自动评测。 |
 | 17 | 记忆与小结入口接回 | 接回右栏悬空的会话摘要与记忆沉淀入口，移除相关测试跳过标记。 |
 | 18 | 会话工作区路径放宽 | 支持指定尚不存在的工作区目录（自动按需创建），优化新建体验。 |
+| 19 | 误解记录单一落点收敛 | 误解记录从「misconceptions.yaml + progress.yaml 副本」双落点收敛为单一落点（上游《目标态规格》§5.4）：`misconceptions._sync` 去 progress 侧写入、`save_progress` 落盘时清掉存量副本键、保留「缺 misconceptions.yaml 时从 progress 迁移」的读侧兜底；调整 `misconceptions.py` / `test_misconception_mapping.py` 的双落点断言。**实施前置**：上游 §5.4 提案转成决定（或维护者直接拍板）；包内 progress 校验器当前对该副本键只给非阻断提示，不构成阻塞。 |
 
 ### 5.2 方案待决 / 调研中（RFC / Under Review）
 

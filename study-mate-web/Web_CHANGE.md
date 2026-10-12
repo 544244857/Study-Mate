@@ -540,3 +540,66 @@
 - **验证**：后端 **502 passed / 1 skipped**；`compileall` 通过；E2E **97 passed / 0 failed / 3 skipped**；
   `engine-node` 契约 **18/18**；组件 **122 passed**；lint **0 errors / 51 warnings**；`next build` 通过；
   根 `npm test` **通过（exit 0）**。
+
+## 2026-10-11 · `::: code` 采用范围落地（规格可达 + 种子正例 + 阅读端渲染回归）
+
+> 性质：**只追加**。对应 HANDOFF §2.2-2 的建议方案：主动采用 `::: code`（上游 2.0.1 的框内解释槽），但只补「规格可达」这一环，不动存量课件。
+
+- **规范摘录内联进产课派工值（核心）**：`preset/skills/lesson-design/SKILL.md` 只写「`::: code` 的写法见规范 §4」，而派工沙箱 read_roots 只有科目目录（`produce.py` dispatch 的 ToolContext），模型运行时读不到仓库根的规范文档——指针悬空，只能盲写，门禁按 `code-lang` / `code-field` / `code-body` 带行号打回。新增 `config.engine_doc_path()`（与 `engine_schema_path` 同一解析顺序：vendor → node_modules，**不回落到仓库根**）与 `produce._code_directive_spec()`：从**引擎包内**《课件内容格式》§4 摘出 `::: code` 那一节（43 行），内联进 `content_values` 与 `experiment_values`；摘不到（未 setup / 上游改了标题）时回落手写摘要（三条边界 + 三条报错码），派工不因缺文件中断。**不改 `preset/skills/**`**（技能单源，下次同步即丢）。
+- **种子课件正例**：`backend/seed/computer-networks/lessons/0003-net.ip.md` 的 term 输出块连同框外解释提为顶层 `::: code term`（原解释段即成 caption）。其余围栏一个字不动——规范明确两种写法并存。注意**指令块不能嵌套**：种子里的「围栏 + 框外解释」全在 `::: practice` 块内，原位转换会撞 `directive-nested`，所以这一处是提到顶层、不是就地改。
+- **回归三层**：① `test_code_directive_values.py`（4 条）钉死摘录内联、来源为包内、缺失回落；② `test_engine_golden.py` 金样：合法 `::: code` 放行、`caption:` 写进指令头按 code-lang 阻断、导出产物带 caption；③ E2E `courses.spec.ts` 新用例：SPA 里进科目 → 目录点开 0003，断言 `.smb-code` 内 `.smb-code__caption` 渲染（阅读端给所有代码块都套 `.smb-code` 外壳，围栏也是，**只有 `::: code` 产 caption**）。
+- **顺带暴露并绕开一个 Windows-only reader 坑**：E2E fixture 原先原样拷贝工作区种子，Windows 检出（core.autocrlf）把仓库里 LF 的课件翻成 CRLF，而阅读端 `lib/client.js` 内嵌解析器的行级正则容不下 `\r`（`.` 不匹配 `\r`、`$` 无 m 标志）——带参数的 `:::` 指令与标题整段退化成原文段落；Linux 检出处是 LF，所以 CI 一直绿。`global-setup.ts` 新增 `normalizeLineEndings()`：fixture 镜像**仓库提交的字节**，不是本地检出的平台转译。**真机产课路径不受影响**（落盘走 `roles.write_deliver` 的 `newline="\n"`），但用户手改成 CRLF 的课件仍会在阅读端退化——这是上游 reader 的兼容问题，待反馈上游。
+- **验证**：后端 **510 passed / 1 skipped**；`compileall` 通过；组件 **122 passed**；lint **0 errors / 51 warnings**；`tsc --noEmit` 0 错；E2E **98 passed / 0 failed / 3 skipped**；种子 0003 过真门禁 `sm-validate lesson`（exit 0，无问题）。
+
+## 2026-10-12 · `curriculum_store` 状态机六档 → 三档（回流条件① 最后一条代码项闭环）
+
+> 性质：**只追加**。对应 HANDOFF §2.1。权威依据：上游《目标态规格》§5.2 + 包内 `lib/core/rules.ts`（`TIERS` / `LEGACY_TIER_MAP` / `advance`）+ 包内 `schemas/progress.schema.json`。
+
+- **三档状态机**：`NODE_STATUSES = [未开始, 学习中, 已学完]`；`TRANSITIONS = {未开始→[学习中], 学习中→[已学完], 已学完→[学习中]}`（「已学完→学习中」是上游 advance「要求复习」的回退，状态是事实不是奖杯）；`DONE_STATUSES = {已学完}`。新增 `normalize_status()`：旧六档读侧映射与包内 `LEGACY_TIER_MAP` 逐条一致（初步理解→学习中；能独立应用/需要复习/已通过项目验证→已学完），不认识的词退回「未开始」（猜错比显示成没开始坏得多）。
+- **读侧归一**：`effective_node` 与 `get_course_outline`（chat 工具）先映射再展示/算流转——旧工作区六档值不再让 `next_statuses` 算空。顺带修掉 `get_course_outline` 一个真 bug：首节点推荐拿节点状态跟科目级「已完成」比，永远命不中；改按三档「已学完」判。
+- **写回即收敛**：`save_progress` / `save_draft_progress` 落盘前把全部节点状态映射成三档（规格「写回时才用新词表」）；`updated_at` 从纯日期升为**带时区 RFC 3339**——包内 progress 校验器按 date-time 卡，纯日期是**阻断**项（用包内校验器验种子时暴露）。评估通过置位（`records.py`）统一「已学完」，不再区分课型；实验连带 prerequisites 置位同样。建课首节点初始进度不再写 `mastery: 0`。
+- **核心验收落地**：新增 `test_progress_three_tier.py`——映射表、写回收敛、读侧归一，以及**用包内 progress 校验器验 `save_progress` 产物**（旧六档 + 纯日期输入写回后照样放行）。此前后端从没验过 `progress.yaml`，本条补上。
+- **mastery 与误解双落点：有意保留**（待维护者拍板）：包内 progress schema 对节点条目无 `additionalProperties: false`，`mastery` / `misconceptions` 键是容忍的（校验器只给「写回时删掉」的非阻断提示）。掌握度滑杆 / 平均掌握度展示与 §5.4 单一落点（提案未拍板）都牵产品口径，未随本条动。
+- **前端三档化**：`types.ts` 的 `NodeStatus` 收成三档（后端归一后 API 不会再吐六档值）；`NodeDetail` / `SubjectGraphPanel` 的状态配色表、`CourseGraphView` 头部 tooltip 同步；`progress-transition.spec` 期望改三档（未开始只流向学习中、学习中只流向已学完）。E2E 种子 `progress.yaml` **保留旧六档 + mastery** 不改写——它就是「旧工作区」的活标本，读侧映射（后端 + 阅读端 toTier）全链路被它压着。
+- **验证**：后端 **515 passed / 1 skipped**；`compileall` 通过；`tsc --noEmit` 0 错；组件 **122 passed**；lint **0 errors / 51 warnings**；E2E **98 passed / 0 failed / 3 skipped**。
+- **另**：阅读端 CRLF 解析坑已按维护者指示报进 PR #165 评论区（[comment](https://github.com/Miaotofu01/Study-Mate/pull/165#issuecomment-6111741820)）：服务端 format.ts 先 `trim()` 再匹配、CRLF 宽容，阅读端 `parseBlocks` 拿原始行匹配，带参指令与标题在 CRLF 下退化成段落。
+
+## 2026-10-12 · 掌握度彻底退场（滑杆移除 + 写侧/读侧全收，§5.2 收尾）
+
+> 性质：**只追加**。维护者拍板「去掉滑杆，一开始就不太合理」——在上一条三档改造的基础上把掌握度从进度链路里完整拿掉。
+
+- **写侧**：`UpdateProgressRequest.mastery` 删除（PUT 进度不再收掌握度）；`records.py` 评估置位不再写 `node_entry["mastery"]`（「保留或上调」规则随之退役）——评估 meta 里的 mastery 只留在**评估记录文件**里（包内 assessment.schema.json 仍有该字段，评估文件格式不动）。
+- **读侧**：`effective_node` 不再产出 `mastery`；`subject_summary` 不再产出 `avg_mastery`；大纲工具（chat）与开场上下文（chat.py）不再展示掌握度。
+- **前端**：`NodeDetail` 掌握度滑杆移除（笔记保存保留）；大纲行 `n.mastery%` 与课程页头部「平均掌握度」移除；`GraphNode.mastery` / `SubjectSummary.avg_mastery` / `NodeProgressPayload.mastery` 类型删除；评估结果卡（`AssessmentStatus`）的「掌握度：X」保留——它读的是评估记录，不是进度。
+- **旧文件兼容**：存量 `progress.yaml` 里的 mastery 键原样保留（包内 schema 容忍、校验器只给非阻断提示），只是没有任何代码再读它、写它——自然消亡。
+- **验证**：后端 **514 passed / 1 skipped**；`tsc --noEmit` 0 错；组件 **122 passed**；lint **0 errors / 51 warnings**（与基线一致）；E2E **98 passed / 0 failed / 3 skipped**（`review-workspace` / `progress-transition` / `courses` 三处涉及滑杆或平均掌握度的断言同步更新）。
+
+## 2026-10-12 · 真机探索测试：新会话 → 建新课程 → 产第一课 → 完成学习（全链闭环）
+
+> 性质：**只追加**。维护者指示的探索测试（非 fixture explorer harness，走真机 + 真实 LLM：my-api 中转 / Deepseek-v4-flash）。产物：真实工作区新科目 `git-first-commit`（3 节点），第一课已学完置位。
+
+- **跑通的链**：`POST /api/courses/generate`（一步建科目，双门禁）→ 新会话绑科目（chat SSE）→ 会话助手 `get_course_outline → produce_lesson（574 个 task_update）→ 自读课件与题库复核` → 学习者交作业 → `assess_node` 判「部分通过 · 未置位」→ 补问后重判「通过 · 已置位」→ progress.yaml 落 `已学完`（三档 + RFC 3339）、误解条目双落点、阅读导出 200。三档状态机 / RFC3339 / 误解双落点在真实数据上全部工作。
+- **发现①（功能缺陷·提示词面）**：一次性建课路由对 `resources[].type` 无自修——curriculum-designer 技能只描述该字段、没给枚举值，模型按中文直觉写「官方文档」，包内 schema 枚举（official-doc/book/article/video）门禁 422 直接甩给用户；用户照报错把枚举码写进背景字段重试才过。候选修法：generate 派工值内联枚举 / 技能补一行 / 该路由加一轮自修。
+- **发现②（陈旧文案）**：`produce_lesson` 工具返回文本声称产出 `lessons/…html`——单课 html 渲染链已退役，磁盘上没有该文件。误导模型与用户，改 `tools.py` 返回文案即可。
+- **发现③（工具面摩擦）**：会话助手首调 `assess_node` 编造 `node_id: "node-1"` 吃 404，自愈（查大纲取正确 id）后重试成功，多赔一轮。候选修法：工具参数描述强调「node_id 逐字取自大纲」，或开场上下文直接给当前节点 id。
+- **发现④（设计缺口候选）**：三档里的「学习中」在 Web 侧几乎无写入点（仅建课首节点初始化）——学生开始学但未评估通过前，大纲一直显示未开始；上游 advance 有「开始学习」事件。是否接（如打开课件时置位）交维护者拍板。
+- **观察（未定级）**：health 的 yaml_hygiene 提示存量 `computer-networks/curriculum.yaml` 需迁移（跑 migrate_yaml dry-run 可清）；遗留科目 `git-mini`（10-04 建课跑通产物，11 节点无课件）的 progress.yaml `updated_at` 在无人操作窗口变成了当天时间，写入源未定位。
+- **助手质量正面样本**：评估严格不放水（第一轮按「没说到 commit 本身」如实判部分通过）、自愈能力两次生效、遵守「先不产出第二课」的范围指令。
+
+## 2026-10-12 · 探索发现四项全部落地（枚举进派工值 / 产物清单去 html / 评估定位加固 / 开始学习接上）+ 旧数据清理
+
+> 性质：**只追加**。维护者对真机探索（上一条目）四项发现的裁定：①枚举值走建课工具描述提供；②修；③修；④接上；旧会话与旧课程授权清理。
+
+- **① resources.type 枚举进建课派工描述**：`generate.py::_generate_user_prompt` 硬约束补一行（official-doc / book / article / video，明示「不要写中文值」）。答疑：generate 是一次性 `dispatch_role`，模型可见的「工具描述」就是派工值里的硬约束块——写这里即达；build 盘问路径本就内联 schema 全文，无需动。
+- **② 产物清单去 html**：`produce.py` 的 done 事件 artifacts 与质检工单 artifacts 不再列已退役的 `lessons/*.html`（node 引擎不渲染单课页）；`produce_lesson` 工具返回文本随之不再谎报。
+- **③ 评估定位加固**：`assess_node` 工具描述明示「node_id 必须逐字取自 get_course_outline 的大纲节点 id，自造序号会 404」；会话课程上下文的节点列表与【当前节点】行带上节点 id——不再只给标题让模型猜。
+- **④ 接「开始学习」**：新增 `POST /api/courses/{slug}/nodes/{node_id}/start-learning`（未开始 → 学习中，上游 advance「开始学习」口径）+ `LessonView` 打开课件时静默上报。幂等的关键实现细节：`progress_transaction` 退出时**无条件** save_progress，no-op 路径必须走只读 `get_progress` 判断、不进写事务——否则每开一次课件都会刷掉 updated_at（真机测试用「文件逐字节不变」钉死）。`test_start_learning_promotes_unstarted_only` 四态覆盖（未开始置位 / 学习中幂等 / 已学完不降级 / 旧六档归一后 no-op 且文件原样）+ 404。
+- **旧数据清理（授权执行）**：删 13 个旧会话（全为探索期聊天，含当日探索会话）、8 个旧科目（`11` / `computer-networks` / `git` / `git-mini` / `linear-algebra` / `python` / `subject-5563f3` / `subject-def616`——全为旧链路遗留或六档存量）、4 个草稿、3 张指向已删科目的工单、2 份导出缓存。工作区只留 `git-first-commit`（三档原生）；会话归零。删除清单逐项打印于运行记录。
+- **验证**：后端 **515 passed / 1 skipped**（含新增开始学习用例，总 +1）；`compileall` 通过；`tsc` 0 错；组件 **122 passed**；lint **0 errors / 51 warnings**（基线一致）；E2E **98 passed / 0 failed / 3 skipped**；清理后真机烟测（只读）：health ok、科目列表仅 git-first-commit（1/3）、节点状态与流转项正确、会话 0。
+
+## 2026-10-12 · 误解双落点收敛裁定为 Backlog #19
+
+> 性质：**只追加**。维护者裁定：误解记录单一落点收敛（目标态规格 §5.4）不随三档改造即时实施，放入待办。
+
+- `StudyMate-Web_开发与计划.md` §5.1 新增 **#19 误解记录单一落点收敛**：实施内容（`_sync` 去 progress 侧写入、`save_progress` 清副本键、保留读侧迁移兜底、双落点断言调整）与实施前置（上游 §5.4 提案转决定，或维护者直接拍板）一并写明。
+- `HANDOFF.md` §2.1 ②同步为「已裁定放入 Backlog」；实施前双落点维持现状，包内 progress 校验器对该键仅非阻断提示。
