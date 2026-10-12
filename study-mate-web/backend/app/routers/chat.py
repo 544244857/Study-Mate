@@ -180,14 +180,14 @@ def _course_context(slug: str, node_id: str | None) -> str | None:
         "节点列表（按学习顺序）：",
     ]
     for view in views:
-        lines.append(f"{view['index']}. {view['title']}（{view['kind']}）— {view['status']}")
+        lines.append(f"{view['index']}. {view['title']}（{view['kind']}，节点 id：{view['id']}）— {view['status']}")
 
     current = next((view for view in views if view["id"] == node_id), None) if node_id else None
     if current is not None:
         titles = {view["id"]: view["title"] for view in views}
         prerequisites = "、".join(titles.get(pre, pre) for pre in current["prerequisites"]) or "无"
         concepts = "、".join(current["concepts"]) or "无"
-        lines.append(f"【当前节点】{current['title']}（{current['kind']}）")
+        lines.append(f"【当前节点】{current['title']}（{current['kind']}，节点 id：{current['id']}）")
         lines.append(f"学习目标：{current['objective']}")
         lines.append(f"前置节点：{prerequisites}")
         lines.append(f"涉及概念：{concepts}")
@@ -196,10 +196,7 @@ def _course_context(slug: str, node_id: str | None) -> str | None:
             lines.extend(f"- {pitfall}" for pitfall in current["pitfalls"])
         else:
             lines.append("易错点：无")
-        lines.append(
-            f"当前进度：{current['status']}，掌握度 {current['mastery']}；"
-            f"学习笔记：{current['notes'] or '无'}"
-        )
+        lines.append(f"当前进度：{current['status']}；学习笔记：{current['notes'] or '无'}")
 
     lines.append("请围绕上述课程内容辅导学习者，遵循 learn with doing：讲清概念后引导动手练习。")
     return "\n".join(lines)

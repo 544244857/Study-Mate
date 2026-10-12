@@ -321,7 +321,6 @@ export interface PatchCoursePayload {
 
 export interface NodeProgressPayload {
   status?: NodeStatus;
-  mastery?: number;
   notes?: string;
   lab_status?: LabStatus;
 }
@@ -421,6 +420,16 @@ export const api = {
         workspace,
       ),
       { method: "PUT", body: JSON.stringify(payload) },
+    ),
+
+  // 打开课件即「开始学习」：未开始 → 学习中；幂等（学习中/已学完原样返回不落盘）
+  startLearning: (slug: string, nodeId: string, workspace?: WorkspaceParam) =>
+    jsonFetch<{ ok: boolean; changed: boolean; node: GraphNode }>(
+      withWorkspace(
+        `/api/courses/${encodeURIComponent(slug)}/nodes/${encodeURIComponent(nodeId)}/start-learning`,
+        workspace,
+      ),
+      { method: "POST" },
     ),
 
   listMisconceptions: (slug: string, query: MisconceptionQuery = {}, workspace?: WorkspaceParam) => {

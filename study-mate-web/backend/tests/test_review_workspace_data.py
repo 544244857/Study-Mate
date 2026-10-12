@@ -400,7 +400,7 @@ def test_token_prefixed_home_relative_resources(client, tmp_path):
 
 
 def test_progress_transition_state_machine(client):
-    """TRANSITIONS 唯一实现经路由生效：非法跳转 409，合法逐步 200。"""
+    """TRANSITIONS 唯一实现经路由生效：非法跳转 409，合法逐步 200；旧六档值 422 拒收。"""
     slug = client.post("/api/courses", json={"name": "状态机"}).json()["slug"]
     client.put(
         f"/api/courses/{slug}/curriculum",
@@ -418,8 +418,60 @@ def test_progress_transition_state_machine(client):
             "edges": [],
         },
     )
-    assert client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "能独立应用"}).status_code == 409
+    assert client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "已学完"}).status_code == 409
     assert client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "学习中"}).status_code == 200
-    assert client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "已通过项目验证"}).status_code == 409
-    assert client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "初步理解"}).status_code == 200
-    assert client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "能独立应用"}).status_code == 200
+    assert client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "未开始"}).status_code == 409
+    # 写回即收敛（目标态规格 §5.2）：落盘的是三档新词表
+    assert _progress(WORKSPACE, slug)["nodes"]["n1"]["status"] == "学习中"
+    assert client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "已学完"}).status_code == 200
+    # 旧六档词表已退役：写侧直接 422，不再认「能独立应用」这类值
+    assert (
+        client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "能独立应用"}).status_code
+        == 422
+    )
+
+
+def test_start_learning_promotes_unstarted_only(client):
+    """打开课件即「开始学习」（上游 advance「开始学习」事件口径）：
+
+    未开始 → 学习中；学习中/已学完幂等原样返回且**不写盘**（重复打开课件零进度写入）；
+    旧六档值先归一再判断；未知节点 404。
+    """
+    slug = client.post("/api/courses", json={"name": "开始学习"}).json()["slug"]
+    client.put(
+        f"/api/courses/{slug}/curriculum",
+        json={
+            "nodes": [
+                {"id": "n1", "title": "t1", "kind": "概念", "objective": "o", "prerequisites": [], "status": "未开始"},
+                {"id": "n2", "title": "t2", "kind": "实操", "objective": "o", "prerequisites": [], "status": "未开始"},
+            ],
+            "edges": [],
+        },
+    )
+    assert client.post(f"/api/courses/{slug}/nodes/n1/start-learning").status_code == 200
+    body = client.post(f"/api/courses/{slug}/nodes/n2/start-learning").json()
+    assert body["changed"] is True and body["node"]["status"] == "学习中"
+    assert _progress(WORKSPACE, slug)["nodes"]["n2"]["status"] == "学习中"
+
+    # 幂等：学习中再开不落盘（文件逐字节不变）
+    before = (WORKSPACE / ".learning" / "subjects" / slug / "progress.yaml").read_bytes()
+    again = client.post(f"/api/courses/{slug}/nodes/n2/start-learning").json()
+    assert again["changed"] is False and again["node"]["status"] == "学习中"
+    assert (WORKSPACE / ".learning" / "subjects" / slug / "progress.yaml").read_bytes() == before
+
+    # 已学完不被降级（客户端陈旧状态重复上报也安全）
+    client.put(f"/api/courses/{slug}/nodes/n1/progress", json={"status": "已学完"})
+    done = client.post(f"/api/courses/{slug}/nodes/n1/start-learning").json()
+    assert done["changed"] is False and done["node"]["status"] == "已学完"
+
+    # 旧六档值归一：能独立应用 = 已学完，no-op 且文件原样
+    progress = _progress(WORKSPACE, slug)
+    progress["nodes"]["n2"] = {"status": "能独立应用"}
+    (WORKSPACE / ".learning" / "subjects" / slug / "progress.yaml").write_text(
+        yaml.safe_dump(progress, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+    legacy = client.post(f"/api/courses/{slug}/nodes/n2/start-learning").json()
+    assert legacy["changed"] is False and legacy["node"]["status"] == "已学完"
+    assert _progress(WORKSPACE, slug)["nodes"]["n2"]["status"] == "能独立应用"
+
+    assert client.post(f"/api/courses/{slug}/nodes/nope/start-learning").status_code == 404

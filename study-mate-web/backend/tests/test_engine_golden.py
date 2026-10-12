@@ -75,6 +75,55 @@ def test_golden_lesson_minimal_export_ok(tmp_path):
     assert (tmp_path / "out" / "index.html").is_file()
 
 
+def test_golden_lesson_code_directive_round_trip(tmp_path):
+    """`::: code` 框内解释槽（上游 #116）：合法写法放行，字段写错按 code-lang 带行号阻断。
+
+    产课派工值内联了规范 §4 的 `::: code` 摘录（test_code_directive_values.py），
+    这里钉住摘录教的写法确实过得了门禁、教避开的写法确实被拦——否则提示词与门禁打架。
+    """
+    subject = tmp_path / ".learning" / "subjects" / "demo"
+    (subject / "lessons").mkdir(parents=True)
+    (subject / "curriculum.yaml").write_text(GOOD_CURRICULUM, encoding="utf-8")
+
+    good = subject / "lessons" / "0001-intro.md"
+    good.write_text(
+        "---\ntitle: 测试课\ngoal: 会做一次最小提交\n---\n\n"
+        "## 跑一遍看看\n\n"
+        "::: code term\n"
+        "caption: 第一行是命令，后面两行是它的输出\n\n"
+        "> node -e \"console.log(1 + 1)\"\n"
+        "2\n"
+        ":::\n",
+        encoding="utf-8",
+    )
+    report = engine_node.validate_lesson(good)
+    assert report["blocking"] is False, report["problems"]
+
+    bad = subject / "lessons" / "0002-bad.md"
+    bad.write_text(
+        "---\ntitle: 测试课\ngoal: 会做一次最小提交\n---\n\n"
+        "## 字段写在了指令头\n\n"
+        "::: code term caption: 写在头里算语言标签\n\n"
+        "> echo hi\n"
+        "hi\n"
+        ":::\n",
+        encoding="utf-8",
+    )
+    bad_report = engine_node.validate_lesson(bad)
+    assert bad_report["blocking"] is True
+    # CLI 报的是人话（不带 code 字段），按 code-lang 那条的措辞认：字段要写在块里的单独两行
+    assert any("语言标签" in p["message"] for p in bad_report["problems"]), bad_report["problems"]
+
+    result = engine_node.export_workspace(tmp_path, tmp_path / "out", subjects=["demo"])
+    assert result["ok"] is True
+    exported = "\n".join(
+        path.read_text(encoding="utf-8", errors="ignore")
+        for path in (tmp_path / "out").rglob("*")
+        if path.is_file()
+    )
+    assert "第一行是命令，后面两行是它的输出" in exported, "caption 应随课件进导出产物"
+
+
 def test_golden_yaml_with_newline_round_trips_through_node(tmp_path):
     """坑③第二形态：值含真实换行时必须以单行双引号转义落盘，上游解析器只认这个。"""
     import yaml as pyyaml

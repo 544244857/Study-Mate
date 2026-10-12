@@ -131,7 +131,7 @@ def test_first_pass_valid_calls_once_and_reports_not_repaired(client, cs, new_su
     assert len(calls) == 1
     assert body["assessment"]["verdict"] == "通过"
     assert (subject_dir / body["record_file"]).is_file()
-    assert _progress_status(cs, slug, "n1")["status"] == "能独立应用"
+    assert _progress_status(cs, slug, "n1")["status"] == "已学完"
 
 
 def test_local_repair_appends_missing_delimiter_without_llm(client, cs, new_subject, monkeypatch):

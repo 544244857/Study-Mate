@@ -39,6 +39,8 @@ def _generate_user_prompt(payload: GenerateCourseRequest) -> str:
             "- 每个节点必填字段：id、title、objective、prerequisites、status、kind（kind 取 概念/实操/实验）；",
             "- 每条 edge 必填字段：from、to、reason（reason 说明设边理由）；",
             "- concepts、pitfalls 是字符串数组；realworld 必须是字符串（不是数组）；",
+            "- resources 每条资源的 type 只允许写 official-doc / book / article / video 之一"
+            "（英文码；不要写「官方文档」「延伸阅读」等中文值——包内 schema 枚举只认这四个）；",
             "- nodes 顺序即教学顺序，依赖必须指向前置节点（禁止逆向依赖与环）。",
         ]
     )

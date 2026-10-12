@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import shutil
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -135,10 +135,8 @@ def create_draft(
         },
     )
     _write_yaml(base / "curriculum.yaml", {"nodes": [], "edges": []})
-    _write_yaml(
-        base / "progress.yaml",
-        {"updated_at": "", "nodes": {}, "misconceptions": [], "project": {"current": ""}},
-    )
+    # misconceptions 不落 progress（误解记录单一落点 misconceptions.yaml，规格 §5.4）
+    _write_yaml(base / "progress.yaml", {"updated_at": "", "nodes": {}, "project": {"current": ""}})
     (base / "MISSION.md").write_text(
         "\n".join(
             [
@@ -186,8 +184,13 @@ def draft_progress(slug: str) -> dict[str, Any]:
 
 
 def save_draft_progress(slug: str, data: dict[str, Any]) -> None:
+    """与 curriculum_store.save_progress 同一套写回口径：RFC 3339 updated_at + 状态收敛。
+
+    Promote 会把草稿原样搬进工作区，草稿就该按工作区最终形态写（包内 progress 校验器
+    按 date-time 卡 updated_at，纯日期阻断）。误解双落点与 mastery 键维持现状、原样保留。
+    """
     payload = dict(data)
-    payload["updated_at"] = date.today().isoformat()
+    payload["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     _write_yaml(draft_dir(slug) / "progress.yaml", payload)
 
 

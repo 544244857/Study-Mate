@@ -231,13 +231,8 @@ export interface SessionMeta {
   active?: SessionActive | null;
 }
 
-export type NodeStatus =
-  | "未开始"
-  | "学习中"
-  | "初步理解"
-  | "能独立应用"
-  | "需要复习"
-  | "已通过项目验证";
+/** 三档词表（目标态规格 §5.2）。后端读侧会把旧工作区里的旧六档值归一成这三档再返回。 */
+export type NodeStatus = "未开始" | "学习中" | "已学完";
 
 export type NodeKind = "概念" | "实操" | "实验";
 
@@ -264,7 +259,6 @@ export interface GraphNode {
   pitfalls: string[];
   realworld: string;
   status: NodeStatus;
-  mastery: number;
   notes: string;
   index: number;
   next_statuses: NodeStatus[];
@@ -298,7 +292,6 @@ export interface SubjectSummary {
   created_at: string;
   node_total: number;
   node_done: number;
-  avg_mastery: number;
 }
 
 export type ProviderKind = "preset" | "custom";

@@ -76,7 +76,7 @@ export function CourseGraphView() {
     setCurrentSubjectSlug(activeSlug);
   }, [activeSlug, setCurrentSubjectSlug]);
 
-  // 头部总览用的派生值（node_done / node_total / avg_mastery 来自科目摘要）
+  // 头部总览用的派生值（node_done / node_total 来自科目摘要）
   const subjectSummary = useMemo(
     () => subjects.find((s) => s.slug === activeSlug) ?? null,
     [subjects, activeSlug],
@@ -253,9 +253,8 @@ export function CourseGraphView() {
           {course && (
             <div className="hidden shrink-0 items-center gap-2.5 text-[11px] text-[var(--foreground)]/60 md:flex">
               {subjectSummary && (
-                <span title="已完成节点（能独立应用 / 已通过项目验证）/ 总节点数">
-                  进度 {subjectSummary.node_done}/{subjectSummary.node_total} · 平均掌握度{" "}
-                  {Math.round(subjectSummary.avg_mastery * 100)}%
+                <span title="已完成节点（已学完）/ 总节点数">
+                  进度 {subjectSummary.node_done}/{subjectSummary.node_total}
                 </span>
               )}
               <label className="flex shrink-0 items-center gap-1.5">

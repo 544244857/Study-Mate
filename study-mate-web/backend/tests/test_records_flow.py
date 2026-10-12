@@ -18,13 +18,13 @@ def _experiment_curriculum():
     }
 
 
-def _assess(client, cs, slug, node_id, mastery):
+def _assess(client, cs, slug, node_id):
     from app import storage
 
     progress = cs.get_progress(slug)
     progress["nodes"] = {
-        "lab1": {"status": "能独立应用", "mastery": mastery},
-        "c1": {"status": "能独立应用", "mastery": 0.9},
+        "lab1": {"status": "学习中"},
+        "c1": {"status": "学习中"},
     }
     cs.save_progress(slug, progress)
     session_id = client.post("/api/sessions", json={"title": "评估会话"}).json()["id"]
@@ -37,34 +37,23 @@ def test_assess_promotes_experiment_with_prerequisites(client, cs, new_subject):
     slug, subject_dir = new_subject
     client.put(f"/api/courses/{slug}/curriculum", json=_experiment_curriculum())
 
-    response = _assess(client, cs, slug, "lab1", mastery=0.8)
+    response = _assess(client, cs, slug, "lab1")
     assert response.status_code == 200
     body = response.json()
     assert [item["id"] for item in body["promoted"]] == ["lab1", "c1"]
-    assert all(item["status"] == "已通过项目验证" for item in body["promoted"])
+    assert all(item["status"] == "已学完" for item in body["promoted"])
 
     nodes = cs.get_progress(slug)["nodes"]
-    assert nodes["lab1"]["status"] == "已通过项目验证"
-    assert nodes["c1"]["status"] == "已通过项目验证"
-    # 掌握度「保留或上调」：建议 0.4 低于现值 0.8 → 保留；前置无新评估值 → 保留
-    assert nodes["lab1"]["mastery"] == 0.8
-    assert nodes["c1"]["mastery"] == 0.9
+    assert nodes["lab1"]["status"] == "已学完"
+    assert nodes["c1"]["status"] == "已学完"
+    # 掌握度字段已取消（规格 §5.2）：评估置位不再写 mastery
+    assert "mastery" not in nodes["lab1"] and "mastery" not in nodes["c1"]
 
     record = subject_dir / body["learning_record"]
     assert record.is_file()
     assert "实验通过" in record.read_text(encoding="utf-8")
     # 评估产出的误解双落点（fixture canned 的 topic）
     assert (subject_dir / "misconceptions.yaml").is_file()
-
-
-def test_assess_raises_experiment_mastery_when_suggestion_higher(client, cs, new_subject):
-    slug, _ = new_subject
-    client.put(f"/api/courses/{slug}/curriculum", json=_experiment_curriculum())
-
-    response = _assess(client, cs, slug, "lab1", mastery=0.2)
-    assert response.status_code == 200
-    # 建议 0.4 高于现值 0.2 → 上调
-    assert cs.get_progress(slug)["nodes"]["lab1"]["mastery"] == 0.4
 
 
 def test_summary_appends_segments_on_same_day(client, cs, new_subject):

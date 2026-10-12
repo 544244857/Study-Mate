@@ -30,10 +30,7 @@ const KIND_STYLE: Record<NodeKind, string> = {
 const STATUS_COLOR: Record<NodeStatus, string> = {
   未开始: "#9aa5a1",
   学习中: "#3b82f6",
-  初步理解: "#14b8a6",
-  能独立应用: "#22c55e",
-  需要复习: "#f59e0b",
-  已通过项目验证: "#1c5a40",
+  已学完: "#22c55e",
 };
 
 const LAB_STATUSES: LabStatus[] = ["待生成", "待提交", "待评估", "已通过"];
@@ -57,7 +54,6 @@ interface NodeDetailProps {
 export function NodeDetail({ slug, node, workspace, onSelectNode, onUpdated }: NodeDetailProps) {
   const router = useRouter();
 
-  const [mastery, setMastery] = useState(node.mastery);
   const [notes, setNotes] = useState(node.notes);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -78,7 +74,6 @@ export function NodeDetail({ slug, node, workspace, onSelectNode, onUpdated }: N
     if (switchedNode) {
       lastNodeIdRef.current = node.id;
       dirtyRef.current = false;
-      setMastery(node.mastery);
       setNotes(node.notes);
       setSaving(false);
       setSaved(false);
@@ -87,12 +82,11 @@ export function NodeDetail({ slug, node, workspace, onSelectNode, onUpdated }: N
       return;
     }
     // 同一节点被外部更新（如聊天侧评估改进度）：没有本地未保存改动时才回填，
-    // 避免抹掉用户正在编辑、还没点保存的掌握度/笔记。
+    // 避免抹掉用户正在编辑、还没点保存的笔记。
     if (!dirtyRef.current) {
-      setMastery(node.mastery);
       setNotes(node.notes);
     }
-  }, [node.id, node.mastery, node.notes]);
+  }, [node.id, node.notes]);
 
   // 课件列表缓存判断当前节点是否有课件
   useEffect(() => {
@@ -136,7 +130,6 @@ export function NodeDetail({ slug, node, workspace, onSelectNode, onUpdated }: N
 
   const save = async (payload: {
     status?: NodeStatus;
-    mastery?: number;
     notes?: string;
     lab_status?: LabStatus;
   }) => {
@@ -145,12 +138,8 @@ export function NodeDetail({ slug, node, workspace, onSelectNode, onUpdated }: N
     try {
       const res = await api.updateNodeProgress(slug, node.id, payload, workspace);
       onUpdated(res.node);
-      // 只有本次真的提交了掌握度/笔记才回填并清掉「未保存」标记；状态 / 实验状态保存
-      // 不能覆盖用户正在编辑但还没保存的掌握度与笔记。
-      if (payload.mastery !== undefined) {
-        setMastery(res.node.mastery);
-        dirtyRef.current = false;
-      }
+      // 只有本次真的提交了笔记才回填并清掉「未保存」标记；状态 / 实验状态保存
+      // 不能覆盖用户正在编辑但还没保存的笔记。
       if (payload.notes !== undefined) {
         setNotes(res.node.notes);
         dirtyRef.current = false;
@@ -336,24 +325,6 @@ export function NodeDetail({ slug, node, workspace, onSelectNode, onUpdated }: N
           </div>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs opacity-60">
-              掌握度 {Math.round(mastery * 100)}%
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={mastery}
-              onChange={(e) => {
-                dirtyRef.current = true;
-                setMastery(Number(e.target.value));
-              }}
-              className="w-full accent-brand"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
             <span className="text-xs opacity-60">笔记</span>
             <textarea
               value={notes}
@@ -371,7 +342,7 @@ export function NodeDetail({ slug, node, workspace, onSelectNode, onUpdated }: N
           {error && <p className="text-xs text-red-500">{error}</p>}
 
           <button
-            onClick={() => void save({ mastery, notes })}
+            onClick={() => void save({ notes })}
             disabled={saving}
             className="flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand-light disabled:opacity-50"
           >

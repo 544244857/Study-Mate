@@ -14,7 +14,7 @@ import time
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,14 +25,23 @@ from .yaml_out import dump_yaml
 
 logger = logging.getLogger(__name__)
 
+# 三档词表（目标态规格 §5.2；建课快照与运行期共用同一词表）。
 NODE_STATUSES = [
     "未开始",
     "学习中",
-    "初步理解",
-    "能独立应用",
-    "需要复习",
-    "已通过项目验证",
+    "已学完",
 ]
+# 旧六档 → 三档的读侧映射（规格 §5.2 明文；与包内 lib/core/rules.ts 的 LEGACY_TIER_MAP
+# 逐条一致——回流条件①：状态机不再有我们的第二份口径）。旧 progress.yaml 不强制改写，
+# 读侧归一展示、写盘时自然收敛（save_progress 统一映射）。
+LEGACY_STATUS_MAP = {
+    "未开始": "未开始",
+    "学习中": "学习中",
+    "初步理解": "学习中",
+    "能独立应用": "已学完",
+    "需要复习": "已学完",
+    "已通过项目验证": "已学完",
+}
 KINDS = ["概念", "实操", "实验"]
 SUBJECT_STATUSES = ["进行中", "暂停", "已完成"]
 IMPORTANCES = ["low", "medium", "high"]
@@ -43,13 +52,19 @@ SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 TRANSITIONS: dict[str, list[str]] = {
     "未开始": ["学习中"],
-    "学习中": ["初步理解", "需要复习"],
-    "初步理解": ["能独立应用", "需要复习"],
-    "能独立应用": ["已通过项目验证", "需要复习"],
-    "已通过项目验证": ["需要复习"],
-    "需要复习": ["学习中"],
+    "学习中": ["已学完"],
+    # 要求复习回退：状态是事实，不是奖杯（上游 rules.ts advance「要求复习」同口径）
+    "已学完": ["学习中"],
 }
-DONE_STATUSES = {"能独立应用", "已通过项目验证"}
+DONE_STATUSES = {"已学完"}
+
+
+def normalize_status(raw: Any) -> str:
+    """任意读到的状态值 → 三档。不认识的词一律退回「未开始」：猜错的代价是
+    「没学过」被显示成「学完了」，那比显示成没开始坏得多（上游 toTier 同口径）。"""
+    if isinstance(raw, str) and raw in NODE_STATUSES:
+        return raw
+    return LEGACY_STATUS_MAP.get(raw if isinstance(raw, str) else "", "未开始")
 
 # 课程 YAML 是"整文件读改写"：并发读者撞上非原子写会解析到半个文件，并发写者会
 # 各读一份旧内容、后写覆盖先写（丢更新）。所有文件 IO 走这把可重入锁；写侧再配
@@ -150,12 +165,9 @@ def effective_node(
     transitions: dict[str, list[str]],
 ) -> dict[str, Any]:
     entry = progress_entry or {}
-    status = entry.get("status") or curriculum_node.get("status") or "未开始"
-    mastery = entry.get("mastery")
-    if mastery is None:
-        mastery = curriculum_node.get("mastery")
-    if not isinstance(mastery, (int, float)) or isinstance(mastery, bool):
-        mastery = 0
+    # 读侧归一：旧六档值（旧工作区 progress.yaml）映射成三档再展示与算流转，
+    # next_statuses 才不会因为字典里没有旧词表的键而算成空。
+    status = normalize_status(entry.get("status") or curriculum_node.get("status") or "未开始")
     notes = entry.get("notes")
     if notes is None:
         notes = curriculum_node.get("notes", "")
@@ -172,7 +184,6 @@ def effective_node(
         "pitfalls": list(curriculum_node.get("pitfalls") or []),
         "realworld": curriculum_node.get("realworld", ""),
         "status": status,
-        "mastery": round(float(mastery), 2),
         "notes": notes or "",
         "lab_status": entry.get("lab_status"),
         "index": index,
@@ -215,8 +226,24 @@ def save_curriculum(slug: str, data: dict[str, Any]) -> None:
 
 
 def save_progress(slug: str, data: dict[str, Any]) -> None:
+    """写回即收敛到新词表（规格 §5.2「写回时才用新词表」）：旧六档状态在落盘前统一映射。
+
+    updated_at 用带时区的 RFC 3339（包内 progress 校验器按 date-time 格式卡，纯日期阻断）。
+    `misconceptions` 双落点维持现状（§5.4 单一落点是提案、未拍板；包内校验器对该键只给
+    非阻断提示）；`mastery` 键同样读侧容忍、原样保留。
+    """
     payload = dict(data)
-    payload["updated_at"] = date.today().isoformat()
+    payload["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+    nodes = payload.get("nodes")
+    if isinstance(nodes, dict):
+        payload["nodes"] = {
+            node_id: (
+                {**entry, "status": normalize_status(entry.get("status"))}
+                if isinstance(entry, dict)
+                else entry
+            )
+            for node_id, entry in nodes.items()
+        }
     _write_yaml(_yaml_path(slug, "progress.yaml"), payload)
 
 
@@ -290,7 +317,7 @@ def subject_summary(slug: str) -> dict[str, Any] | None:
     ]
     total = len(views)
     done = sum(1 for view in views if view["status"] in DONE_STATUSES)
-    average = round(sum(view["mastery"] for view in views) / total, 2) if total else 0
+    # avg_mastery 不再产出：掌握度字段已取消（目标态规格 §5.2），进度口径只剩三档计数
     return {
         "slug": subject.get("slug") or slug,
         "name": subject.get("name", ""),
@@ -299,7 +326,6 @@ def subject_summary(slug: str) -> dict[str, Any] | None:
         "created_at": subject.get("created_at", ""),
         "node_total": total,
         "node_done": done,
-        "avg_mastery": average,
     }
 
 

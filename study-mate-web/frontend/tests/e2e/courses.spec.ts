@@ -91,7 +91,7 @@ test("course header shows the subject overview and edits the status in place", a
   const status = page.getByTestId("subject-status");
   await expect(status).toBeVisible();
   await expect(status).toHaveValue("进行中");
-  await expect(page.getByText(/进度 \d+\/\d+ · 平均掌握度/)).toBeVisible();
+  await expect(page.getByText(/进度 \d+\/\d+/)).toBeVisible();
 
   await status.selectOption("暂停");
   await expect(status).toHaveValue("暂停");
@@ -104,6 +104,26 @@ test("course header shows the subject overview and edits the status in place", a
   // 还原，避免污染同一轮里的其它用例
   await status.selectOption("进行中");
   await expect(status).toHaveValue("进行中");
+});
+
+// `::: code` 框内解释槽（上游 #116）：种子课件 0003 的 term 块用它给输出写框内解释。
+// 阅读端给所有代码块都套 `.smb-code` 外壳（围栏也是），**只有 `::: code` 产
+// `.smb-code__caption`**——所以用 caption 认出这一块，再验它确实在代码框内。
+test("::: code renders its caption inside the code frame (seed lesson 0003)", async ({ page }) => {
+  await page.goto("/lesson?subject=computer-networks&node=net.ip");
+
+  // 阅读入口 = 导出应用（应用内导航、无深链是既定取舍）：iframe 先落 SPA 首页，
+  // 再进科目 → 目录点开本课
+  const frame = page.frameLocator("iframe");
+  await frame.locator('[data-proto="nav-subject"]', { hasText: "计算机网络" }).click();
+  await frame.locator('[data-proto="open-node"][data-node="net.ip"]').click();
+
+  // 框内解释：caption 挂在 .smb-code 里、代码那一层下方；本课只有这一块写了它
+  const captioned = frame.locator(".smb-code").filter({ has: frame.locator(".smb-code__caption") });
+  await expect(captioned).toHaveCount(1);
+  await expect(captioned.locator(".smb-code__caption")).toContainText("ping 192.168.1.1");
+  await expect(captioned.locator(".smb-code__lang")).toHaveText("term");
+  await expect(captioned.locator("pre code")).toContainText("网关在不在这一块 False");
 });
 
 // 左侧边栏的科目行改成「选中」语义（去掉状态绿点后）：只表达当前在看的科目

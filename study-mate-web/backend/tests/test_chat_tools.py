@@ -370,8 +370,9 @@ def test_get_course_outline_returns_nodes_and_recommendation(client, new_subject
         slug,
         {
             "nodes": {
-                "n1": {"status": "已完成", "mastery": 90},
-                "n2": {"status": "未开始", "mastery": 0},
+                # 三档词表（§5.2）：「已完成」是科目级状态，节点完成 = 已学完
+                "n1": {"status": "已学完"},
+                "n2": {"status": "未开始"},
             }
         },
     )
@@ -380,7 +381,7 @@ def test_get_course_outline_returns_nodes_and_recommendation(client, new_subject
     res = asyncio.run(execute("get_course_outline", {}, ctx))
     assert res["is_error"] is False
     assert "第一课" in res["content"]
-    assert "掌握度 90%" in res["content"]
+    assert "掌握度" not in res["content"], "掌握度已取消（§5.2），大纲不再展示"
     assert "当前推荐学习/产课节点：第二课 (n2)" in res["content"]
     assert res["outline"]["slug"] == slug
     assert len(res["outline"]["nodes"]) == 2

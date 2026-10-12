@@ -126,13 +126,8 @@ test("session-bound workspace isolates course reads/writes and iframe nested ass
     await expect(detail).toBeVisible();
     await expect(page.getByRole("heading", { name: "分层模型与封装" })).toBeVisible();
 
-    // 保存进度（掌握度 + 唯一笔记，保证 B 一定发生可判别变化）
+    // 保存进度（唯一笔记，保证 B 一定发生可判别变化；掌握度滑杆已随 §5.2 移除）
     const uniqueNote = `E2E-REVIEW-B-${Date.now()}`;
-    await detail.locator('input[type="range"]').evaluate((el) => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-      setter?.call(el, "0.05");
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    });
     await detail.getByPlaceholder("记录你的理解、卡点…").fill(uniqueNote);
     await detail.getByRole("button", { name: "保存进度" }).click();
     await expect(detail.getByText("已保存")).toBeVisible();

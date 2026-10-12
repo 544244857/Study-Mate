@@ -19,10 +19,7 @@ const WHEEL_SENSITIVITY = 1;
 const STATUS_FILL: Record<NodeStatus, string> = {
   未开始: "#9aa5a1",
   学习中: "#3b82f6",
-  初步理解: "#14b8a6",
-  能独立应用: "#22c55e",
-  需要复习: "#f59e0b",
-  已通过项目验证: "#1c5a40",
+  已学完: "#22c55e",
 };
 
 const KIND_FILL: Record<GraphNode["kind"], string> = {
@@ -157,9 +154,6 @@ function OutlineRows({
               style={{ background: KIND_FILL[n.kind] ?? "#6b7280" }}
             >
               {n.kind}
-            </span>
-            <span className="w-10 shrink-0 text-right text-[11px] opacity-50">
-              {Math.round(n.mastery * 100)}%
             </span>
           </button>
         );
