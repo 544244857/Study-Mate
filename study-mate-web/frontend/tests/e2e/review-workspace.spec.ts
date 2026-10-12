@@ -18,7 +18,7 @@ import { associateWorkspace } from "./helpers";
  *
  * 旅程：UI 关联会话工作区 B → 侧栏进入课程详情（应为 B 的标识）→ 保存节点进度 →
  * 断言 B 的 progress.yaml 变化、A 的逐字节不变（磁盘 + 后端 API 双证）→ 打开课件 iframe →
- * 断言 iframe 走 /api/workspace-files 前缀，且多层嵌套资源（课件页 + ../assets 资源）返回 200
+ * 断言 iframe 走导出应用入口（/api/exports），多层嵌套资源（课件源文件 + ../assets 资源）返回 200
  * 且内容来自 B（B 专属标记）。
  *
  * 数据唯一化 + 自带前后清理：B 每次先删后建；用例末尾删除 B；不新建会话、不改 fixture 配置，
@@ -167,7 +167,7 @@ test("session-bound workspace isolates course reads/writes and iframe nested ass
     expect(bApi.graph.nodes.find((n) => n.id === NODE_ID)?.notes).toContain(uniqueNote);
     expect(aApi.graph.nodes.find((n) => n.id === NODE_ID)?.notes ?? "").not.toContain(uniqueNote);
 
-    // 课件 iframe：URL 与 iframe src 都带 workspace=B 的前缀路由
+    // 课件 iframe：页面 URL 带 workspace=B（绑定跟随）；iframe 走导出应用入口
     await page.getByRole("button", { name: "打开课件" }).click();
     await expect(page).toHaveURL(new RegExp(`/lesson\\?.*workspace=`));
     await expect
@@ -175,14 +175,13 @@ test("session-bound workspace isolates course reads/writes and iframe nested ass
       .toBe(WORKSPACE_B.toLowerCase());
 
     const iframeSrc = await page.locator("iframe").getAttribute("src");
-    expect(iframeSrc, "课件 iframe 应走 /api/workspace-files 前缀").toContain("/api/workspace-files/");
-    const frame = page.frameLocator("iframe");
-    await expect(frame.locator("h1")).toContainText("分层模型与封装");
+    expect(iframeSrc, "课件 iframe 应走导出应用入口").toContain("/api/exports/");
+
 
     // 多层嵌套资源：课件页 + `../assets` 科目资源都要 200，且科目资源内容来自 B（专属标记）
     const token = workspaceToken(WORKSPACE_B);
     const wsBase = `${BACKEND_URL}/api/workspace-files/${token}`;
-    const lessonRes = await request.get(`${wsBase}/courses/${SLUG}/files/lessons/0001-${NODE_ID}.html`);
+    const lessonRes = await request.get(`${wsBase}/courses/${SLUG}/files/lessons/0001-${NODE_ID}.md`);
     expect(lessonRes.ok()).toBe(true);
     expect(await lessonRes.text()).toContain("分层模型与封装");
 

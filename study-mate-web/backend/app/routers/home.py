@@ -1,7 +1,8 @@
-"""工作区主页：只读服务根 index.html 及其相对引用的工作区文件。
+"""工作区主页：全工作区导出的阅读端 SPA 入口（app/exporter.export_workspace_home，按需刷新）。
 
-主页由 gen_home.py 生成在工作区根，页面里用相对路径引 `.learning/assets/**`
-与 `.learning/subjects/**`；这里把整个工作区作为只读文件根，路径越出即拒。
+gen_home 主页渲染已随 python 引擎退役；主页 = 上游导出应用自带的首页。
+`/api/home/{file_path}` 仍把工作区根作为只读文件根（旧产物时代的相对引用兜底），
+路径越出即拒。
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from .. import curriculum_store as cs
-from .. import workspace_ctx
+from .. import exporter, workspace_ctx
 from ..common import optional_workspace
 
 router = APIRouter(prefix="/api", tags=["home"])
@@ -43,12 +44,16 @@ CONTENT_TYPES = {
 
 @router.get("/home")
 def get_home(workspace: str | None = None) -> FileResponse:
-    """工作区根主页 <ws>/index.html；未生成则 404。可选 `?workspace=` 指定工作区。"""
+    """工作区主页。node 模式 = 全工作区导出入口（按需刷新）；python 模式 = <ws>/index.html。
+
+    可选 `?workspace=` 指定工作区。
+    """
     with _scope(workspace):
-        target = (cs.workspace_dir() / "index.html").resolve()
-        if not target.is_file():
-            raise HTTPException(404, "工作区主页不存在：index.html")
-    return FileResponse(target, media_type="text/html")
+        try:
+            entry = exporter.export_workspace_home()["entry"]
+        except exporter.ExportError as exc:
+            raise HTTPException(502, str(exc)) from None
+        return FileResponse(entry, media_type="text/html")
 
 
 @router.get("/home/{file_path:path}")

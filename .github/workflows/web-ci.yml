@@ -4,29 +4,30 @@ name: Web checks
 # 根 job 语义不动，这里只跑 Web 运行时的后端测试与前端 lint/组件/构建/E2E 冒烟。
 #
 # 触发路径包含 Web 自身，以及它运行时复用/依赖的仓库根资源：
-#   - scripts/**  ：后端子进程调用 check_curriculum.py、gen_home.py（上游脚本零重写）
-#   - schemas/**  ：课程/进度的数据合同
-#   - templates/**：课件渲染
-#   - .dsh/skills/**、examples/**：提示词与 E2E 种子课件（examples/.learning 被 global-setup 复制）
+#   - schemas/**  ：课程/进度的数据合同（判定以引擎包内 schema 为单源；根那份未随上游同步，
+#     因为它和旧根 scripts/ 交叉校验，要同步就连 scripts/ 一起）
+#   - preset/skills/**：角色规格现场读（上游唯一位置）
+#   - engine-node/**   ：node 侧消费层（上游 npm 包 @yunmiao/studymate 的钉版与契约测试）
+#   - templates/**     ：记忆/任务模板（MEMORY.md 等）
+# scripts/**、.dsh/skills/**、examples/** 仍在仓库里，但 Web 子项目已不消费它们
+# （引擎走 npm 包、技能读 preset/skills、E2E 种子在 backend/seed），故不作触发路径。
 on:
   push:
     branches: [main]
     paths:
       - 'study-mate-web/**'
-      - 'scripts/**'
       - 'schemas/**'
+      - 'preset/skills/**'
+      - 'engine-node/**'
       - 'templates/**'
-      - '.dsh/skills/**'
-      - 'examples/**'
       - '.github/workflows/web-ci.yml'
   pull_request:
     paths:
       - 'study-mate-web/**'
-      - 'scripts/**'
       - 'schemas/**'
+      - 'preset/skills/**'
+      - 'engine-node/**'
       - 'templates/**'
-      - '.dsh/skills/**'
-      - 'examples/**'
       - '.github/workflows/web-ci.yml'
   workflow_dispatch:
 
@@ -55,7 +56,9 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: study-mate-web/frontend/package-lock.json
+          cache-dependency-path: |
+            study-mate-web/frontend/package-lock.json
+            study-mate-web/engine-node/package-lock.json
 
       - uses: actions/setup-python@v7
         with:
@@ -64,6 +67,14 @@ jobs:
           cache-dependency-path: |
             study-mate-web/backend/requirements.lock.txt
             study-mate-web/backend/requirements-dev.lock.txt
+
+      # engine-node：上游 npm 包消费层的安装 + 整形 + 自检（幂等；node 由 setup-node 提供）。
+      # 后端 pytest 的 node 模式用例与旁路校验依赖 vendor/ 产物，必须在测试前就位。
+      - name: Set up engine-node
+        working-directory: study-mate-web/engine-node
+        run: |
+          node setup.mjs
+          node --test "tests/*.test.mjs"
 
       - name: Install frontend dependencies
         working-directory: study-mate-web/frontend

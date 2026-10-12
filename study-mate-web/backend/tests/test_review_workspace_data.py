@@ -191,7 +191,7 @@ def test_read_endpoints_honor_workspace(client, tmp_path):
     subject = other / ".learning" / "subjects" / "iso-read"
     lessons = subject / "lessons"
     lessons.mkdir()
-    (lessons / "0001-n1.html").write_text("<html>lesson</html>", encoding="utf-8")
+    (lessons / "0001-n1.md").write_text("# 课件\n", encoding="utf-8")
     (lessons / "0001-n1.quiz.json").write_text(
         json.dumps({"intro": [{"q": "题面", "criteria": "要点"}]}, ensure_ascii=False),
         encoding="utf-8",

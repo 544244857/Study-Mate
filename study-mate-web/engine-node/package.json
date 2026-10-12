@@ -1,0 +1,19 @@
+{
+  "name": "study-mate-web-engine-node",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Web 运行时的 node 侧引擎消费层：三个 CLI（export/validate/workspace）+ setup，规则全部来自上游 @yunmiao/studymate",
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "setup": "node setup.mjs",
+    "test": "node --test \"tests/*.test.mjs\""
+  },
+  "dependencies": {
+    "@yunmiao/studymate": "2.0.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

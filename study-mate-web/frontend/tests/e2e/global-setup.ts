@@ -72,13 +72,9 @@ function prepareWorkspace(repoRoot: string): void {
   const workspaceDir = path.join(dataDir, "e2e-ws");
   const e2eDataDir = path.join(dataDir, "e2e-data");
   const seedDir = path.join(backendDir, "seed");
-  const exampleSubjectDir = path.join(
-    repoRoot,
-    "examples",
-    ".learning",
-    "subjects",
-    "computer-networks",
-  );
+  // 课件 / 术语表 / 科目资产的种子也在 seed 里（2026-10-11 从仓库根 examples/.learning 迁入，
+  // 上游已删 examples/，E2E 种子随子项目自包含）
+  const exampleSubjectDir = path.join(seedDir, "computer-networks");
 
   fs.rmSync(workspaceDir, { recursive: true, force: true });
   fs.rmSync(e2eDataDir, { recursive: true, force: true });

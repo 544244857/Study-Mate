@@ -74,12 +74,12 @@ async function createTwoNodeSubject(request: APIRequestContext, slug: string): P
 }
 
 /**
- * 经真实 HTTP 产课端点把第一课**完整**产出（.md / .quiz.json / .html）。
+ * 经真实 HTTP 产课端点把第一课**完整**产出（.md / .quiz.json）。
  *
- * 不能只种 `.md` 占位：上游 `check_lesson.py` 的编号规则只看同目录 `*.html`
- * （`NUMBERED_NAME_RE = ^(\d{4})-.*\.html$`）。目录里没有 `0001-*.html` 时，第二课的
- * `0002-*.html` 会被判成「同目录第一份课件应 0001 → 跳号」，真产课链 check 失败、
- * 任务转 error。必须走真实产课链让首课产物齐备，不放宽产品 check。
+ * 不能只种占位文件：引擎门禁的编号规则看同目录课件源文件（`0001-*.md`），
+ * 目录里没有第一课时，第二课会被判成「同目录第一份课件应 0001 → 跳号」，
+ * 真产课链 check 失败、任务转 error。必须走真实产课链让首课产物齐备，
+ * 不放宽产品 check。
  */
 async function produceFirstLesson(request: APIRequestContext, slug: string): Promise<void> {
   const res = await request.post(`${BACKEND_URL}/api/courses/${slug}/nodes/${NODE1}/produce`, {
@@ -94,8 +94,8 @@ async function produceFirstLesson(request: APIRequestContext, slug: string): Pro
   expect(body, "第一课应真实走完产课链（done）").toContain("event: done");
   const lessons = path.join(subjectDir(slug), "lessons");
   expect(
-    fs.existsSync(path.join(lessons, `0001-${NODE1}.html`)),
-    "第一课 html 应落盘",
+    fs.existsSync(path.join(lessons, `0001-${NODE1}.md`)),
+    "第一课源文件应落盘",
   ).toBeTruthy();
   expect(
     fs.existsSync(path.join(lessons, `0001-${NODE1}.quiz.json`)),
@@ -313,7 +313,7 @@ function replayTask(terminal: "done" | "error"): Record<string, unknown> {
             node_id: nodeId,
             title: "分层模型与封装",
             workspace: E2E_WORKSPACE_DIR,
-            file: "lessons/0001-net.layers.html",
+            file: "lessons/0001-net.layers.md",
           },
         }
       : { error: "备用派工仍未交付，已停止" }),

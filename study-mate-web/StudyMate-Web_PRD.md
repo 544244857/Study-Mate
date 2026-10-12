@@ -288,7 +288,7 @@ Web 与插件**共用同一套工作区与发现规则**，布局与插件 `.lea
 
 - **布局**：`<工作区>/.learning/subjects/<slug>/` 下放科目 yaml、`lessons/`、`reference/`、`assets/`、
   `assessments/`、`learning-records/`、`sessions/`；工作区级共享资源在 `<工作区>/.learning/assets/`。
-- **发现**：复用上游 `scripts/gen_home.py::learn_workspace()`，Web 不实现第二份规则。优先级：
+- **发现**：走 `engine-node/` 的 `sm-workspace`（上游 `lib/workspace` 语义，优先级与旧 `gen_home.py::learn_workspace()` 逐字一致），Web 不实现第二份规则。优先级：
   显式 `STUDYMATE_WORKSPACE` > `LEARN_WORKSPACE` > `STUDYMATE_CONFIG`（默认
   `$DSH_HOME/studymate-config.yaml`）的 `workspace` 字段 > 插件默认 `~/StudyMate`。
   上游发现不可用（无配置/脚本缺失）时回落到 `~/StudyMate` 并记警告，不阻断启动。
@@ -313,13 +313,13 @@ Web 与插件**共用同一套工作区与发现规则**，布局与插件 `.lea
   "你是 StudyMate 自学系统的主教练（学习模式），按 learning-system 技能规范调度学习流程。坚持
   learn with doing：讲清概念后引导学习者动手练习，用通俗的语言和具体的例子解释知识。"
   设置页仍可整体替换；从旧默认文案升级时自动迁移（幂等）。
-- **按链路注入技能规范全文**：每条链路在发出模型请求前，读取对应 `.dsh/skills/<名>/SKILL.md`
+- **按链路注入技能规范全文**：每条链路在发出模型请求前，读取对应 `preset/skills/<名>/SKILL.md`（旧位置 `.dsh/skills`，见下）
   **全文**并作为独立 system 块注入（不做裁剪、不在 Web 侧复述规则）：
   对话 → `learning-system` + `local-qa`；评估 → `practice-evaluator` + `evidence-check` + `record-keeping`；
   小结与记忆提炼 → `record-keeping`；判分 → `practice-evaluator` + `evidence-check`。
   注入文本带一段"运行环境适配"说明：规范中涉及终端沙箱、权限、子代理派工的条目在 Web 由后端承担。
-- **缺失即报错**：技能规范文件缺失时该次调用明确 503（不静默降级）；规范目录定位在 engine root
-  （仓库 `.dsh/skills/`）。
+- **缺失即报错**：技能规范文件缺失时该次调用明确 503（不静默降级）；规范目录按
+  `preset/skills` → `.dsh/skills` 顺序现场解析（`config._skills_dir()`），不拷贝副本。
 
 ## 11. 开场切片与学习记录
 
@@ -353,7 +353,7 @@ Web 与插件**共用同一套工作区与发现规则**，布局与插件 `.lea
 
 ## 13. 生产侧（产课 / 建课 / 采图 / 方向探索 / 质检工单）
 
-Web 以**角色子代理**形态承担生产职责，子代理分两支：**工具化 agent 循环**（默认，对所有配置的模型开启，见第 14 节）与**无工具单次调用**（工具循环无交付时的回落兜底 / fixture 模式下的既有 envelope 契约）；建课链与产课链按此分流，交付契约与检验收口不变。备用（回落 / 直连）角色在任务卡上带 `execution_mode ∈ {tools, fallback, single_call}` 与 `fallback_reason` / `max_seconds` / `elapsed_s` / `message`，**按真实 start / done / error 呈现**；**单次派工返回 envelope 只表示这次调用有回复，不等于自检通过**。生产侧的链路细节（建课 / 产课 / 采图 / 方向探索 / 质检工单、真实 LLM 选型口径）见 [docs/StudyMate-Web_建课链路.md](docs/StudyMate-Web_建课链路.md)。
+Web 以**角色子代理**形态承担生产职责，子代理分两支：**工具化 agent 循环**（默认，对所有配置的模型开启，见第 14 节）与**无工具单次调用**（工具循环无交付时的回落兜底 / fixture 模式下的既有 envelope 契约）；建课链与产课链按此分流，交付契约与检验收口不变。备用（回落 / 直连）角色在任务卡上带 `execution_mode ∈ {tools, fallback, single_call}` 与 `fallback_reason` / `max_seconds` / `elapsed_s` / `message`，**按真实 start / done / error 呈现**；**单次派工返回 envelope 只表示这次调用有回复，不等于自检通过**。生产侧的链路细节（建课 / 产课 / 采图 / 方向探索 / 质检工单、真实 LLM 选型口径）见 [docs/StudyMate-Web_项目建课链路.md](docs/StudyMate-Web_项目建课链路.md) 与 [docs/StudyMate-Web_产课链路与执行契约.md](docs/StudyMate-Web_产课链路与执行契约.md)。
 
 ### 13.1 编排过程可见性与单次时长上限
 
@@ -404,15 +404,15 @@ Web 以**角色子代理**形态承担生产职责，子代理分两支：**工�
 - **审计**：同一份事件序列既推前端又追加写 `data/audit/<编排或会话 id>.jsonl`——派工值、模型原始回复、
   每次工具调用与结果都落盘，**失败不清除**（供事后审计与堵点定位）；敏感参数在工具声明处脱敏。
 - **chat 链路**：**只读三工具** `list_workspace` / `read_course_file` / `read_skill`，外加 **`start_course_interview`**（把普通会话切进建课盘问模式：落库 `mode=interview`；已绑科目拒绝、重复调用幂等；收口判定按"本轮结束时的会话模式"，同轮切入 + 当场收口成立）（读根限已绑定科目目录
-  或工作区科目目录、以及仓库 `.dsh/skills`）；**科目关联会话额外开放动作工具 `produce_lesson` / `assess_node`**（未关联会话不得凭空产课/评估）。`produce_lesson` 不传 `node_id` 时**按大纲顺序取第一个尚无课件的节点**（与 curriculum schema 顺序一致），**不沿用会话注入的节点聚焦**；显式给出 `node_id` 时以它为准。工具调用与结果以**工具卡**呈现在会话流里（兼审计 UI）——**工具卡常显在消息体、不折进「中间过程」面板**；含动作工具的回合墙钟用 `ORCH_MAX_SECONDS`（1800s）。会话提示词只加一行动作说明，细节规范由模型 `read_skill` 按需读取（不整篇注入）。**（已实施）** interview 仅在用户**明确确认建课**的当轮进入收口：注入 `schemas[]`，最多 **2 个 LLM 轮 / 默认 120s**（`STUDYMATE_INTERVIEW_FINALIZE_MAX_SECONDS`，不超过 chat 的 300s）；**否定 / 疑问不触发**收口；**普通 interview 仍走工具循环**；输出完整收口标记后**停止后置工具**。收口阶段**只限制无关工具**，不采用"全部 interview 会话改走纯文本"的解法。收口 `schemas[]` 校验：收到 **name-only / 占位符 / 非字符串**等**缺信息**时**不建 draft**（保守失败）。
+  或工作区科目目录、以及仓库 `preset/skills`（→ `.dsh/skills`））；**科目关联会话额外开放动作工具 `produce_lesson` / `assess_node`**（未关联会话不得凭空产课/评估）。`produce_lesson` 不传 `node_id` 时**按大纲顺序取第一个尚无课件的节点**（与 curriculum schema 顺序一致），**不沿用会话注入的节点聚焦**；显式给出 `node_id` 时以它为准。工具调用与结果以**工具卡**呈现在会话流里（兼审计 UI）——**工具卡常显在消息体、不折进「中间过程」面板**；含动作工具的回合墙钟用 `ORCH_MAX_SECONDS`（1800s）。会话提示词只加一行动作说明，细节规范由模型 `read_skill` 按需读取（不整篇注入）。**（已实施）** interview 仅在用户**明确确认建课**的当轮进入收口：注入 `schemas[]`，最多 **2 个 LLM 轮 / 默认 120s**（`STUDYMATE_INTERVIEW_FINALIZE_MAX_SECONDS`，不超过 chat 的 300s）；**否定 / 疑问不触发**收口；**普通 interview 仍走工具循环**；输出完整收口标记后**停止后置工具**。收口阶段**只限制无关工具**，不采用"全部 interview 会话改走纯文本"的解法。收口 `schemas[]` 校验：收到 **name-only / 占位符 / 非字符串**等**缺信息**时**不建 draft**（保守失败）。
 - **建课链**：大纲角色用 `submit_curriculum` 提交 DAG，后端**立即跑门禁并把报错原文回喂**，模型循环内自修；
   后端在循环之后再强制跑一次门禁（不信任模型自查）。**（已实施）** 区分**循环内自检事件**与**外层交付检查事件**，避免前端重复出现两条「完成」卡。
   **tools-enabled 角色提示按链路接线**：建课（`generate`）→ `submit_curriculum`；产课 → `write_deliver_file` / `run_check`；**工具循环无交付时的单次 fallback 仍走 envelope 契约**。
-- **产课链**：角色用 `write_deliver_file` 交付产物、`run_check`（渲染 + 检查）在循环内自查自修；
-  循环结束的交付仍走既有渲染/检查收口与质检工单兜底。**实操 / 实验的 lab 交付（本轮已实施）**：`kind=实操` 的 `produce_quiz` 与 `kind=实验` 的 `produce_experiment` 必须一并交付 `lab/<NNNN>-stage/README.md`（任务材料）、`lab/solutions/<NNNN>-stage/README.md`（参考解）与 `lab/README.md`（任务总表，**保留原表并增补本课**）；课件内容文件的 lab 入口相对链为 `../lab/<NNNN>-stage/README.md`。**required 缺一份即不 promote**（防相对路径写错 / 假解决），fixture 与真实派工同契约。**无效打回与次数（本轮已实施）**：打回耗尽后的 `error` 分开给出**修复派工轮 `repair_rounds`** 与**总控复检次数 `rechecks`**（`code=quality_check_failed`、带 `ticket_id`）；**纯总控归属（仅公共资源缺失）只复检一次、不占修复派工轮**，不再谎报"2 轮"。
+- **产课链**：角色用 `write_deliver_file` 交付产物、`run_check`（校验）在循环内自查自修；
+  循环结束的交付仍走既有校验收口与质检工单兜底。**实操 / 实验的 lab 交付（本轮已实施）**：`kind=实操` 的 `produce_quiz` 与 `kind=实验` 的 `produce_experiment` 必须一并交付 `lab/<NNNN>-stage/README.md`（任务材料）、`lab/solutions/<NNNN>-stage/README.md`（参考解）与 `lab/README.md`（任务总表，**保留原表并增补本课**）；课件内容文件的 lab 入口相对链为 `../lab/<NNNN>-stage/README.md`。**required 缺一份即不 promote**（防相对路径写错 / 假解决），fixture 与真实派工同契约。**无效打回与次数（本轮已实施）**：打回耗尽后的 `error` 分开给出**修复派工轮 `repair_rounds`** 与**总控复检次数 `rechecks`**（`code=quality_check_failed`、带 `ticket_id`）；**纯总控归属（仅公共资源缺失）只复检一次、不占修复派工轮**，不再谎报"2 轮"。
 - **既有产物复用与 `regenerate`（本轮已实施并验证）**：角色派工前先判**可复用**——① 本轮该角色无新交付文件；② `regenerate=false`；③ 本次上下文 `check_passed=true`；④ 该角色 required 目标文件存在、可读、非空（出题 = `*.quiz.json`，其余 = `*.md`）——四者同时成立才**接受既有产物、不再派工**，任一不满足即正常派工。`regenerate` 为布尔、默认 `false`、**严格 bool 校验（非布尔值拒绝）**；显式 `true` **强制重做、不复用**，**且必须显式给出 `node_id`（缺则拒绝）**。**quiz / 工单（ticket）交付同样走 required 文件 gate**（防相对 path 写错 / 假解决）。**非 UTF-8 内容不得复用**。**强制重做（检查打回后的重派轮）与工单 retry 一律禁复用**。
 - **开启范围**：**工具调用默认对所有配置的模型开启**（不是可选项）；上游若不接受
   `tools` 参数，适配层自动回落一次不带 tools 的纯文本调用（工具声明本身不会打挂请求）。fixture 模式下
   仅显式工具场景走循环、其余保持固定流（测试稳定）。
-- **不变量**：SKILL.md 全文注入保留（另加 `read_skill` 按需补充）；上游脚本零重写；门禁由后端在写盘后强制执行；
-  采图保持纯后端爬虫，不进角色体系；工具循环无交付时回落既有单次派工链兜底。**共享检查器为脚本自身修复**：`check_lesson.py` 用 `HTMLParser` 只取**真实元素**的 `href/src`，`<pre>/<code>` 里转义的教学示例不再误报缺资源，**真实缺资源仍拦**——**不是 Web 第二份引擎、不绕过检查、「脚本只复用不重写」不变**。
+- **不变量**：SKILL.md 全文注入保留（另加 `read_skill` 按需补充）；上游引擎规则零重写；门禁由后端在写盘后强制执行；
+  采图保持纯后端爬虫，不进角色体系；工具循环无交付时回落既有单次派工链兜底。**校验一律调上游**：课件 / 大纲 / 进度 / 科目校验走 `sm-validate`（上游 `@yunmiao/studymate` 的 `parseLesson` 做格式 + 锚点四态对账 + 图片存在性），判定口径 **exit 0 放行 / 2 阻断 / 1 自身错误**——Web 不自带第二份检查规则。

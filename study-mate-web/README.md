@@ -11,6 +11,8 @@ study-mate-web/
 ├── start-web.bat / stop-web.bat   # 一键启动 / 停止（GBK + CRLF）
 ├── tools/studymate-web.ps1        # 启动器助手：构建新鲜度判定 + 按端口停服（纯 ASCII）
 ├── data/                          # 运行时数据（settings、sessions、drafts、audit、uploads、exports）
+├── engine-node/                   # 上游引擎包消费层（@yunmiao/studymate：setup + 三个 CLI + 契约测试）
+├── engine/                        # 冻结 Python 收缩层（只剩 scripts/check_pool.py：图片库对账）
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                # 入口（lifespan：建工作区目录、上传清扫）
@@ -27,7 +29,7 @@ study-mate-web/
 │   │   ├── curriculum_store.py    # 课程仓储层（<WS>/.learning/subjects/<slug>/*.yaml）
 │   │   ├── workspace.py           # 工作区发现（复用上游 learn_workspace()）+ 配置写回
 │   │   ├── workspace_ctx.py       # 请求级工作区绑定（会话级工作区的唯一收口点）
-│   │   ├── prompts.py             # 提示词分层：persona + 按链路注入 .dsh/skills/<名>/SKILL.md
+│   │   ├── prompts.py             # 提示词分层：persona + 按链路注入 preset/skills/<名>/SKILL.md
 │   │   ├── roles.py               # 角色派工基建（SKILL 全文注入 + envelope 落盘/搬位）
 │   │   ├── produce.py             # 产课链编排（派工 → 渲染 → 检查 → 打回 → 工单）
 │   │   ├── build.py               # 建课链编排（大纲 + 采图并行 → 门禁 → 落盘）
@@ -119,7 +121,7 @@ npm run build && npx next start -p 3801
 课程数据是 Study-Mate 静态工作区格式，与插件 `.learning` 布局同构：`<工作区>/.learning/subjects/<slug>/`
 下的 `subject.yaml` + `curriculum.yaml` + `progress.yaml`（发现规则见上「工作区与发现」）。各子系统规格见 PRD 对应章节：
 
-- **提示词分层**：persona + 按链路注入 `.dsh/skills/<名>/SKILL.md` 全文，缺失即 503。→ PRD §10
+- **提示词分层**：persona + 按链路注入 `preset/skills/<名>/SKILL.md` 全文，缺失即 503。→ PRD §10
 - **课程 API 与状态机**：课程 CRUD、大纲写回校验、节点进度状态机（非法流转 409）；评估通过为权威置位并写学习记录。→ PRD §11
 - **开场状态切片**：首条消息且已关联科目时注入共享记忆 + 最近误解 / 学习记录 / 评估记录，并按「每轮以『下一步』收尾」节奏。→ PRD §11
 - **课程页 `/courses`**：不带 `?subject=` 是「我的课程」（内嵌工作区主页 iframe），带参数是科目图谱页；产课 / 评估改由聊天 agent 工具发起。→ PRD §5.4、§13
@@ -228,7 +230,7 @@ CI smoke 5 passed、lint 0 errors / 51 warnings、`tsc` / `build` / `compileall`
 
 ## 版本
 
-- 当前版本：**0.7.0-beta**。
+- 当前版本：**0.8.0-beta**。
 - StudyMate Web 遵循语义化版本控制；该版本号**仅标识 StudyMate Web 本身**（前后端一体），
   与上游项目 `@yunmiao/studymate` 的版本相互独立。
 - 版本号唯一记录处：本节与代码内版本常量（`frontend/package.json`、后端 `app/main.py`、

@@ -422,6 +422,19 @@ export interface MisconceptionPayload {
 
 export type MisconceptionPatch = Partial<MisconceptionPayload>;
 
+export interface HealthInfo {
+  status: string;
+  engine: "node" | "python";
+  yaml_hygiene?: { checked: number; needs_migration: number; sample?: string[]; hint?: string };
+}
+
+export interface ReadingInfo {
+  url: string;
+  entry: string;
+  fresh: boolean;
+  engine: string;
+}
+
 export interface LessonInfo {
   seq: number;
   node_id: string;

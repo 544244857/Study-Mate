@@ -10,6 +10,7 @@ import type {
   DraftDetail,
   DraftInfo,
   ErrorInfo,
+  HealthInfo,
   ErrorPhase,
   ExportResult,
   GenerateCoursePayload,
@@ -29,6 +30,7 @@ import type {
   NodeStatus,
   ProductionTask,
   QuizItem,
+  ReadingInfo,
   Session,
   SessionActive,
   SessionMeta,
@@ -463,6 +465,13 @@ export const api = {
   listLessons: (slug: string, workspace?: WorkspaceParam) =>
     jsonFetch<{ lessons: LessonInfo[] }>(
       withWorkspace(`/api/courses/${encodeURIComponent(slug)}/lessons`, workspace),
+    ),
+  // 引擎模式（node=阅读入口走导出应用；python=冻结渲染产物）与基础健康信号
+  health: () => jsonFetch<HealthInfo>("/api/health"),
+  // 阅读端入口（按需导出 + 缓存命中信息）；node 模式产物是上游导出的阅读端 SPA
+  getReading: (slug: string, workspace?: WorkspaceParam) =>
+    jsonFetch<ReadingInfo>(
+      withWorkspace(`/api/courses/${encodeURIComponent(slug)}/reading`, workspace),
     ),
   getQuiz: (slug: string, nodeId: string, workspace?: WorkspaceParam) =>
     jsonFetch<{ items: QuizItem[] }>(

@@ -7,11 +7,13 @@
 <p align="center">
 <img src="https://img.shields.io/badge/DSH-%E5%AD%A6%E4%B9%A0%E6%A8%A1%E5%BC%8F%E9%A2%84%E8%AE%BE-1c5a40" alt="DSH 学习模式预设">
 <img src="https://img.shields.io/badge/Antigravity-%E5%A4%9A%E6%99%BA%E8%83%BD%E4%BD%93%E6%8F%92%E4%BB%B6-4285f4" alt="Antigravity 插件">
-<img src="https://img.shields.io/badge/python-3.9%2B-3776ab" alt="Python">
+<img src="https://img.shields.io/badge/Node.js-22.19%2B%20%7C%2024-339933" alt="Node.js">
 <img src="https://img.shields.io/github/license/Miaotofu01/Study-Mate" alt="MIT License">
 </p>
 
 <p align="center"><sub> StudyMate 是面向数学与计算机科目学习的助手，原则是「learn with doing」</sub></p>
+
+<p align="center">简体中文 · <a href="README.en.md">English</a></p>
 
 <p align="center"><a href="#快速开始">快速开始</a> · <a href="#它是什么">它是什么</a> · <a href="#核心功能">核心功能</a> · <a href="#常见问题">常见问题</a> · <a href="docs/使用/使用说明.md">使用说明</a> · <a href="docs/使用/Antigravity.md">Antigravity 说明</a></p>
 
@@ -29,51 +31,62 @@
 
 ### DeepSeek Harness
 
-**DSH 依赖**：DSH 0.1.5-rc.2+、Node.js（支持范围见 `package.json` 的 `engines`）、Python 3.9+、PyYAML。
+**DSH 依赖**：DSH 0.1.7-alpha.1+
+#### 安装
+
+- web端
 
 ```bash
-npx -y @yunmiao/studymate@latest install
+dsh plugin --profile web add @yunmiao/studymate
 ```
 
-- **桌面端（DeepSeek Harness Desktop）**：桌面端自带 DSH。它启动过一次之后，安装器就会用桌面端自带的 `dsh`，把「学习模式」装进它的 `desktop` 档位。装完**完全退出桌面端再重新打开**，新建会话时选「学习模式」。
-- **官方 CLI**：先 `npm install -g @deepseek-ai/dsh@latest`，同一条安装命令默认注册到 `web` 档位，之后用 `dsh web` 启动。
+- 桌面端
+  
+```bash
+dsh plugin --profile desktop add @yunmiao/studymate
+```
+#### 更新
 
-**更新**：再次运行上述 `npx` 命令，然后重启对应的 DSH（桌面端完全退出再打开；CLI 重启并新建会话）。
+- web端
 
-- **第一次学习**：新建会话时选「学习模式」，说一句「我想学 [某个科目]」。会话开在**学习工作区目录**里（权限选 `workspace-write` 或 `danger-full-access`）最省事——课程就地建，零授权。
-- **会话开在别处也行**（比如某个代码仓）：课程先建在会话目录下的 `.studymate-stage/<slug>`（全程零授权），结束时总控问你一句放哪——**学习工作区**／桌面／文档文件夹／用户根目录／先留着——然后一次 `cp -a` 搬过去。
+```bash
+dsh plugin --profile web update @yunmiao/studymate@latest
+```
+
+- 桌面端
+  
+```bash
+dsh plugin --profile desktop update @yunmiao/studymate@latest
+```
+- **第一次学习**：新建会话时选「学习模式」，说一句「我想学 [某个科目]」。学习数据直接写进配置好的学习工作区（暂存模式已删，没有"收尾问落点再搬一次"这一步）。
 - **还没想好学什么**：在学习对话里说「我不知道学什么，帮我选方向」，可选探索后再决定是否开课；已有明确科目或恢复学习直接走原流程。
 - **学习工作区默认在 `~/StudyMate`，所有课件与记忆均存放在工作区**；已有配置会沿用。
-- 第一次生成课程后，课程主页在工作区目录 `<workspace>/index.html`，是未来所有课件的入口
+- **阅读在 DSH 的阅读端**：装好后新建会话时选「学习模式」，从侧边栏切到阅读端就能读课件、作答、搜资料——页面由阅读端实时渲染，不再预生成 HTML。
 
-指定工作区、依赖安装、桌面端非默认安装位置和换机器续学见 [安装说明](docs/使用/安装.md)。
+工作区、更新、桌面端与换机器续学、以及老版本 DSH 的替代装法见 [安装说明](docs/使用/安装.md)。
 
 ### Codex 和 ChatGPT Work
 
-从 [最新 Release](https://github.com/Miaotofu01/Study-Mate/releases/latest) 下载 **studymate-openai.zip**，通过 Codex/ChatGPT 提供的插件导入入口导入（详见 [导入说明](docs/使用/Codex与ChatGPT.md)）。
+> **支持范围：只有 `v1.0.0`。** 1.1.0 起的版本不再保证在这一侧可用。
 
-**更新时下载最新版 ZIP，找到已有的插件链接，在浏览器中打开，选择上传新版本**
+从 [`v1.0.0` 的 Release](https://github.com/Miaotofu01/Study-Mate/releases/tag/v1.0.0)（[ZIP 直链](https://github.com/Miaotofu01/Study-Mate/releases/download/v1.0.0/studymate-openai.zip)）下载 **studymate-openai.zip**，通过 Codex/ChatGPT 提供的插件导入入口导入（详见 [导入说明](docs/使用/Codex与ChatGPT.md)）。这一侧没有后续版本可换，换机器时用同一个 ZIP。
 
 ### Google Antigravity
 
-在项目根目录运行以下命令一键构建并安装：
+> **支持范围：只有 `v1.0.0`。** 1.1.0 起的版本不再保证在这一侧可用。
+
+用 `v1.0.0` 那棵树构建并安装（不要用 `main`）：
 
 ```bash
+git checkout v1.0.0
 node bin/studymate.mjs build-antigravity --install
 ```
 
 或者通过 `npm run build:antigravity` 构建 ZIP 包手动导入（详见 [Antigravity 说明](docs/使用/Antigravity.md)）。
 
-### StudyMate Web
-
-> 尚在开发测试中，相关功能可能不如插件途径稳定
-
-仓库还包含子项目 [`study-mate-web/`](study-mate-web/)：StudyMate 的**独立 Web 运行时**（FastAPI 后端 + Next.js 16 前端），把课程图谱、掌握度状态机与流式对话搬进浏览器；可通过 `STUDYMATE_WORKSPACE` 直接挂载已有的 `.learning` 静态工作区，在网页里零改动学习已有课件（页内判分、开放题判分、评估记录与静态工作区导出）。自包含工程，与上方的插件安装方式互不依赖。**部署与使用**见其 [README](study-mate-web/README.md)（一键启动脚本 + 手动启动 + E2E 测试）。
-
-
 ## 它是什么
 
-StudyMate 是一套**数学/计算机学习工作流、SKILL 与 HTML 课件引擎**，支持 DSH（DeepSeek Harness）的「学习模式」预设、Google Antigravity 原生多智能体插件，也可打包为 Codex 和 ChatGPT Work 插件。它按需组织收集资料、采图、课程设计、讲解、练习评估五个角色；宿主支持时可委派给子代理，否则依次完成各角色工作。
+StudyMate 是一套**数学/计算机学习工作流、SKILL 与 DSH 插件**，支持 DSH（DeepSeek Harness）的「学习模式」预设、Google Antigravity 原生多智能体插件，也可打包为 Codex 和 ChatGPT Work 插件。它按需组织收集资料、采图、课程设计、讲解、练习评估五个角色；宿主支持时可委派给子代理，否则依次完成各角色工作。
 
 - **课程组成：讲解|练习|项目实操**：每门课一份大纲——知识点按前置依赖排成路线图，每个知识点标课的类型「概念课 | 实操课 | 实验课」（大纲里写 `概念`／`实操`／`实验`）。学习进度落在文件里，每次新对话可继承已有进度。
 - **跨科目共享记忆**：记住你的现有水平、哪种讲法有效、常见卡点，下一门课不用重新自我介绍。
@@ -96,7 +109,7 @@ StudyMate 是一套**数学/计算机学习工作流、SKILL 与 HTML 课件引�
 
 <img src="docs/images/preview-lesson.png" width="640" alt="课件示例">
 
-想翻一遍真实产出：仓库里的 [`examples/`](examples/) 是一份完整示例工作区（**线性代数** + **计算机网络**），页面已经渲染入库——clone 下来用浏览器打开 `examples/index.html`，就能一路点到科目主页与课件。
+阅读端就是产出本身：课件页由阅读端实时渲染，公式、配图、题目都在里面；需要一份能离线打开的副本时走导出（`npx -y @yunmiao/studymate export`，产物在 `<工作区>/export/`）。仓库里**不再入库示例工作区**——测试用的科目现造现弃（[ADR-0009](docs/adr/0009-示例与生成产物不再入库.md)），示例截图见上面的预览图。
 
 
 ## 用法示例
@@ -118,33 +131,38 @@ StudyMate 是一套**数学/计算机学习工作流、SKILL 与 HTML 课件引�
 npm test
 ```
 
-它不需要真实 DSH、浏览器或模型服务；测试自己造临时科目，不碰你的学习工作区。生成与校验脚本的完整清单见[工程约束 §四 脚本一览](docs/规范/工程约束.md#四脚本一览)，各命令的前置、按需入口（真实浏览器、真实 DSH）与退出码语义见[测试说明](scripts/tests/README.md)——两处各是唯一出处，本文不重抄。
+它不需要真实 DSH、浏览器或模型服务；测试自己造临时科目，不碰你的学习工作区。引擎脚本已经没有了（Python 随 #83 退役），**原生工具的清单与参数**只有两个出处：代码是 [`lib/tools/index.ts`](lib/tools/index.ts)，人读的那份是[原生工具契约](preset/skills/learning-system/references/tools.md)；各命令的前置、按需入口（真实浏览器、真实 DSH）与退出码语义见[测试说明](scripts/tests/README.md)——几处各是唯一出处，本文不重抄。
+
+独立 Web 运行时（`study-mate-web/`，FastAPI + Next.js）曾落在主线，现已移出到分支 [`web/0.7.0-beta`](https://github.com/Miaotofu01/Study-Mate/tree/web/0.7.0-beta)——它自带一套引擎，与插件端读写同一份学习工作区，等有人把它适配到新引擎后合回。为什么移出、合回前必须满足什么，见 [ADR-0013](docs/adr/0013-Web运行时移出主线.md)。
 
 ## 项目结构
 
 目录树、每个目录干什么、哪个文件归谁维护，见[工程约束](docs/规范/工程约束.md) §二 目录与规则归属
 与[文件归属](docs/规范/文件归属.md)——两处各有唯一出处，这里不再抄一份。
 
-子项目 `study-mate-web/`（独立 Web 运行时）自包含，结构与归属见它自己的 [README](study-mate-web/README.md)。
+DSH 侧就是**一个插件包**（`@yunmiao/studymate`）：Host 半注册原生工具与阅读端数据路由，Client 半是阅读端本体；预设与工作区配置由安装器写。学习数据默认位于独立的 `~/StudyMate`，无需保留源码仓库；详见 [安装说明](docs/使用/安装.md)。
 
-DSH 安装到 `~/.dsh/studymate/engine/`，预设与工作区配置也由安装器管理。学习数据默认位于独立的 `~/StudyMate`，无需保留源码仓库；详见 [安装说明](docs/使用/安装.md)。
+<a href="docs/images/architecture.dark.png">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/architecture.light.png" />
+    <img src="docs/images/architecture.dark.png" width="860" alt="StudyMate 系统架构：宿主、插件包（提示词层 / Host 半 / Client 半）、学习工作区与安装分发" />
+  </picture>
+</a>
 
-学习工作区里面长什么样（科目文件夹、课件、lab、档案、课型与题型、模板与生成器的契约），见 [使用说明 §六](docs/使用/使用说明.md#六学习数据存在哪)。
+学习工作区里面长什么样（科目文件夹、课件、lab、档案、课型与题型），见 [使用说明 §六](docs/使用/使用说明.md#六学习数据存在哪)。
 
 ## 常见问题
 
 <details>
-<summary><b>装完没有主页 / 直接打开 <code>templates/</code> 里的 HTML 没样式</b></summary>
+<summary><b>装完看不到课件页</b></summary>
 
-主页要从学习数据生成：跑 `python3 scripts/gen_home.py` 再看 `<workspace>/index.html`（还没科目时是空状态页）。`templates/*.html` 引用的是生成后的工作区相对路径，单独打开只有裸 HTML，这是设计如此。
+课件由**阅读端实时渲染**，不再预生成 HTML（页面模板已随 #83 退役）。在 DSH 里新建会话选「学习模式」，从侧边栏切到阅读端即可。要一份能离线打开的，跑 `npx -y @yunmiao/studymate export`，产物在 `<工作区>/export/`。
 </details>
 
 <details>
-<summary><b>已装 Python，但提示缺少 PyYAML</b></summary>
+<summary><b>还需要装 Python 吗</b></summary>
 
-Python 不自带 PyYAML。请在系统终端复制安装器给出的依赖安装命令，使用它检测到的同一个解释器，完成后重试原 `npx` 命令并保留参数。看到 `>>>` 或提示缺少 `pip` 时，按 [依赖安装说明](docs/使用/安装.md#dsh) 处理。
-
-完整课件校验还需要 `jsonschema`；缺少它时，大纲检查会跳过 schema 校验。
+不需要。引擎从 Python 脚本迁到了随包发的 TypeScript 插件（[ADR-0002](docs/adr/0002-引擎改用TypeScript.md)），安装器也不再探测 Python。只有一件事另外要 Node：导出静态页面时要一份 React（`npm i -g react react-dom`，或用 `STUDYMATE_REACT_DIR` 指过去）。
 </details>
 
 更多问题（手改 YAML 的坑、大纲改节点后指针为什么会错、能不能离线）见 [使用说明 §八 常见问题](docs/使用/使用说明.md#八常见问题)。
@@ -154,7 +172,7 @@ Python 不自带 PyYAML。请在系统终端复制安装器给出的依赖安装
 - **项目交流群**(QQ)：161914370
 - **参与开发**：[CONTRIBUTING.md](CONTRIBUTING.md)（改哪块先读哪份、本地怎么验、提交信息规范）
 - **变更日志**：[CHANGELOG.md](CHANGELOG.md)
-- **文档**：[使用说明](docs/使用/使用说明.md)（日常怎么用、课型与题型、检查与档案规则）· [Codex 与 ChatGPT](docs/使用/Codex与ChatGPT.md)（OpenAI 插件构建、安装与工作区）· [Antigravity 说明](docs/使用/Antigravity.md)（Antigravity 插件构建、多智能体协同与安装）· [课件内容格式](docs/规范/课件内容格式.md)（内容文件与题目位置的语法）· [文件归属](docs/规范/文件归属.md)（代称 ↔ 路径 ↔ 维护者）· [Agent 交接协议](docs/规范/Agent交接协议.md)（staged 子代理交付的机器边界）· [设计方案](docs/设计/设计方案.md)（产品视角）· [工程约束](docs/规范/工程约束.md)（目录约定、占位符契约、脚本一览、技术选型）· [VitePress 课程工作区](docs/设计/VitePress工作区.md)（可选阅读端提案，对接 #22）· [模板说明](templates/README.md) · [前端资源契约](templates/assets/README.md)
+- **文档**：[使用说明](docs/使用/使用说明.md)（日常怎么用、课型与题型、检查与档案规则）· [Codex 与 ChatGPT](docs/使用/Codex与ChatGPT.md)（OpenAI 插件构建、安装与工作区）· [Antigravity 说明](docs/使用/Antigravity.md)（Antigravity 插件构建、多智能体协同与安装）· [课件内容格式](docs/规范/课件内容格式.md)（内容文件与题目位置的语法）· [阅读端呈现](docs/规范/阅读端呈现.md)（四个面「看起来对不对」的意图判据）· [文件归属](docs/规范/文件归属.md)（代称 ↔ 路径 ↔ 维护者）· [Agent 交接协议](docs/规范/Agent交接协议.md)（staged 子代理交付的机器边界）· [目标态规格](docs/设计/目标态规格.md)（重构后系统的形状与门禁）· [工程约束](docs/规范/工程约束.md)（目录约定、规则归属、原生工具指针）· [工作区数据骨架](templates/README.md)
 
 ### 提改动前先跑这几条
 

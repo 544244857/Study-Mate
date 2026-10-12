@@ -10,9 +10,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from . import curriculum_store
-from .config import ensure_dirs, load_settings
+from . import yaml_hygiene
+from .config import DATA_DIR, ensure_dirs, load_settings
 from .routers import (
     chat,
     courses,
@@ -41,7 +43,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="StudyMate Web Runtime", version="0.7.0-beta", lifespan=lifespan)
+app = FastAPI(title="StudyMate Web Runtime", version="0.8.0-beta", lifespan=lifespan)
 
 # CORS 只服务「浏览器直连后端」的跨域场景：前端所有 /api 一律走 Next 同源代理，
 # 正常使用不会命中这里，故白名单只收本机三个前端端口的来源。
@@ -77,7 +79,20 @@ app.include_router(export.router)
 app.include_router(generate.router)
 app.include_router(production.router)
 
+# 导出产物伺服（reading 的 iframe 入口）：data/exports 按需由导出动作创建，
+# html=True 让 /api/exports/<slug>/ 直接落到 index.html。
+_exports_root = DATA_DIR / "exports"
+_exports_root.mkdir(parents=True, exist_ok=True)
+app.mount("/api/exports", StaticFiles(directory=_exports_root, html=True), name="exports")
+
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, object]:
+    # engine：引擎模式标识（批 5 起恒为 node——python 渲染链已退役；保留字段供前端与排障）；
+    # yaml_hygiene：采样工作区是否还有旧格式（多行标量）yaml——上游 TS 解析器不认，
+    # 有即提示跑 backend/scripts/migrate_yaml.py（只报不迁，见 yaml_hygiene 模块注释）
+    return {
+        "status": "ok",
+        "engine": "node",
+        "yaml_hygiene": yaml_hygiene.snapshot(),
+    }

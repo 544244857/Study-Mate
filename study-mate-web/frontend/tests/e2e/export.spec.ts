@@ -16,10 +16,10 @@ test("export the static workspace and verify generated files", async ({ page }) 
   await expect(float.locator("code")).toContainText(/exports.+computer-networks/);
 
   const exportRoot = path.join(E2E_DATA_DIR, "exports", "computer-networks");
+  // node 引擎产物 = 上游导出的自包含阅读端 SPA（不再是 gen_home 的 .learning/subjects 主页树）
   expect(fs.existsSync(path.join(exportRoot, "index.html"))).toBe(true);
-  expect(
-    fs.existsSync(path.join(exportRoot, ".learning", "subjects", "computer-networks", "index.html")),
-  ).toBe(true);
+  expect(fs.existsSync(path.join(exportRoot, "data.js"))).toBe(true);
+  expect(fs.existsSync(path.join(exportRoot, "export.json"))).toBe(true);
 });
 
 test("export failure shows the error detail in the float", async ({ page }) => {

@@ -348,6 +348,160 @@ def test_start_course_interview_refuses_subject_bound_session(client, new_subjec
     assert str(storage.require_session(session_id).get("mode") or "chat") == "chat"
 
 
+# ---------- 新增工具：get_course_outline / read_misconceptions / list_learning_records / call_subagent ----------
+
+
+def test_get_course_outline_returns_nodes_and_recommendation(client, new_subject):
+    from app import curriculum_store as cs
+    from app.tools import ToolContext, execute
+
+    slug, _ = new_subject
+    cs.save_curriculum(
+        slug,
+        {
+            "nodes": [
+                {"id": "n1", "title": "第一课", "kind": "概念", "objective": "掌握基础"},
+                {"id": "n2", "title": "第二课", "kind": "实操", "objective": "动手实验"},
+            ],
+            "edges": [],
+        },
+    )
+    cs.save_progress(
+        slug,
+        {
+            "nodes": {
+                "n1": {"status": "已完成", "mastery": 90},
+                "n2": {"status": "未开始", "mastery": 0},
+            }
+        },
+    )
+
+    ctx = ToolContext(state={"slug": slug})
+    res = asyncio.run(execute("get_course_outline", {}, ctx))
+    assert res["is_error"] is False
+    assert "第一课" in res["content"]
+    assert "掌握度 90%" in res["content"]
+    assert "当前推荐学习/产课节点：第二课 (n2)" in res["content"]
+    assert res["outline"]["slug"] == slug
+    assert len(res["outline"]["nodes"]) == 2
+
+
+def test_read_misconceptions_filters_by_importance(client, new_subject):
+    from app import misconceptions as misc_svc
+    from app.tools import ToolContext, execute
+
+    slug, _ = new_subject
+    misc_svc.create_item(
+        slug,
+        {
+            "date": "2026-10-10",
+            "topic": "闭包概念",
+            "question": "什么是闭包？",
+            "misunderstanding": "闭包就是全局变量",
+            "answer_summary": "闭包是函数与其词法环境的组合",
+            "importance": "high",
+            "node": "n1",
+        },
+    )
+    misc_svc.create_item(
+        slug,
+        {
+            "date": "2026-10-10",
+            "topic": "原型链",
+            "question": "原型是什么？",
+            "misunderstanding": "原型是普通对象属性",
+            "answer_summary": "原型是对象的委托链条",
+            "importance": "low",
+            "node": "n2",
+        },
+    )
+
+    ctx = ToolContext(state={"slug": slug})
+    # 全量查询
+    res_all = asyncio.run(execute("read_misconceptions", {}, ctx))
+    assert res_all["is_error"] is False
+    assert len(res_all["misconceptions"]) == 2
+
+    # 按 importance=high 过滤
+    res_high = asyncio.run(execute("read_misconceptions", {"importance": "high"}, ctx))
+    assert res_high["is_error"] is False
+    assert len(res_high["misconceptions"]) == 1
+    assert res_high["misconceptions"][0]["topic"] == "闭包概念"
+
+    # 按 node_id=n2 过滤
+    res_node = asyncio.run(execute("read_misconceptions", {"node_id": "n2"}, ctx))
+    assert res_node["is_error"] is False
+    assert len(res_node["misconceptions"]) == 1
+    assert res_node["misconceptions"][0]["topic"] == "原型链"
+
+
+def test_list_learning_records_returns_items(client, new_subject):
+    from app import records as records_svc
+    from app.tools import ToolContext, execute
+
+    slug, _ = new_subject
+    # 保存一份评估记录
+    records_svc.write_assessment(
+        slug,
+        "n1",
+        {
+            "date": "2026-10-10",
+            "verdict": "通过",
+            "mastery": 95,
+            "questions": [],
+            "next": "继续下一课",
+        },
+        node_title="第一课",
+        node_kind="概念",
+    )
+
+    ctx = ToolContext(state={"slug": slug})
+    res = asyncio.run(execute("list_learning_records", {}, ctx))
+    assert res["is_error"] is False
+    assert len(res["records"]) >= 1
+    assert "结论：通过" in res["content"]
+
+
+def test_call_subagent_in_fixture_mode(client):
+    from app.tools import ToolContext, execute
+
+    ctx = ToolContext(state={})
+    res = asyncio.run(
+        execute("call_subagent", {"role": "generate", "task": "帮我设计一门 Python 基础课"}, ctx)
+    )
+    assert res["is_error"] is False
+    assert "子代理 [generate] 执行完毕" in res["content"]
+    assert res.get("data") is not None
+
+
+def test_generate_course_uses_unified_gate(client, monkeypatch):
+    """验证 /api/courses/generate 接入统一的 build.run_curriculum_gate 门禁。"""
+    from app import build as build_svc
+
+    gate_called = []
+    original_gate = build_svc.run_curriculum_gate
+
+    async def fake_gate(data):
+        gate_called.append(data)
+        return [{"path": "curriculum.yaml", "line": 1, "message": "门禁模拟拦截：缺少实操节点", "owner": "课设"}]
+
+    monkeypatch.setattr(build_svc, "run_curriculum_gate", fake_gate)
+
+    payload = {
+        "name": "统一门禁测试科目",
+        "slug": "unified-gate-test",
+        "purpose": "测试门禁复用",
+        "level": "初学者",
+        "background": "零基础",
+    }
+    r = client.post("/api/courses/generate", json=payload)
+    assert r.status_code == 422
+    assert len(gate_called) == 1
+    data = r.json()
+    assert "门禁模拟拦截：缺少实操节点" in data["problems"][0]
+
+
+
 def test_start_course_interview_idempotent_when_already_interview(client):
     from app import storage
     from app.tools import ToolContext, execute

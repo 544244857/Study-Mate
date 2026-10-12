@@ -2,15 +2,13 @@
 
 大纲 = curriculum-designer 派工（SKILL.md 全文注入，输出 JSON 图，`data` 键交回）；
 采图 = image_scout（纯后端爬虫），两支并行（learning-system「建池与拟大纲并行」）。
-门禁 = cs.validate_curriculum + scripts/check_curriculum.py（上游脚本零重写），
+门禁 = 上游引擎 sm-validate（权威）+ cs.validate_curriculum（本地结构化补充，两边都跑合并去重），
 打回与工单规则同产课链；进度经 emit 回吐进会话。
 """
 from __future__ import annotations
 
 import asyncio
 import os
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -20,10 +18,12 @@ import yaml
 from . import audit
 from . import curriculum_store as cs
 from . import draft as draft_svc
+from . import engine_node
 from . import image_scout, roles, tickets as tickets_svc
 from . import workspace_ctx
-from .config import REPO_ROOT, SCHEMAS_DIR, SCRIPTS_DIR
+from .config import SCRIPTS_DIR, engine_schema_path
 from .produce import fixture_curriculum_envelope, is_draft
+from .yaml_out import dump_yaml
 
 MAX_RETRIES = 2
 Event = dict[str, Any]
@@ -46,15 +46,23 @@ def interview_of(base: Path) -> dict[str, Any]:
 def _curriculum_schema_text() -> str:
     """读大纲 schema 全文用于内联派工值；文件缺失时安全回落（不因缺文件而炸）。
 
-    工具循环沙箱的 read_roots 只有草稿目录，模型自己读不到仓库根的
-    schemas/curriculum.schema.json——实测只能靠猜，门禁连续打回（节点 id 大写、
-    edges 缺 reason、realworld 类型错）。把全文内联进派工值才真正可达。
+    工具循环沙箱的 read_roots 只有草稿目录，模型自己读不到引擎 schema——实测只能靠猜，
+    门禁连续打回（节点 id 大写、edges 缺 reason、realworld 类型错）。把全文内联进派工值
+    才真正可达。
+
+    读的是**包内** schema（规则单源），与门禁 `sm-validate curriculum` 判定用的是同一份：
+    早先读仓库根那份旧基线（六档 status + mastery），模型照它写出来的值会被包内三档
+    schema 拦下，提示词与门禁互相打架。
     """
-    path = SCHEMAS_DIR / "curriculum.schema.json"
+    path = engine_schema_path("curriculum.schema.json")
     try:
         return path.read_text(encoding="utf-8")
     except OSError:
-        return "（schema 文件缺失：schemas/curriculum.schema.json）"
+        return (
+            f"（引擎 schema 缺失：{path}——先在 engine-node 里跑 `node setup.mjs`；"
+            "节点必填键：id、title、objective、prerequisites、status、kind，"
+            "边必填键：from、to、reason，realworld 必须是字符串）"
+        )
 
 
 def curriculum_values(base: Path, interview: dict[str, Any]) -> str:
@@ -70,14 +78,14 @@ def curriculum_values(base: Path, interview: dict[str, Any]) -> str:
             f"【配套项目】{interview.get('project') or '未定（设计时预留可挂项目的实操素材）'}",
             f"【实验载体】{interview.get('carrier') or '未定（实验任务写成与载体无关的可执行任务书）'}",
             "【输出契约】data 键 = {\"nodes\": [...], \"edges\": [...]}，"
-            "节点字段全量以 schemas/curriculum.schema.json 为准（全文已内联在下方，规格是权威）。",
+            "节点字段全量以引擎 schema（curriculum.schema.json）为准（全文已内联在下方，规格是权威）。",
             "【硬约束（逐条核对）】节点 id 必须匹配 ^[a-z0-9]+([.-][a-z0-9]+)*$"
             "（小写字母/数字，`.` 或 `-` 分隔，不能有大写字母，如 `nE1` 非法）；"
             "节点必填键：id、title、objective、prerequisites、status、kind；"
             "边（edges）必填键：from、to、reason（reason 必须有）；"
             "realworld 必须是字符串（不是数组）。",
             "",
-            "【schemas/curriculum.schema.json 全文】",
+            "【引擎 schema（curriculum.schema.json）全文】",
             _curriculum_schema_text(),
             "",
             "【资源清单】",
@@ -103,56 +111,67 @@ def _gate_problems(stdout: str, stderr: str) -> list[dict[str, str]]:
 
 
 async def run_curriculum_gate(data: dict[str, Any]) -> list[dict[str, str]]:
-    """进程内 schema 校验 + 上游 check_curriculum.py 门禁；返回问题清单（空 = 通过）。"""
-    problems = cs.validate_curriculum(data)
-    if problems:
-        return [{"path": "curriculum.yaml", "line": "", "message": p, "owner": roles.owner_of("curriculum.yaml")} for p in problems]
-    gate = SCRIPTS_DIR / "check_curriculum.py"
-    if not gate.is_file():
+    """大纲门禁：上游引擎判定（权威）+ 本地结构化补充检查，两边都跑，问题合并去重，上限 20。
+
+    2026-10-11 同步上游后改口径：cs.validate_curriculum 降为结构化补充检查
+    （id/前置/edges 完整性），权威 enum 在引擎包内 schema——旧逻辑「本地有问题就
+    return」会让上游门禁根本不跑，本地旧口径还会单方面打回上游认可的合法值
+    （如三档 `已学完`）。上游不可用/失败仍按问题报出，绝不静默放行。
+    """
+    upstream = await _gate_via_node(data)
+    local = [
+        {"path": "curriculum.yaml", "line": "", "message": p, "owner": roles.owner_of("curriculum.yaml")}
+        for p in cs.validate_curriculum(data)
+    ]
+    merged: dict[str, dict[str, str]] = {}
+    for problem in upstream + local:
+        merged.setdefault(problem["message"], problem)
+    return list(merged.values())[:20]
+
+
+def _node_gate_problems(report: dict[str, Any]) -> list[dict[str, str]]:
+    """node 校验报告 → 门禁问题清单（schema 级问题上游全部标 blocking）。"""
+    return [
+        {
+            "path": "curriculum.yaml",
+            "line": str(problem.get("line") or ""),
+            "message": str(problem.get("message") or ""),
+            "owner": roles.owner_of("curriculum.yaml"),
+        }
+        for problem in (report.get("problems") or [])
+        if problem.get("blocking")
+    ][:20]
+
+
+async def _gate_via_node(data: dict[str, Any]) -> list[dict[str, str]]:
+    """node 门禁：同一份临时大纲交给上游校验器（规则单源 = 上游包）。"""
+    if not engine_node.available():
         return [
-            {"path": "curriculum.yaml", "line": "", "message": "上游脚本缺失：scripts/check_curriculum.py", "owner": "总控"}
+            {
+                "path": "curriculum.yaml",
+                "line": "",
+                "message": "node 引擎未就绪（先在 engine-node 里跑 `node setup.mjs`），或设 STUDYMATE_ENGINE=python 回退",
+                "owner": "总控",
+            }
         ]
     tmp_name = ""
     try:
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", encoding="utf-8", delete=False) as tmp:
-            yaml.safe_dump(data, tmp, allow_unicode=True, sort_keys=False)
+            tmp.write(dump_yaml(data))
             tmp_name = tmp.name
-        proc = await asyncio.to_thread(
-            subprocess.run,
-            [sys.executable, "-B", str(gate), tmp_name],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=120,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
-            cwd=str(REPO_ROOT),
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return [{"path": "curriculum.yaml", "line": "", "message": f"门禁启动失败：{exc}", "owner": "总控"}]
+        report = await asyncio.to_thread(engine_node.validate_data, "curriculum", Path(tmp_name))
+    except (OSError, engine_node.EngineNodeError) as exc:
+        return [{"path": "curriculum.yaml", "line": "", "message": f"node 门禁失败：{exc}", "owner": "总控"}]
     finally:
         if tmp_name:
             Path(tmp_name).unlink(missing_ok=True)
-    if proc.returncode != 0:
-        problems = _gate_problems(proc.stdout or "", proc.stderr or "")
-        if not problems:
-            # 不信任模型自查，同样不信任"解析不出问题"：门禁非零退出却一条问题都
-            # 提取不到，绝不能当通过。把原始输出（截断）塞进问题清单，模型才有可
-            # 操作的线索；否则这个漏洞会让带病大纲直接落盘。
-            raw = "\n".join(part for part in (proc.stdout or "", proc.stderr or "") if part).strip()
-            problems = [
-                {
-                    "path": "curriculum.yaml",
-                    "line": "",
-                    "message": (
-                        f"门禁退出码 {proc.returncode}，但未能解析出问题；原始输出（截断）："
-                        f"{raw[:800] or '（无输出）'}"
-                    ),
-                    "owner": roles.owner_of("curriculum.yaml"),
-                }
-            ]
-        return problems
+    if report.get("blocking"):
+        problems = _node_gate_problems(report)
+        return problems or [
+            {"path": "curriculum.yaml", "line": "", "message": "node 门禁判定阻断但未给出问题清单", "owner": "总控"}
+        ]
     return []
+
 
 
 async def _dispatch_curriculum(
@@ -207,9 +226,6 @@ async def run_build(slug: str, provider: dict[str, Any], emit: Emit) -> None:
         return
     stage_root = base / ".stage"
     try:
-        from .produce import ensure_subject_assets
-
-        ensure_subject_assets(base)
         interview = interview_of(base)
         values = curriculum_values(base, interview)
 

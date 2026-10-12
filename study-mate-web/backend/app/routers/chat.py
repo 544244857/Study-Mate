@@ -1269,7 +1269,8 @@ async def _chat_stream(payload: ChatRequest):
                         "content": (
                             f"【工具】本会话关联科目「{subject_name}」（{context_slug}）。"
                             "要产课调用 produce_lesson（按大纲顺序，未指定节点则产出第一个未产出的节点）；"
-                            "要评估调用 assess_node（需学习者给出作答原文）。"
+                            "要评估调用 assess_node（需学习者给出作答原文）；"
+                            "要查询大纲与掌握进度调用 get_course_outline；查易错点/误解调用 read_misconceptions；查历史记录调用 list_learning_records。"
                             "细节规范用 read_skill 按需读取（learning-coach / lesson-design / practice-evaluator）。"
                             "工具状态是权威：产品/评估是否落盘只看工具返回的系统状态（task/lesson/assessment）；"
                             "文字点评不等于评估落盘；没有成功任务时不得承诺后台修复或稍后完成。"

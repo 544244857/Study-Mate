@@ -21,9 +21,9 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Awaitable, Callable
 
 from . import concurrency
-from .config import REPO_ROOT
+from .config import SKILLS_DIR
 
-SKILLS_ROOT = REPO_ROOT / ".dsh" / "skills"
+SKILLS_ROOT = SKILLS_DIR
 READ_CHAR_LIMIT = 20000
 LIST_LIMIT = 200
 READ_DEFAULT_LINES = 400
@@ -590,6 +590,229 @@ async def _tool_start_course_interview(args: dict[str, Any], ctx: ToolContext) -
     }
 
 
+async def _tool_call_subagent(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    """分派专业子代理处理特定任务（K4 子代理工具）。"""
+    from . import common
+    from . import roles as roles_svc
+    from .llm import is_fixture_mode
+
+    role = str(args.get("role") or "").strip()
+    task = str(args.get("task") or "").strip()
+    if not role:
+        return {"content": "缺少参数 role（子代理角色名）。", "is_error": True}
+    if not task:
+        return {"content": "缺少参数 task（要分派给子代理的具体任务说明）。", "is_error": True}
+
+    state = ctx.state or {}
+    session_id = state.get("session_id")
+    if is_fixture_mode():
+        provider = {"model": "fixture", "api_format": "openai_chat"}
+    else:
+        try:
+            provider = common.require_provider(session_id)
+        except Exception as exc:  # noqa: BLE001
+            return {"content": f"无法获取可用模型配置：{exc}", "is_error": True}
+
+    try:
+        envelope = await roles_svc.dispatch_role(
+            provider,
+            role,
+            task,
+            fixture_kind=role,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"content": f"子代理 [{role}] 派工失败：{type(exc).__name__}: {exc}", "is_error": True}
+
+    data = envelope.get("data")
+    report = envelope.get("report")
+    files = envelope.get("files") or []
+    summary_parts = []
+    if files:
+        summary_parts.append(f"产出文件 {len(files)} 份")
+    if data:
+        summary_parts.append("包含结构化数据")
+    if report:
+        summary_parts.append(f"报告：{report}")
+    detail = "；".join(summary_parts) if summary_parts else "执行完成"
+    return {
+        "content": f"子代理 [{role}] 执行完毕：{detail}。",
+        "is_error": False,
+        "data": data,
+        "files": files,
+        "report": report,
+    }
+
+
+async def _tool_get_course_outline(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    """读取科目课程大纲及节点当前掌握度与学习状态。"""
+    from . import curriculum_store as cs
+
+    explicit_slug = str(args.get("slug") or "").strip()
+    slug = explicit_slug or _state_slug(ctx)
+    if not slug:
+        return {"content": "无法确定科目：本会话未关联科目，且未提供 slug 参数。", "is_error": True}
+
+    base = cs.subject_dir(slug)
+    if not base.is_dir():
+        return {"content": f"科目目录不存在：{slug}", "is_error": True}
+
+    curriculum = cs.get_curriculum(slug)
+    if not curriculum or "nodes" not in curriculum:
+        return {"content": f"科目 {slug} 尚未生成大纲（curriculum.yaml 不存在或缺少 nodes）。", "is_error": True}
+
+    progress = cs.get_progress(slug) or {}
+    prog_nodes = progress.get("nodes") or {}
+
+    nodes = curriculum.get("nodes") or []
+    lines = [f"【科目大纲：{slug}】（共 {len(nodes)} 个节点）"]
+    nodes_summary = []
+    first_uncompleted = None
+
+    for i, node in enumerate(nodes, 1):
+        nid = str(node.get("id") or "")
+        title = str(node.get("title") or "")
+        kind = str(node.get("kind") or "概念")
+        p_info = prog_nodes.get(nid) or {}
+        status = p_info.get("status") or node.get("status") or "未开始"
+        mastery = p_info.get("mastery")
+        if mastery is None:
+            mastery = node.get("mastery")
+        m_str = f"，掌握度 {mastery}%" if mastery is not None else ""
+        lines.append(f"{i}. [{kind}] {title} ({nid}) — 状态：{status}{m_str}")
+        nodes_summary.append({
+            "id": nid,
+            "title": title,
+            "kind": kind,
+            "status": status,
+            "mastery": mastery,
+        })
+        if first_uncompleted is None and status != "已完成":
+            first_uncompleted = (nid, title)
+
+    if first_uncompleted:
+        lines.append(f"\n当前推荐学习/产课节点：{first_uncompleted[1]} ({first_uncompleted[0]})")
+    else:
+        lines.append("\n全部节点均已学习完成。")
+
+    return {
+        "content": "\n".join(lines),
+        "is_error": False,
+        "outline": {"slug": slug, "nodes": nodes_summary},
+    }
+
+
+async def _tool_read_misconceptions(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    """读取学习者在当前科目中记录的误解与薄弱概念。"""
+    from . import misconceptions as misc_svc
+
+    explicit_slug = str(args.get("slug") or "").strip()
+    slug = explicit_slug or _state_slug(ctx)
+    if not slug:
+        return {"content": "无法确定科目：本会话未关联科目，且未提供 slug 参数。", "is_error": True}
+
+    importance = str(args.get("importance") or "").strip() or None
+    node_id = str(args.get("node_id") or "").strip() or None
+
+    try:
+        items = misc_svc.list_items(slug, importance=importance, node_id=node_id)
+    except Exception as exc:  # noqa: BLE001
+        return {"content": f"读取误解记录失败：{exc}", "is_error": True}
+
+    if not items:
+        filter_hint = []
+        if importance:
+            filter_hint.append(f"重要度={importance}")
+        if node_id:
+            filter_hint.append(f"节点={node_id}")
+        hint = f"（筛选：{', '.join(filter_hint)}）" if filter_hint else ""
+        return {"content": f"科目 {slug} 当前未记录到误解概念{hint}。", "is_error": False, "misconceptions": []}
+
+    lines = [f"【科目误解本：{slug}】（共 {len(items)} 条记录）"]
+    for i, item in enumerate(items, 1):
+        topic = item.get("topic") or "未命名主题"
+        question = item.get("question") or ""
+        misunderstanding = item.get("misunderstanding") or ""
+        imp = item.get("importance") or "medium"
+        nid = item.get("node_id") or item.get("node") or "全局"
+        lines.append(f"{i}. [{imp}] {topic} (节点: {nid})")
+        if question:
+            lines.append(f"   - 触问题目: {question}")
+        if misunderstanding:
+            lines.append(f"   - 原始误解: {misunderstanding}")
+        if item.get("answer_summary"):
+            lines.append(f"   - 正确理解: {item['answer_summary']}")
+        if item.get("follow_up"):
+            lines.append(f"   - 后续建议: {item['follow_up']}")
+
+    return {
+        "content": "\n".join(lines),
+        "is_error": False,
+        "misconceptions": items,
+    }
+
+
+async def _tool_list_learning_records(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    """读取当前科目的历史学习与评估记录列表。"""
+    from . import records as records_svc
+
+    explicit_slug = str(args.get("slug") or "").strip()
+    slug = explicit_slug or _state_slug(ctx)
+    if not slug:
+        return {"content": "无法确定科目：本会话未关联科目，且未提供 slug 参数。", "is_error": True}
+
+    node_id = str(args.get("node_id") or "").strip() or None
+
+    try:
+        grouped = records_svc.list_records(slug)
+    except Exception as exc:  # noqa: BLE001
+        return {"content": f"读取学习记录失败：{exc}", "is_error": True}
+
+    assessments = grouped.get("assessments") or []
+    summaries = grouped.get("summaries") or []
+
+    records = []
+    for a in assessments:
+        nid = a.get("node") or "-"
+        if node_id and nid != node_id:
+            continue
+        records.append({
+            "kind": "评估记录",
+            "node_id": nid,
+            "date": a.get("date") or "-",
+            "verdict": a.get("verdict"),
+            "file": a.get("file"),
+        })
+
+    if not node_id:
+        for s in summaries:
+            records.append({
+                "kind": "会话摘要",
+                "node_id": "-",
+                "date": s.get("date") or "-",
+                "learned": s.get("learned"),
+                "file": s.get("file"),
+            })
+
+    if not records:
+        node_hint = f"（节点：{node_id}）" if node_id else ""
+        return {"content": f"科目 {slug} 暂无历史学习与评估记录{node_hint}。", "is_error": False, "records": []}
+
+    lines = [f"【学习与评估记录：{slug}】（共 {len(records)} 条）"]
+    for i, r in enumerate(records, 1):
+        kind = r.get("kind") or "记录"
+        nid = r.get("node_id") or "-"
+        verdict = r.get("verdict")
+        date = r.get("date") or "-"
+        v_str = f"（结论：{verdict}）" if verdict else ""
+        lines.append(f"{i}. [{kind}] 节点: {nid} · 日期: {date} {v_str}（{r.get('file', '')}）")
+
+    return {
+        "content": "\n".join(lines),
+        "is_error": False,
+        "records": records,
+    }
+
+
 @dataclass(frozen=True)
 class ToolSpec:
     name: str
@@ -747,12 +970,105 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         parameters=_params({}),
         handler=_tool_start_course_interview,
     ),
+    "call_subagent": ToolSpec(
+        name="call_subagent",
+        description=(
+            "分派专业子代理处理特定任务（如大纲设计 generate、讲解生成 produce_content、"
+            "出题设计 produce_quiz、练习批改 grade 等）。返回子代理的结构化执行结果或报告。"
+        ),
+        parameters=_params(
+            {
+                "role": {
+                    "type": "string",
+                    "description": "子代理角色名，可选 generate, produce_content, produce_quiz, grade 等",
+                },
+                "task": {
+                    "type": "string",
+                    "description": "给子代理的具体任务要求与上下文数据",
+                },
+            },
+            ["role", "task"],
+        ),
+        handler=_tool_call_subagent,
+    ),
+    "get_course_outline": ToolSpec(
+        name="get_course_outline",
+        description=(
+            "获取当前科目（或指定科目）的完整课程大纲树与节点状态、掌握度进度。"
+            "当学习者询问课程进度、询问学到哪里了、或需要决定接下来学习哪个节点时调用。"
+        ),
+        parameters=_params(
+            {
+                "slug": {
+                    "type": "string",
+                    "description": "科目 slug，已关联科目的会话可省略",
+                },
+            }
+        ),
+        handler=_tool_get_course_outline,
+    ),
+    "read_misconceptions": ToolSpec(
+        name="read_misconceptions",
+        description=(
+            "读取学习者在当前科目中记录的常见误解与薄弱概念列表。"
+            "用于了解学习者在哪些概念上有易错点，以进行针对性辅导与查漏补缺。"
+        ),
+        parameters=_params(
+            {
+                "slug": {
+                    "type": "string",
+                    "description": "科目 slug，已关联科目的会话可省略",
+                },
+                "importance": {
+                    "type": "string",
+                    "description": "重要度筛选（high / medium / low），可选",
+                },
+                "node_id": {
+                    "type": "string",
+                    "description": "按关联的节点 id 筛选，可选",
+                },
+            }
+        ),
+        handler=_tool_read_misconceptions,
+    ),
+    "list_learning_records": ToolSpec(
+        name="list_learning_records",
+        description=(
+            "读取当前科目下的历史学习记录与评估结论清单（通过判定、得分与日期）。"
+            "用于复盘学习者的历史答题与评估历程。"
+        ),
+        parameters=_params(
+            {
+                "slug": {
+                    "type": "string",
+                    "description": "科目 slug，已关联科目的会话可省略",
+                },
+                "node_id": {
+                    "type": "string",
+                    "description": "按关联的节点 id 筛选，可选",
+                },
+            }
+        ),
+        handler=_tool_list_learning_records,
+    ),
 }
 
-CHAT_TOOLS = ("list_workspace", "read_course_file", "read_skill", "start_course_interview")
-# 会话绑定科目后额外开放的动作工具（产课 / 评估需要会话上下文与长墙钟）
+CHAT_TOOLS = (
+    "list_workspace",
+    "read_course_file",
+    "read_skill",
+    "start_course_interview",
+    "call_subagent",
+)
+# 会话绑定科目后额外开放的动作工具（产课 / 评估 / 大纲与进度查询 / 误解概念 / 学习记录）
 # start_course_interview 属基础聊天工具（未绑定科目更要能切建课），不在此列
-CHAT_ACTION_TOOLS = ("produce_lesson", "assess_node")
+CHAT_ACTION_TOOLS = (
+    "produce_lesson",
+    "assess_node",
+    "get_course_outline",
+    "read_misconceptions",
+    "list_learning_records",
+)
 BUILD_TOOLS = ("list_workspace", "read_course_file", "submit_curriculum")
 PRODUCE_TOOLS = ("list_workspace", "read_course_file", "write_deliver_file", "run_check")
 

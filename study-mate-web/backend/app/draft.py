@@ -7,8 +7,6 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
-import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -16,6 +14,7 @@ from typing import Any
 import yaml
 
 from .config import DATA_DIR, SCRIPTS_DIR
+from .yaml_out import dump_yaml
 from .curriculum_store import generate_slug, is_valid_slug
 
 DRAFTS_DIR = DATA_DIR / "drafts"
@@ -52,7 +51,7 @@ def _read_yaml(path: Path) -> dict[str, Any] | None:
 def _write_yaml(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
-        yaml.safe_dump(data, fh, allow_unicode=True, sort_keys=False)
+        fh.write(dump_yaml(data))
 
 
 def get_draft(slug: str) -> dict[str, Any] | None:
@@ -230,29 +229,8 @@ def promote(slug: str, target_workspace: Path | None = None) -> Path:
         raise FileExistsError(f"工作区已有同名科目：{slug}")
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(source), str(target))
-    refresh_home(workspace)
     return target
 
-
-def refresh_home(workspace: Path) -> None:
-    """gen_home.py 刷新主页；上游脚本零重写，失败不阻断（主页可以稍后手动导出）。"""
-    gate = SCRIPTS_DIR / "gen_home.py"
-    if not gate.is_file():
-        return
-    import os
-
-    try:
-        subprocess.run(
-            [sys.executable, str(gate), str(workspace)],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
-        )
-    except (OSError, subprocess.TimeoutExpired, ValueError):
-        return
 
 
 def delete_draft(slug: str) -> bool:

@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from app import draft as draft_svc
+from app import draft as draft_svc, engine_node
 
 
 @pytest.fixture()
@@ -31,15 +31,22 @@ def produce_subject(client, new_subject):
 
 def test_curriculum_values_inlines_schema_and_constraints(tmp_path):
     from app import build
-    from app.config import SCHEMAS_DIR
+    from app.config import engine_schema_path
 
     base = tmp_path / "draft"
     base.mkdir()
     values = build.curriculum_values(base, {"name": "示例科目"})
 
-    schema = (SCHEMAS_DIR / "curriculum.schema.json").read_text(encoding="utf-8")
+    # 内联的必须是**引擎包内**那份 schema（规则单源），与门禁 sm-validate 判定同源
+    schema_path = engine_schema_path("curriculum.schema.json")
+    assert schema_path.is_file(), f"引擎 schema 不在：{schema_path}（先跑 node setup.mjs）"
+    schema = schema_path.read_text(encoding="utf-8")
     assert schema in values, "schema 全文必须内联进派工值"
     assert '"realworld"' in schema  # 内联的确实是这份 schema
+
+    # 包内 schema 是三档建课快照；内联旧基线（六档 + mastery）会让提示词与门禁打架
+    assert '"已学完"' in schema
+    assert '"mastery"' not in schema
 
     # 硬约束逐条在派工值里（模型据此写，不再靠猜）
     assert "^[a-z0-9]+([.-][a-z0-9]+)*$" in values
@@ -49,7 +56,7 @@ def test_curriculum_values_inlines_schema_and_constraints(tmp_path):
     assert "realworld 必须是字符串（不是数组）" in values
 
     # 原有契约句式与资源清单仍在（没有缩短 values 契约）
-    assert "节点字段全量以 schemas/curriculum.schema.json 为准" in values
+    assert "节点字段全量以引擎 schema（curriculum.schema.json）为准" in values
     assert "【资源清单】" in values
 
 
@@ -63,51 +70,122 @@ class _FakeProc:
         self.stderr = stderr
 
 
-def test_gate_nonzero_unparseable_is_failure(monkeypatch):
-    from app import build
+def test_gate_cli_failure_becomes_actionable_problem(monkeypatch):
+    """node 门禁自身失败（CLI 崩/超时）→ 一条可操作的总控问题，绝不能判通过。"""
+    from app import build, engine_node
     from app.llm import FIXTURE_CURRICULUM
 
-    monkeypatch.setattr(
-        build.subprocess,
-        "run",
-        lambda *a, **k: _FakeProc(1, "奇怪的输出，没有任何可识别前缀\n", ""),
-    )
+    def boom(kind, file):
+        raise engine_node.EngineNodeError("CLI 崩溃（模拟）")
+
+    monkeypatch.setattr(build.engine_node, "validate_data", boom)
     problems = asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM))
-    assert problems, "非零退出但解析不出问题绝不能判通过"
-    assert any("门禁退出码 1" in p["message"] for p in problems)
-    assert any("奇怪的输出" in p["message"] for p in problems), "原始输出要回喂给模型"
+    assert problems, "门禁失败绝不能判通过"
+    assert any("node 门禁失败" in p["message"] for p in problems)
+    assert any("CLI 崩溃" in p["message"] for p in problems), "失败原因要回喂给模型"
 
 
-def test_gate_zero_returncode_still_passes(monkeypatch):
+def test_gate_blocking_report_becomes_problems(monkeypatch):
+    """node 门禁报阻断 → problems 清单（schema 级问题逐条进打回依据）。"""
     from app import build
     from app.llm import FIXTURE_CURRICULUM
 
-    monkeypatch.setattr(
-        build.subprocess, "run", lambda *a, **k: _FakeProc(0, "  [PASS] schema 校验通过\n", "")
-    )
+    def blocked(kind, file):
+        return {
+            "file": str(file),
+            "blocking": True,
+            "blockingCount": 2,
+            "summary": "阻断——2 条阻断问题（共 2 条）",
+            "problems": [
+                {"file": str(file), "line": 3, "message": "缺少必填字段 objective", "blocking": True},
+                {"file": str(file), "line": 5, "message": "kind 不在枚举里", "blocking": True},
+            ],
+        }
+
+    monkeypatch.setattr(build.engine_node, "validate_data", blocked)
+    problems = asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM))
+    assert len(problems) == 2
+    assert all(p["path"] == "curriculum.yaml" for p in problems)
+    assert any("objective" in p["message"] for p in problems)
+
+
+def test_gate_pass_report_passes(monkeypatch):
+    """node 门禁放行 → 空清单（与旧 python 门禁的 PASS 同结论）。"""
+    from app import build
+    from app.llm import FIXTURE_CURRICULUM
+
+    def ok(kind, file):
+        return {"file": str(file), "blocking": False, "blockingCount": 0, "summary": "放行——没有问题", "problems": []}
+
+    monkeypatch.setattr(build.engine_node, "validate_data", ok)
     assert asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM)) == []
 
 
-def test_gate_nonzero_parseable_keeps_parsed_problems(monkeypatch):
+# ---------- 2.5 同步上游后的门禁口径：两边都跑，本地只是结构化补充 ----------
+
+
+def test_local_validator_accepts_three_tier_status():
+    """三档 `已学完` 是上游合法值：本地结构化检查不得单方面打回（旧六档 status 检查已删）。"""
+    import copy
+
+    from app import curriculum_store as cs
+    from app.llm import FIXTURE_CURRICULUM
+
+    data = copy.deepcopy(FIXTURE_CURRICULUM)
+    data["nodes"][0]["status"] = "已学完"
+    assert cs.validate_curriculum(data) == []
+
+
+@pytest.mark.skipif(
+    not engine_node.available(), reason="engine-node 未就绪（node 或 vendor 产物缺失）"
+)
+def test_mastery_key_blocked_by_upstream_gate_only(tmp_path):
+    """mastery 键：本地不再查（放行），上游 schema（additionalProperties:false）必拦。"""
+    import copy
+
+    from app import build
+    from app import curriculum_store as cs
+    from app.llm import FIXTURE_CURRICULUM
+
+    data = copy.deepcopy(FIXTURE_CURRICULUM)
+    data["nodes"][0]["mastery"] = 0.9
+    assert cs.validate_curriculum(data) == [], "本地这道不应再管 mastery"
+    problems = asyncio.run(build.run_curriculum_gate(data))
+    assert problems, "带 mastery 键的大纲必须被上游门禁拦下"
+    assert any("mastery" in p["message"] for p in problems), problems
+
+
+def test_gate_merges_local_and_upstream_problems(monkeypatch):
+    """两边都跑：本地结构问题与上游 schema 问题合并出现（旧逻辑本地有问题就不跑上游）。"""
+    import copy
+
     from app import build
     from app.llm import FIXTURE_CURRICULUM
 
-    monkeypatch.setattr(
-        build.subprocess,
-        "run",
-        lambda *a, **k: _FakeProc(
-            1,
-            "  [FAIL] 1 个问题：\n    - edges/0: 'reason' is a required property\n",
-            "",
-        ),
-    )
-    problems = asyncio.run(build.run_curriculum_gate(FIXTURE_CURRICULUM))
-    assert problems and any("reason" in p["message"] for p in problems)
-    # 解析成功时不再塞原始输出兜底
-    assert all("门禁退出码" not in p["message"] for p in problems)
+    data = copy.deepcopy(FIXTURE_CURRICULUM)
+    # 本地能抓的结构问题：边引用不存在的节点
+    data["edges"].append({"from": "demo.intro", "to": "ghost.node", "reason": "测试悬空边"})
+    # 本地（按新口径）不再管的：mastery 键，由上游拦
+    data["nodes"][0]["mastery"] = 0.9
 
+    def upstream_blocked(kind, file):
+        return {
+            "file": str(file),
+            "blocking": True,
+            "blockingCount": 2,
+            "summary": "阻断——2 条阻断问题（共 3 条）",
+            "problems": [
+                {"file": str(file), "line": 2, "message": '不允许额外字段 ["mastery"]（位置 /nodes/0）', "blocking": True},
+                {"file": str(file), "line": 2, "message": '不允许额外字段 ["mastery"]（位置 /nodes/0）', "blocking": True},
+            ],
+        }
 
-# ---------- 3. 采图跳过标记 ----------
+    monkeypatch.setattr(build.engine_node, "validate_data", upstream_blocked)
+    problems = asyncio.run(build.run_curriculum_gate(data))
+    assert any("ghost.node" in p["message"] for p in problems), f"本地结构问题必须在清单里：{problems}"
+    assert any("mastery" in p["message"] for p in problems), f"上游 schema 问题必须在清单里：{problems}"
+    assert sum(1 for p in problems if "mastery" in p["message"]) == 1, "重复问题要去重"
+
 
 
 def _collector():

@@ -53,12 +53,10 @@ def test_produce_chain_writes_artifacts(client, produce_subject):
     for rel in (
         "lessons/0001-demo.intro.md",
         "lessons/0001-demo.intro.quiz.json",
-        "lessons/0001-demo.intro.html",
     ):
         assert (base / rel).is_file(), rel
-    # 科目组件与共享层组件被总控补齐
-    assert (base / "assets" / "style.css").is_file()
-    assert (base.parent.parent / "assets" / "learn-theme.css").is_file()
+    # 渲染 html 已退役：产物只有源文件，页面由导出应用承担
+    assert not (base / "lessons" / "0001-demo.intro.html").exists()
     # 事件持久化为会话消息
     assert not tickets_svc.list_tickets(slug=slug, open_only=True)
 
@@ -243,31 +241,26 @@ def test_chat_route_injects_local_qa_only():
 
 
 def test_role_ownership_mapping():
-    """FAIL 正则吃 Windows 盘符冒号后，归属仍按产物路径映射（审查 P0-1 回归锚）。"""
-    from app.produce import parse_problems
+    """归属按产物路径映射：题库文件的问题归出题、课件正文的问题归讲解（P0-1 回归锚）。"""
+    from app.produce import _owner_of_problem
 
-    base = Path(".").resolve()
-    problems = parse_problems(
-        f"FAIL {base / 'lessons' / '0001-a.quiz.json'}: 题库键对不上；缺判分要点\n"
-        "lessons/0001-a.md:12 内容格式错\n",
-        base,
-    )
-    owners = {p["owner"] for p in problems}
+    problems = [
+        {"path": "lessons/0001-a.quiz.json", "message": "题库键对不上；缺判分要点"},
+        {"path": "lessons/0001-a.md", "message": "内容格式错"},
+    ]
+    owners = {_owner_of_problem(p) for p in problems}
     assert owners == {"出题", "讲解"}, owners
 
 
 def test_check_stage_failure_ownership():
-    """check_lesson 的 FAIL 挂在 .html 上：题库类消息归出题（拍板④的机械延伸）。"""
-    from app.produce import parse_problems
+    """题库/quiz 与 lab 类消息一律归出题（拍板④的机械延伸，消息挂在哪份文件上无关）。"""
+    from app.produce import _owner_of_problem
 
-    base = Path(".").resolve()
-    page = base / "lessons" / "0001-a.html"
-    problems = parse_problems(
-        f"FAIL {page}: 缺少 .quiz[data-quiz] 题目块（每份课件至少一道题）\n"
-        f"FAIL {page}: lab/solutions/ 缺失（参考答案要与任务分开放）\n",
-        base,
-    )
-    assert {p["owner"] for p in problems} == {"出题"}
+    problems = [
+        {"path": "lessons/0001-a.md", "message": "缺少 .quiz 题目块（每份课件至少一道题）"},
+        {"path": "lessons/0001-a.md", "message": "lab/solutions/ 缺失（参考答案要与任务分开放）"},
+    ]
+    assert {_owner_of_problem(p) for p in problems} == {"出题"}
 
 
 def test_produce_retries_then_hands_off(monkeypatch, client, produce_subject):
@@ -275,18 +268,24 @@ def test_produce_retries_then_hands_off(monkeypatch, client, produce_subject):
     from app import produce as produce_svc
 
     slug, base = produce_subject
-    real = produce_svc._run_script
 
-    async def fake_run_script(args, *_a, **_k):
-        code, output = await real(args)
-        if any("check_lesson.py" in str(a) for a in args):
-            return 1, (
-                f"FAIL {base / 'lessons' / '0001-demo.intro.html'}: "
-                "缺少 .quiz[data-quiz] 题目块（每份课件至少一道题）"
-            )
-        return code, output
+    def always_blocking(lesson_file, subject_dir=None):
+        return {
+            "file": str(lesson_file),
+            "blocking": True,
+            "blockingCount": 1,
+            "summary": "阻断——1 条阻断问题（共 1 条）",
+            "problems": [
+                {
+                    "file": str(lesson_file),
+                    "line": 12,
+                    "message": "缺少 .quiz 题目块（每份课件至少一道题）",
+                    "blocking": True,
+                }
+            ],
+        }
 
-    monkeypatch.setattr(produce_svc, "_run_script", fake_run_script)
+    monkeypatch.setattr(produce_svc.engine_node, "validate_lesson", always_blocking)
     r = client.post(f"/api/courses/{slug}/nodes/demo.intro/produce", json={})
     names = event_names(r)
     assert names.count("retry") == 2

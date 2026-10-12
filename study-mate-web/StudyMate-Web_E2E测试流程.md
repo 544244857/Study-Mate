@@ -80,7 +80,7 @@ v1.0 的旅程用例两轮全绿且幂等，但维护者人工试用（`反馈�
 | 建科目（盘问五项 + 大纲门禁） | `/generate` 五项向导 → `check_curriculum.py` 当门；chat 内盘问（interview 会话收口标记 → 草稿 → 建课编排 → 落点确认） | `generate.spec.ts`、`course-build.spec.ts` | 已覆盖（2026-10-02 / 2026-10-03） |
 | 开场恢复状态 | Chat **新对话关联行**指定科目（发出首条消息后入口消失）→ 课程上下文注入（节点聚焦由后端自动推断）+ **开场状态切片**（MEMORY 分节 / 最近误解 / 学习记录 / 评估记录） | `chat-course-context.spec.ts`、`new-session-association.spec.ts`、pytest `test_binding_focus.py` | 已覆盖（2026-10-02；切片注入在 system 层由 TestClient 覆盖；绑定/推断 2026-10-04；关联行 + 会话级工作区 2026-10-04 第二轮） |
 | 产课（三件套） | 会话 agent 工具 `produce_lesson`（按大纲顺序；节点详情页原「产出此课」按钮已删）→ 讲解/出题角色派工 → render/check 收口（打回归属 + 质检工单） | `produce-tool.spec.ts`、`inspection-ticket.spec.ts` | 已覆盖（2026-10-03；2026-10-04 第八轮改由 agent 工具发起） |
-| 读课件 + 页内做题 | `/lesson` iframe + `quiz.js` 页内判分 | `lesson-quiz.spec.ts` | 已覆盖（2026-10-02） |
+| 读课件 + 页内做题 | `/lesson` iframe = 导出应用入口（`reading.spec.ts` 验接口与缓存；阅读端判分随上游导出 SPA，SPA 内交互无 URL 路由无法自动化——`lesson-quiz.spec.ts` 于 2026-10-11 随 python 渲染链退役，靠真机走查） | `reading.spec.ts` | 已覆盖（2026-10-11 形态切换） |
 | 开放题自评 → Web 增强为判分 lite | 判分面板（criteria + 强制证据） | `grading-panel.spec.ts` | 已覆盖（2026-10-02） |
 | 提问答疑记误解 | Chat 消息 hover"记入概念本"预填跳转（含无科目 adverse） | `misconception-entry.spec.ts` | 已覆盖（2026-10-02） |
 | 评估点（证据>口头） | 会话 agent 工具 `assess_node`（`node_id` + 作答原文）→ 落盘 + **权威置位**（实验课通过连 `prerequisites` 一起置"已通过项目验证"并写学习记录）；节点页原「申请评估」块已删 | `assess-tool.spec.ts` | 已覆盖（2026-10-02；2026-10-04 第八轮改由 agent 工具发起） |
@@ -119,7 +119,7 @@ v1.0 的旅程用例两轮全绿且幂等，但维护者人工试用（`反馈�
 
 > **关于"已覆盖"的射程**：本表状态列仅指旅程**动作级**覆盖——逆向前置状态（如无科目对话、已填 key）、渲染正确性、请求载荷均不在射程内，见第 2 节；那三类按 P1–P5 计划补强后，再回来更新本表状态。（状态分支层已于 2026-10-04 经组件测试落地，见 §2.3 P4；载荷断言 P1 仍部分开放，渲染矩阵 P3 未落地。）
 
-> **待翻转行（2026-10-02 决策）已于 2026-10-03 全部翻转**："选方向""产课（三件套）"随生产侧落地改为"已覆盖"（`course-build.spec.ts` / `produce-chain.spec.ts` / `inspection-ticket.spec.ts`）；"长期记忆 MEMORY.md 写侧"于 2026-10-02 翻转。Q5 阅读端形态（iframe + 壳层）不变，`lesson-quiz` / `grading-panel` 现有用例继续有效。fixture 说明：编排链路用 `STUDYMATE_E2E_SCENARIO`（chat 请求 `fixture_scenario` 字段）选固定流场景，仅 fixture 模式生效。
+> **待翻转行（2026-10-02 决策）已于 2026-10-03 全部翻转**："选方向""产课（三件套）"随生产侧落地改为"已覆盖"（`course-build.spec.ts` / `produce-chain.spec.ts` / `inspection-ticket.spec.ts`）；"长期记忆 MEMORY.md 写侧"于 2026-10-02 翻转。Q5 阅读端形态已切换（2026-10-11）：iframe = 上游导出应用（`reading.spec.ts`），`lesson-quiz` 退役；`grading-panel`（React 判分面板）继续有效。fixture 说明：编排链路用 `STUDYMATE_E2E_SCENARIO`（chat 请求 `fixture_scenario` 字段）选固定流场景，仅 fixture 模式生效。
 
 ---
 
@@ -157,7 +157,7 @@ hover 助手消息「记入概念本」→ 跳转 `/misconceptions` 预填（que
 
 以下用例无特殊断言，覆盖状态见 §3 映射表：
 
-- **旅程主线**：`generate.spec.ts`（五项向导 + 门禁 422 problems / 500 通用错误两条 mock）、`chat-course-context.spec.ts`（开场恢复，数据层校验 slug/node 与消息数）、`lesson-quiz.spec.ts`（iframe 页内判分 + 「下一节」导航）、`grading-panel.spec.ts`（criteria + 证据引用 + 缺口，重提交原地替换）、`progress-transition.spec.ts`（只渲染合法流转项 + `progress.yaml` 落盘）、`misconceptions.spec.ts`（importance / 节点筛选 + 编辑双落点）、`subject-switch.spec.ts`（侧边栏科目切换 + 图谱重建）、`export.spec.ts`（真跑 gen_home + 失败 mock）。
+- **旅程主线**：`generate.spec.ts`（五项向导 + 门禁 422 problems / 500 通用错误两条 mock）、`chat-course-context.spec.ts`（开场恢复，数据层校验 slug/node 与消息数）、`grading-panel.spec.ts`（criteria + 证据引用 + 缺口，重提交原地替换）、`progress-transition.spec.ts`（只渲染合法流转项 + `progress.yaml` 落盘）、`misconceptions.spec.ts`（importance / 节点筛选 + 编辑双落点）、`subject-switch.spec.ts`（侧边栏科目切换 + 图谱重建）、`export.spec.ts`（真跑 `sm-export` 全工作区导出 + 失败 mock）。
 - **Web 壳层与设置**：`chat-draft.spec.ts`（草稿按会话缓存、刷新归空）、`sidebar-resize.spec.ts`（拖宽 + 上下限 + localStorage；`/chat` 左栏是唯一 `<aside>`，右栏 `div[role="complementary"]`）、`settings-providers.spec.ts`（删除后 active 落首项 / 恢复默认 / 测试连接不可达地址）、`settings-workspace.spec.ts`（改选工作区 + `finally` 恢复）、`attachments-area.spec.ts`（术语表链接 200 + 空态）、`workspace-onboarding.spec.ts`（关联行工作区切换 + `finally` 恢复）、`new-session-association.spec.ts`（关联行 + 会话元数据落盘）、`sidebar-collapse.spec.ts`（折叠 60px + localStorage 持久化）。
 - **工具化与课程页**：`produce-tool.spec.ts`（`fixture_scenario=produce` → `produce_lesson` 工具卡 + `tools[]` 非错误；**本轮旧断言已更新为实际接线 `submit_curriculum` / `write_deliver_file` / `run_check`**）、`assess-tool.spec.ts`（`fixture_scenario=assess` → `assess_node` + records 落盘）、`production-task.spec.ts`（**本轮新增 3 条**：`task_update` 原位更新 / 结果透传 / 系统状态兜底）、`rendering.spec.ts`（**本轮新增 4 × 2 = 8**：浅 / 暗定向断言）、`courses-home-embed.spec.ts`（无参 `/courses` = 我的课程，经营视图 count 0）、`chat-subject-graph.spec.ts`（右栏图谱 → 点节点跳课程页）。
 - **旧工单恢复**：`legacy-ticket-recovery.spec.ts`（global「待归属」条 → 认领弹窗显式确认归属 / 放弃仅状态；**认领 B 仅 B 可改、A 不变**；孤儿放弃产物不变）。
@@ -192,7 +192,7 @@ hover 助手消息「记入概念本」→ 跳转 `/misconceptions` 预填（que
 1. 状态机路径（`assess-tool.spec.ts`）：`TRANSITIONS["学习中"]` 只到 初步理解/需要复习，评估推进到"能独立应用"（原 `assessment.spec` 实测，改用例后行为不变）。
 2. fixture assess 的整体 verdict 取"通过"（部分通过会让 progress_updated 恒为 false，状态机链路不可测）；逐题 verdict 不变，schema 各自独立。
 3. globalSetup 往 e2e 副本的 0001-net.layers.html 注入一个双选择题题组（quiz.js 仅在组内选择题 >1 时渲染"本题组：答对 N/M"；examples 源未动）。
-4. `lesson-quiz.spec.ts` "下一节"断言的是 iframe URL 变为 0002 + iframe 内 h1 变化（LessonView 顶栏标题跟随查询参数，不随 iframe 内导航变）。
+4. ~~`lesson-quiz.spec.ts` 的「下一节」断言~~ 已随 2026-10-11 阅读形态切换退役：导出应用无 URL 路由（既定取舍），iframe 内导航无法自动化断言。
 5. `settings-providers.spec.ts` 测试连接：fixture 模式下请求并不外呼——无 Key 走真实 422，可达性失败用 UI route mock 502。
 6. `grading-panel.spec.ts` 重提交断言"结果块原地替换"（fixture 判分内容固定，无法断言内容差异）。
 7. `session-summary.spec.ts`（悬空）落盘日期由后端 `today()` 覆盖，UI 按动态日期正则断言。

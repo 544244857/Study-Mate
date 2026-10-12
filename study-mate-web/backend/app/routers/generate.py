@@ -1,38 +1,27 @@
-"""M4 科目生成：curriculum-designer 派工 → 上游 check_curriculum.py 当门。
+"""M4 科目生成：curriculum-designer 派工 → build.run_curriculum_gate 统一门禁（node 引擎）。
 
-2026-10-03 拍板⑥：原硬编码 GENERATE_SYSTEM_PROMPT 的 12 条约束是
-curriculum-designer SKILL.md 的压缩转写（第二份规则，会随基线漂移），改为
-SKILL.md 全文注入 + 派工值内联；输出 JSON 图契约不变（data 键交回）。
+统一门禁执行复用 `build.run_curriculum_gate`，派工提示词内联 schema 约束。
 """
 from __future__ import annotations
 
-import asyncio
-import os
-import subprocess
-import sys
-import tempfile
-from pathlib import Path
 from typing import Any
 
-import yaml
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
+from .. import build as build_svc
 from .. import curriculum_store as cs
 from .. import roles
 from .. import workspace_ctx
 from ..common import optional_workspace
-from ..config import REPO_ROOT, SCRIPTS_DIR
 from ..llm import is_fixture_mode
 from ..models import GenerateCourseRequest
 
 router = APIRouter(prefix="/api", tags=["generate"])
 
-SUBPROCESS_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-
 
 def _generate_user_prompt(payload: GenerateCourseRequest) -> str:
-    """派工值：学习者情况逐项内联，规格要求不复述（§5.1 C 行拍板②）。"""
+    """派工值：学习者情况逐项内联，内联核心 schema 约束提高首次生成合规率。"""
     project = (payload.project or "").strip() or "未定（设计时预留可挂项目的实操素材）"
     carrier = (payload.carrier or "").strip() or "未定（实验任务写成与载体无关的可执行任务书）"
     return "\n".join(
@@ -44,24 +33,15 @@ def _generate_user_prompt(payload: GenerateCourseRequest) -> str:
             f"【前置基础】{payload.background.strip()}",
             f"【配套项目】{project}",
             f"【实验载体】{carrier}",
-            "【输出契约】data 键 = {\"nodes\": [...], \"edges\": [...]},"
-            "节点字段全量以 schemas/curriculum.schema.json 为准。",
+            "【输出契约】data 键 = {\"nodes\": [...], \"edges\": [...]}, 节点字段全量以 schemas/curriculum.schema.json 为准。",
+            "【硬约束】",
+            "- 节点 id 只能由小写字母、数字组成，段间用 `.` 或 `-` 分隔（如 net.layers），禁止大写字母；",
+            "- 每个节点必填字段：id、title、objective、prerequisites、status、kind（kind 取 概念/实操/实验）；",
+            "- 每条 edge 必填字段：from、to、reason（reason 说明设边理由）；",
+            "- concepts、pitfalls 是字符串数组；realworld 必须是字符串（不是数组）；",
+            "- nodes 顺序即教学顺序，依赖必须指向前置节点（禁止逆向依赖与环）。",
         ]
     )
-
-
-def _gate_problems(stdout: str, stderr: str) -> list[str]:
-    problems: list[str] = []
-    for chunk in (stdout, stderr):
-        for raw in chunk.splitlines():
-            line = raw.strip()
-            if not line:
-                continue
-            if line.startswith("- "):
-                problems.append(line[2:].strip())
-            elif "[ERROR]" in line or line.startswith("schema"):
-                problems.append(line)
-    return list(dict.fromkeys(problems))[:20]
 
 
 def _gate_failure(problems: list[str]) -> JSONResponse:
@@ -102,10 +82,6 @@ async def _generate_course_impl(payload: GenerateCourseRequest):
         provider = require_provider()
     else:
         provider = {"model": "fixture", "api_format": "openai_chat"}
-    gate = SCRIPTS_DIR / "check_curriculum.py"
-    if not gate.is_file():
-        raise HTTPException(503, "上游脚本缺失：scripts/check_curriculum.py")
-
     try:
         envelope = await roles.dispatch_role(
             provider, "generate", _generate_user_prompt(payload), fixture_kind="generate"
@@ -121,42 +97,11 @@ async def _generate_course_impl(payload: GenerateCourseRequest):
     if not isinstance(data, dict) or not isinstance(data.get("nodes"), list) or not isinstance(data.get("edges"), list):
         raise HTTPException(502, "大纲派工没有交回课程 JSON（data 键）")
 
-    problems = cs.validate_curriculum(data)
-    if problems:
-        return _gate_failure(problems[:20])
-
-    tmp_name = ""
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".yaml", encoding="utf-8", delete=False
-        ) as tmp:
-            yaml.safe_dump(data, tmp, allow_unicode=True, sort_keys=False)
-            tmp_name = tmp.name
-        try:
-            # 门禁子进程最多 120s：用 to_thread 跑，别同步堵住事件循环
-            # （build.py / produce.py 都已经是这么做的，这里是漏网的那个；堵住会让同进程
-            #   其它 SSE 流、附件上传一起"卡住"数秒到 2 分钟）
-            proc = await asyncio.to_thread(
-                subprocess.run,
-                [sys.executable, str(gate), tmp_name],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=120,
-                env=SUBPROCESS_ENV,
-                cwd=str(REPO_ROOT),
-            )
-        except subprocess.TimeoutExpired:
-            raise HTTPException(502, "上游门禁超时（120 秒）") from None
-        except OSError as exc:
-            raise HTTPException(502, f"上游门禁启动失败：{exc}") from None
-    finally:
-        if tmp_name:
-            Path(tmp_name).unlink(missing_ok=True)
-
-    if proc.returncode != 0:
-        return _gate_failure(_gate_problems(proc.stdout or "", proc.stderr or ""))
+    # 统一复用 build 模块的完整门禁校验（进程内 schema + node 引擎上游校验器）
+    gate_problems = await build_svc.run_curriculum_gate(data)
+    if gate_problems:
+        problem_msgs = [str(p.get("message") or p) for p in gate_problems[:20]]
+        return _gate_failure(problem_msgs)
 
     summary = cs.create_subject(name, slug, purpose)
     if summary is None:

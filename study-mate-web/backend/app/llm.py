@@ -1301,7 +1301,6 @@ FIXTURE_CURRICULUM: dict[str, Any] = {
             "pitfalls": [],
             "realworld": "",
             "status": "未开始",
-            "mastery": 0,
         },
         {
             "id": "demo.core",
@@ -1316,7 +1315,6 @@ FIXTURE_CURRICULUM: dict[str, Any] = {
             "pitfalls": [],
             "realworld": "",
             "status": "未开始",
-            "mastery": 0,
         },
         {
             "id": "demo.lab",
@@ -1331,7 +1329,6 @@ FIXTURE_CURRICULUM: dict[str, Any] = {
             "pitfalls": [],
             "realworld": "",
             "status": "未开始",
-            "mastery": 0,
         },
     ],
     "edges": [
