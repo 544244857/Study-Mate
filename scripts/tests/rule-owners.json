@@ -16,6 +16,9 @@
   "moved": {
     "learning-coach": {
       "文件名规则": "lesson-design"
+    },
+    "learning-system": {
+      "普通节点最多置「学习中」，「已学完」只由实验课置位": "record-keeping"
     }
   }
 }

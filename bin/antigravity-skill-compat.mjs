@@ -366,8 +366,8 @@ function adaptAntigravityController(body) {
 
   result = replaceRequired(
     result,
-    /- \*\*角色一律用全新上下文[^\n]+/,
-    '- **多智能体异步调度**：子代理在独立后台上下文中执行，互不干扰；资源清单产出后，采图与大纲设计通过 `invoke_subagent` 数组并发派发；课件制作时保持讲解到出题的串行依赖。',
+    /^### 怎么派\r?\n/m,
+    '### 怎么派\n\n- **多智能体异步调度**：子代理在独立后台上下文中执行，互不干扰；资源清单产出后，采图与大纲设计通过 `invoke_subagent` 数组并发派发；课件制作时保持讲解到出题的串行依赖。\n',
     'delegation via invoke_subagent'
   );
 
@@ -385,8 +385,6 @@ function adaptAntigravityController(body) {
     'role error retry'
   );
 
-  result = replaceRequired(result, /直接进下一节点[^\n]*/,
-    '按第 9 步衔接下一节点', 'next node handoff');
   result = replaceRequired(result, /两边都回来 → 你写「课程大纲」、核对「图片库索引」→ 问"开始吗"[^\n]*/,
     '→ 按用户已表达的范围继续第一课或交付大纲', 'parallel chain end');
   result = replaceRequired(result, /^4\. \*\*课件交给学生\*\*[^\n]+/m,
