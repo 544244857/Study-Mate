@@ -13,6 +13,7 @@ import type {
   HealthInfo,
   ErrorPhase,
   ExportResult,
+  FsDirsInfo,
   GenerateCoursePayload,
   GenerateCourseResponse,
   GradePayload,
@@ -354,6 +355,12 @@ export const api = {
     }),
   deleteSession: (id: string) =>
     jsonFetch<{ ok: boolean }>(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  /** 按工作区批量删除会话（含附件）；科目与文件夹保留。workspace = 规整后的完整路径 */
+  bulkDeleteSessions: (workspace: string) =>
+    jsonFetch<{ ok: boolean; deleted: number }>("/api/sessions/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify({ workspace }),
+    }),
   /**
    * 登记“用户主动停止”意图（后端绑定 active turn_id，15s 内一次消费；无 active 轮返回 stop:false）。
    * 限时等待，绝不无限阻塞：超时/异常一律返回 `{ok:false, stop:false}`，调用方仍应本地 abort。
@@ -482,6 +489,9 @@ export const api = {
     jsonFetch<ReadingInfo>(
       withWorkspace(`/api/courses/${encodeURIComponent(slug)}/reading`, workspace),
     ),
+  // 工作区首页嵌入入口（按需导出全工作区 + 缓存命中信息）；与 getReading 同契约
+  getHomeReading: (workspace?: WorkspaceParam) =>
+    jsonFetch<ReadingInfo>(withWorkspace("/api/home/reading", workspace)),
   getQuiz: (slug: string, nodeId: string, workspace?: WorkspaceParam) =>
     jsonFetch<{ items: QuizItem[] }>(
       withWorkspace(
@@ -575,6 +585,12 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ path }),
     }),
+
+  // 服务端目录浏览：只列一级子目录（不含点开头、不含文件）；path 省略 = 列根
+  listDirs: (path?: string | null) =>
+    jsonFetch<FsDirsInfo>(
+      path ? `/api/fs/dirs?path=${encodeURIComponent(path)}` : "/api/fs/dirs",
+    ),
 
   // 附件区清单：术语表 / 本地资料 / 学习记录 / 会话摘要（可按会话工作区读取）
   getAttachmentsArea: (slug: string, workspace?: WorkspaceParam) =>

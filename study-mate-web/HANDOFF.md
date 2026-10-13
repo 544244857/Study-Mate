@@ -17,7 +17,7 @@
   - **规则单源 = 包内 schema**：建课派工值内联的 `curriculum.schema.json` 与 `records.py` 的 schema 校验都走 `config.engine_schema_path()` 读**引擎包内**那份（2026-10-11 修正，此前读仓库根旧基线，与门禁各说各话）；仓库根 `schemas/` 只作对齐副本，**不作判定源**。
   - **引擎包版本**：`engine-node/package.json` 钉 `@yunmiao/studymate`。**2.0.1 起支持 `::: code <语言>` 指令**（规范 `docs/规范/课件内容格式.md` §4 的权威写法带空格；解析端 `lib/core/format.ts` 的 `buildCode` 与阅读端 `lib/client.js` 的 `.smb-code` 框内 caption、alt/caption 进检索串双双就绪），而同步后的 `preset/skills/lesson-design/SKILL.md` 已在教模型用它——低于 2.0.1 会把合规课件判成「未知围栏」打回。**我们侧零使用、零覆盖**：种子课件与前端/后端测试均无 `::: code`，采用范围建议见 §2.2-2。升版走 [engine-node/README.md](engine-node/README.md) 的 checklist（setup → 契约 18 → 金样 → 全量 pytest → E2E）。
   - **根资源对齐上游**：`preset/`（含 `preset/skills` 12 个技能）与根 `README` / `README.en` / `GLOSSARY` / `CONTRIBUTING` / `AGENTS` 已同步；合并 `upstream/main` 后根 `schemas/`、`docs/`、`scripts/`、`bin/`、`lib/`、`templates/`（只剩 6 份模板）全部跟上，`.dsh/` 与 `examples/` 随之消失。E2E 种子课件已迁入 `backend/seed/computer-networks/`，不依赖 `examples/`。
-  - **导出阅读端集成**：课件阅读与全工作区主页采用统一导出层（`app/exporter.py` 按需导出与 `.stamp` 缓存），前端 `LessonView` 与 `HomeEmbed` 内嵌自包含阅读端应用；旧 Python 渲染链路已退役，`engine/` 仅保留 `check_pool.py` 用于采图自检。
+  - **导出阅读端集成**：课件阅读与全工作区主页采用统一导出层（`app/exporter.py` 按需导出，`.stamp` 缓存 + 来源工作区标记防跨区串产物），前端只认 reading 入口返回的 URL（`LessonView` 走 `/api/courses/{slug}/reading`、`HomeEmbed` 走 `/api/home/reading`）内嵌自包含阅读端应用；旧 Python 渲染链路已退役，`engine/` 仅保留 `check_pool.py` 用于采图自检。
 - **Agent 工具面与生产编排**：
   - 生产侧（建课 `build.py` 与产课 `produce.py`）采用工具化 Agent 循环与统一门禁自修；建课向导 `generate.py` 已统一复用 `build.run_curriculum_gate` 门禁与硬约束。
   - 对话侧工具面已完成扩容：基础工具包含只读查询及 **K4 子代理分派（`call_subagent`）**；科目关联会话开放动作工具（产课 `produce_lesson`、评估 `assess_node`、大纲状态 `get_course_outline`、误解概念 `read_misconceptions`、历史学习记录 `list_learning_records`）。

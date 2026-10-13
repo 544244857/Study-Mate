@@ -549,6 +549,15 @@ export interface WorkspaceInfo {
   candidates: string[];
 }
 
+/** 服务端目录浏览（GET /api/fs/dirs）：只列一级子目录；truncated 表示子目录过多被截断 */
+export interface FsDirsInfo {
+  /** 被列出的路径（path 省略时由后端给出根） */
+  path: string;
+  /** 一级子目录名（不含点开头、不含文件），已截断时为其前缀 */
+  dirs: string[];
+  truncated: boolean;
+}
+
 /** 附件区清单：文件内容经 GET /api/courses/{slug}/files/{path} 读 */
 export interface AttachmentsArea {
   /** 术语表文件名（存在时为 "GLOSSARY.md"，否则 null） */

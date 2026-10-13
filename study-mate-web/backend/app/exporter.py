@@ -125,36 +125,61 @@ def export_subject(slug: str, *, force: bool = False) -> dict[str, Any]:
 
 
 def export_workspace_home(slug: str = "_home") -> dict[str, Any]:
-    """全工作区导出（阅读端 SPA 自带首页），供 /api/home 的 node 模式用。
+    """全工作区导出（阅读端 SPA 自带首页），供 /api/home 与 /api/home/reading 用。
 
     node 模式下 gen_home 不再跑、工作区根没有 index.html——主页 = 全工作区
-    导出的入口页。python 模式不经过这里（/api/home 直接读 <ws>/index.html）。
+    导出的入口页。python 模式不经过这里。
+    产物目录 slug 固定、不区分来源工作区：新鲜度除 .stamp 时间戳外还要
+    .workspace 标记与当前绑定一致，切换工作区后强制重导，避免吃到旧区产物。
     """
     export_root = export_root_for(slug)
     workspace = cs.workspace_dir()
-    stamp = export_root / ".stamp"
-    if stamp.is_file():
-        try:
-            if float(stamp.read_text(encoding="utf-8").strip()) >= _workspace_mtime(workspace):
-                return {
-                    "export_dir": str(export_root.resolve()),
-                    "entry": str((export_root / "index.html").resolve()),
-                    "fresh": True,
-                    "engine": "cache",
-                }
-        except (OSError, ValueError):
-            pass
+    if _home_fresh(export_root, workspace, slug):
+        return {
+            "export_dir": str(export_root.resolve()),
+            "entry": str((export_root / "index.html").resolve()),
+            "fresh": True,
+            "engine": "cache",
+        }
     if not engine_node.available():
         raise ExportError("node 引擎未就绪（先在 engine-node 里跑 `node setup.mjs`）")
     with _staging(slug) as staging, _swap_lock(slug):
-        result = engine_node.export_workspace(workspace, staging)
+        try:
+            engine_node.export_workspace(workspace, staging)
+        except engine_node.EngineNodeError as exc:
+            raise ExportError(str(exc)) from exc
         _swap_in(staging, export_root)
+    try:
+        _home_marker(slug).write_text(f"{workspace.resolve()}\n", encoding="utf-8")
+    except OSError:
+        pass
     return {
         "export_dir": str(export_root.resolve()),
         "entry": str((export_root / "index.html").resolve()),
         "fresh": False,
         "engine": "node",
     }
+
+
+def _home_marker(slug: str) -> Path:
+    """导出来源工作区标记（落在 exports 根，不进产物目录）。"""
+    return DATA_DIR / "exports" / f".{slug}.workspace"
+
+
+def _home_fresh(export_root: Path, workspace: Path, slug: str) -> bool:
+    stamp = export_root / ".stamp"
+    if not stamp.is_file():
+        return False
+    try:
+        stamped = float(stamp.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return False
+    try:
+        if _home_marker(slug).read_text(encoding="utf-8").strip() != str(workspace.resolve()):
+            return False
+    except OSError:
+        return False
+    return stamped >= _workspace_mtime(workspace)
 
 
 def _workspace_mtime(workspace: Path) -> float:

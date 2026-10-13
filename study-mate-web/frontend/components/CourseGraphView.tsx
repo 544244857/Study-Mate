@@ -231,7 +231,7 @@ export function CourseGraphView() {
         {/* 默认主页顶上一条：归属待确认的旧单仍可达（旧单可能已无对应科目） */}
         <PendingOwnershipEntry workspace={activeWorkspace} />
         <div className="min-h-0 w-full flex-1">
-          <HomeEmbed />
+          <HomeEmbed workspace={activeWorkspace} />
         </div>
       </div>
     );

@@ -56,6 +56,26 @@ def get_home(workspace: str | None = None) -> FileResponse:
         return FileResponse(entry, media_type="text/html")
 
 
+@router.get("/home/reading")
+def get_home_reading(workspace: str | None = None) -> dict:
+    """「我的课程」嵌入入口：按需导出全工作区（源没变复用缓存）并返回 iframe 用 URL。
+
+    与 /api/courses/{slug}/reading 同契约：前端只认返回的 url，不自行拼产物内部
+    路径。必须注册在 /home/{file_path:path} 之前，否则被通配吃掉。
+    """
+    with _scope(workspace):
+        try:
+            result = exporter.export_workspace_home()
+        except exporter.ExportError as exc:
+            raise HTTPException(502, str(exc)) from None
+    return {
+        "url": "/api/exports/_home/index.html",
+        "entry": result["entry"],
+        "fresh": result["fresh"],
+        "engine": result["engine"],
+    }
+
+
 @router.get("/home/{file_path:path}")
 def get_home_file(file_path: str, workspace: str | None = None) -> FileResponse:
     """工作区根下的任意文件（主页相对引用由此解析）：词法 + 解析后双重越界防护。"""

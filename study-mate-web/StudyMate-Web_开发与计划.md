@@ -60,7 +60,7 @@
   - `ChatView` / `Composer`：对话流展示、输入控制、多模态附件、推理档位选择与中间过程折叠。
   - `RightSidebar` / `SubjectGraphPanel`：右侧上下文抽屉、科目图谱/大纲树无缝切换与附件清单。
   - `ErrorNotice`：统一错误警告组件（支持 neutral 中断与 danger 故障两态，提供展开诊断与一键复制）。
-  - `HomeEmbed`：内嵌工作区主页视图，主题与系统自适应同步。
+  - `HomeEmbed`：工作区主页视图：先经 `/api/home/reading` 按需导出（缓存命中秒回）再嵌导出应用，带加载 / 错误（可重试）态，感知会话工作区。
 
 ### 1.3 核心对外契约要点
 

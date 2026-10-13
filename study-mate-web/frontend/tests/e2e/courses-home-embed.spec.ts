@@ -1,18 +1,28 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * 2026-10-04：「我的课程」首页。
+ * 2026-10-04：「我的课程」首页。2026-10-13：嵌入改走 /api/home/reading 触发按需导出，
+ * 并断言 iframe 入口真实返回 200——曾经硬编码产物路径，_home 缺失时 404 静默白屏而
+ * 本用例（只看 iframe 存在）仍绿。
  *
  * /courses 不带 ?subject= 时不再回落第一个科目、也不再渲染图谱：只嵌入工作区首页。
  * 带 ?subject= 时与原来一致（图谱右栏 + 节点详情）。
  * 空工作区优先显示「还没有科目…」提示（fixture 有种子科目，这里覆盖不到）。
  */
 test("我的课程：/courses 只嵌入工作区首页，不渲染图谱右栏", async ({ page }) => {
+  const homeEntry = page.waitForResponse(
+    (res) => new URL(res.url()).pathname === "/api/exports/_home/index.html",
+  );
   await page.goto("/courses");
 
   const embed = page.getByTestId("home-embed");
   await expect(embed).toBeVisible();
   await expect(embed).toHaveAttribute("title", "我的课程");
+
+  // 嵌入内容必须真的加载成功（404 白屏是上一轮事故，断言堵死）
+  const entry = await homeEntry;
+  expect(entry.status()).toBe(200);
+  expect(entry.headers()["content-type"]).toContain("text/html");
 
   // 不带参数时没有右栏图谱、也没有大纲与节点详情
   await expect(page.getByTestId("course-graph-rail")).toHaveCount(0);
