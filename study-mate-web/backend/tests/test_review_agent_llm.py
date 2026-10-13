@@ -483,3 +483,26 @@ def test_turn_suppresses_tool_calls_when_tools_disabled(monkeypatch):
 
     enabled = _run(collect([{"name": "list_workspace", "description": "", "parameters": {}}]))
     assert any(event["type"] == "tool_calls" for event in enabled)
+
+
+# ---------- B10：_provider_url 路径去重与标准化 ----------
+
+
+@pytest.mark.parametrize(
+    ("base", "path", "expected"),
+    [
+        ("https://api.anthropic.com", "/v1/messages", "https://api.anthropic.com/v1/messages"),
+        ("https://api.anthropic.com/", "/v1/messages", "https://api.anthropic.com/v1/messages"),
+        ("https://discovery-api.intern-ai.org.cn/v1", "/v1/messages", "https://discovery-api.intern-ai.org.cn/v1/messages"),
+        ("https://discovery-api.intern-ai.org.cn/v1/", "/v1/messages", "https://discovery-api.intern-ai.org.cn/v1/messages"),
+        ("https://proxy.example.com/prefix/v1", "/v1/messages", "https://proxy.example.com/prefix/v1/messages"),
+        ("https://api.anthropic.com/v1/messages", "/v1/messages", "https://api.anthropic.com/v1/messages"),
+        ("https://api.openai.com", "/responses", "https://api.openai.com/v1/responses"),
+        ("https://api.openai.com/v1", "/responses", "https://api.openai.com/v1/responses"),
+        ("https://token.sensenova.cn/v1", "/responses", "https://token.sensenova.cn/v1/responses"),
+        ("https://token.sensenova.cn/v1/", "/responses", "https://token.sensenova.cn/v1/responses"),
+    ],
+)
+def test_provider_url_path_deduplication(base, path, expected):
+    url = llm._provider_url({"base_url": base}, path)
+    assert url == expected
