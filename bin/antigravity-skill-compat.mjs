@@ -303,44 +303,44 @@ function adaptAntigravityController(body) {
 
   result = replaceRequired(
     result,
-    /^2\. \*\*没有科目\*\*[^\n]+/m,
-    '2. **没有科目**：吸收本次消息已给出的目标、基础与偏好，调用 `ask_question` 进行增量盘问；回答当轮保存，不把全部决策堆成冗长文字。',
+    /^\| 一门科目都没有（首次使用） \|[^\n]+/m,
+    '| 一门科目都没有（首次使用） | 吸收本次消息已给出的目标、基础与偏好，调用 `ask_question` 进行增量盘问；回答当轮保存，不把全部决策堆成冗长文字。 |',
     'initial intake'
   );
 
   result = replaceRequired(
     result,
-    /^3\. \*\*已有科目\*\*[^\n]+/m,
-    '3. **已有科目**：用户点名或只有一个活跃科目时直接恢复当前节点与材料；多个科目且无法判断意图时调用 `ask_question` 给一次单选卡片。用户要开新科目时保留旧数据，进入增量盘问。',
+    /^\| 已有科目 \|[^\n]+/m,
+    '| 已有科目 | 用户点名或只有一个活跃科目时直接恢复当前节点与材料；多个科目且无法判断意图时调用 `ask_question` 给一次单选卡片。用户要开新科目时保留旧数据，进入增量盘问。 |',
     'subject recovery'
   );
 
   result = replaceRequired(
     result,
-    /^5\. \*\*报告 \+ 给下一步[^\n]+/m,
-    '5. **简短衔接并执行**：简要说明恢复位置或新课程轮廓；用户已确认开始时直接推进对应步骤，用户只要大纲时交付大纲。展示根主页 `<LEARN_WORKSPACE>/index.html` 的可点击超链接，供浏览器直接打开。',
+    /^8\. \*\*开场报告\*\*：[^\n]+/m,
+    '8. **开场报告**：简要说明恢复位置或新课程轮廓；用户已确认开始时直接推进对应步骤，用户只要大纲时交付大纲。展示根主页 `<LEARN_WORKSPACE>/index.html` 的可点击超链接，供浏览器直接打开。',
     'opening handoff'
   );
 
   result = replaceRequired(
     result,
-    /## 新科目盘问[^\n]*\n[\s\S]*?(?=## 对话节奏)/,
+    /### 2\. 新科目盘问[^\n]*\n[\s\S]*?(?=### 3\. )/,
     `${AGY_INTAKE}\n`,
     'learning-system intake'
   );
 
   result = replaceRequired(
     result,
-    /## 对话节奏[^\n]*\n[\s\S]*?(?=## 学习循环)/,
-    `${AGY_DIALOGUE}\n`,
-    'learning-system dialogue'
+    /### 5\. 收尾[^\n]*\n[\s\S]*?(?=### 对话节奏)/,
+    '### 5. 收尾（学生说"今天到这"，或一段学习结束）\n\n学生明确暂停/结束或当前学习单元已完成时执行收尾：\n1. 按 `record-keeping` 更新学习进度、误解记录与学习记录（有可观察证据才写），把当前科目、节点、阶段与下一步存进交互断点。\n2. 输出已保存位置与下次恢复点。不追加挽留弹窗。\n\n',
+    'Antigravity session end'
   );
 
   result = replaceRequired(
     result,
-    /## 会话结束\r?\n[\s\S]*?(?=## 子 agent 派发规范)/,
-    '## 会话结束\n\n学生明确暂停/结束或当前学习单元已完成时执行收尾：\n1. 按 `record-keeping` 更新学习进度、误解记录与学习记录（有可观察证据才写），把当前科目、节点、阶段与下一步存进交互断点。\n2. 输出已保存位置与下次恢复点。不追加挽留弹窗。\n\n',
-    'Antigravity session end'
+    /### 对话节奏[^\n]*\n[\s\S]*?(?=## 子 agent 派发规范)/,
+    `${AGY_DIALOGUE}\n`,
+    'learning-system dialogue'
   );
 
   result = replaceRequired(
@@ -355,13 +355,6 @@ function adaptAntigravityController(body) {
     /^9\. 问学生继续下一个节点还是结束[^\n]*/m,
     '9. 更新交互断点。学生已明确继续时推进对应下一步；只报告“学完了”而未选择后续时，给一次“下一课 / 补练 / 暂停”选择。',
     'node boundary'
-  );
-
-  result = replaceRequired(
-    result,
-    /   4\. 派 `curriculum-designer` 产大纲[^\n]*/,
-    '   4. 接收已派发的 `curriculum-designer` 大纲产物并执行校验；不重复派发同一大纲任务。采图缺失按 Gaps 处理，不阻塞可用大纲。',
-    'curriculum handoff'
   );
 
   result = replaceRequired(
@@ -392,19 +385,15 @@ function adaptAntigravityController(body) {
     'role error retry'
   );
 
-
   result = replaceRequired(result, /直接进下一节点[^\n]*/,
     '按第 9 步衔接下一节点', 'next node handoff');
-  result = replaceRequired(result, /→ 开始第一课（仍按「对话节奏」问"开始吗"）[^\n]*/,
+  result = replaceRequired(result, /两边都回来 → 你写「课程大纲」、核对「图片库索引」→ 问"开始吗"[^\n]*/,
     '→ 按用户已表达的范围继续第一课或交付大纲', 'parallel chain end');
   result = replaceRequired(result, /^4\. \*\*课件交给学生\*\*[^\n]+/m,
     '4. **课件交给学生**：在回复中输出课件的**绝对路径超链接**（`[打开课件](file://...)`），并可在 `<appDataDir>/brain/<conversation-id>/` 写入伴读 Artifact；按“Antigravity 对话衔接”交付当前材料与一个学生行动',
     'page delivery');
-  result = replaceRequired(result, /^1\. \*\*你亲自确认\*\*[^\n]*/m,
-    '1. **核对变更意图**：学生明确要求从 A 改成 B 就执行该范围变更；目标含糊或扩大范围时调用 `ask_question` 澄清一次',
-    'mission change intent');
-  result = replaceRequired(result, /\*\*建池与拟大纲并行\*\*[^\n]*/,
-    '**建池与拟大纲并发派发**——「资源清单」落位后，通过 `invoke_subagent` 数组同时派发下面两个角色：', 'parallel pool + outline');
+  result = replaceRequired(result, /\*\*同时派两支\*\*[^\n]*/,
+    '**同时派两支**：「资源清单」主干那一节核过后，通过 `invoke_subagent` 数组同时派发下面两个角色：', 'parallel pool + outline');
 
   result = result.replaceAll('~/.dsh/studymate-config.yaml', '宿主的全局工作区配置');
   result = result.replaceAll('<WS>', '<LEARN_WORKSPACE>');

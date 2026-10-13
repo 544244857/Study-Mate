@@ -61,18 +61,18 @@ function adaptController(body) {
     'controller mechanics bullet');
   result = replaceRequired(result, /^1\. \*\*加载 `record-keeping` 并读状态\*\*[^\n]+/m,
     '1. **加载交互与档案协议并恢复**：先读本技能 `references/codex-interaction.md` 与 `record-keeping`；读 `<LEARN_WORKSPACE>/.learning/interaction.json` 恢复断点（首次没有这个文件是正常的），结合共享记忆、学习进度与最近的学习记录恢复。先处理本次消息中的回答、纠正或续学意图，不能一律重跑开场菜单。', 'controller recovery');
-  result = replaceRequired(result, /^2\. \*\*没有科目\*\*[^\n]+/m,
-    '2. **没有科目**：吸收本次消息已给出的目标、基础与偏好，仅走下方增量盘问；回答当轮保存，不等建完科目才记。不先问一遍三件事再重复盘问。', 'initial intake');
-  result = replaceRequired(result, /^3\. \*\*已有科目\*\*[^\n]+/m,
-    '3. **已有科目**：用户点名或只有一个有效活跃科目时直接恢复到当前阶段、节点和已存在的材料；多个科目且无法判断意图才给一次选择。用户明确要新科目时保留旧数据，进入增量盘问。', 'subject recovery');
-  result = replaceRequired(result, /^5\. \*\*报告 \+ 给下一步[^\n]+/m,
-    '5. **简短衔接并执行**：用一两句说明恢复位置或新课程轮廓；用户已要求开始/继续时直接执行对应步骤，只要大纲时交付大纲。只有尚未决定的下一步才给一次选择，不重复问“开始吗”。展示根主页 `<LEARN_WORKSPACE>/index.html` 的可点击绝对路径，有文件预览工具时打开。', 'opening handoff');
-  result = replaceRequired(result, /## 新科目盘问[^\n]*\n[\s\S]*?(?=## 对话节奏)/,
+  result = replaceRequired(result, /^\| 一门科目都没有（首次使用） \|[^\n]+/m,
+    '| 一门科目都没有（首次使用） | 吸收本次消息已给出的目标、基础与偏好，仅走下方增量盘问；回答当轮保存，不等建完科目才记。不先问一遍三件事再重复盘问。 |', 'initial intake');
+  result = replaceRequired(result, /^\| 已有科目 \|[^\n]+/m,
+    '| 已有科目 | 用户点名或只有一个有效活跃科目时直接恢复到当前阶段、节点和已存在的材料；多个科目且无法判断意图才给一次选择。用户明确要新科目时保留旧数据，进入增量盘问。 |', 'subject recovery');
+  result = replaceRequired(result, /^8\. \*\*开场报告\*\*：[^\n]+/m,
+    '8. **开场报告**：用一两句说明恢复位置或新课程轮廓；用户已要求开始/继续时直接执行对应步骤，只要大纲时交付大纲。只有尚未决定的下一步才给一次选择，不重复问“开始吗”。展示根主页 `<LEARN_WORKSPACE>/index.html` 的可点击绝对路径，有文件预览工具时打开。', 'opening handoff');
+  result = replaceRequired(result, /### 2\. 新科目盘问[^\n]*\n[\s\S]*?(?=### 3\. )/,
     `${INTAKE}\n`, 'Codex intake');
-  result = replaceRequired(result, /## 对话节奏[^\n]*\n[\s\S]*?(?=## 学习循环)/,
+  result = replaceRequired(result, /### 5\. 收尾[^\n]*\n[\s\S]*?(?=### 对话节奏)/,
+    '### 5. 收尾（学生说"今天到这"，或一段学习结束）\n\n学生明确暂停/结束或当前请求已完成时才执行下面的收尾。等待异步回复时即使宿主必须交还控制，也只按交互协议保留 pending 并让出执行，不运行学习结束流程、不输出完成总结。\n\n1. 按 `record-keeping` 更新学习进度、误解记录与学习记录（有可观察证据才写），把当前科目、节点、阶段与下一步存进交互断点；显式结束时交互状态设为 paused 并清除待问项。\n2. 简短说明本次完成内容与续学位置。已有明确授权的偏好正常记录；需要学生确认的新长期观察先保留在断点里，下次相关时再确认，不为此追加弹窗。\n\n', 'Codex session end');
+  result = replaceRequired(result, /### 对话节奏[^\n]*\n[\s\S]*?(?=## 子 agent 派发规范)/,
     `${DIALOGUE}\n`, 'Codex dialogue');
-  result = replaceRequired(result, /## 会话结束\n[\s\S]*?(?=## 子 agent 派发规范)/,
-    '## 会话结束\n\n学生明确暂停/结束或当前请求已完成时才执行下面的收尾。等待异步回复时即使宿主必须交还控制，也只按交互协议保留 pending 并让出执行，不运行学习结束流程、不输出完成总结。\n\n1. 按 `record-keeping` 更新学习进度、误解记录与学习记录（有可观察证据才写），把当前科目、节点、阶段与下一步存进交互断点；显式结束时交互状态设为 paused 并清除待问项。\n2. 简短说明本次完成内容与续学位置。已有明确授权的偏好正常记录；需要学生确认的新长期观察先保留在断点里，下次相关时再确认，不为此追加弹窗。\n\n', 'Codex session end');
   result = replaceRequired(result, /^1\. 学生同意学当前节点[^\n]+/m,
     '1. 学生明确选择当前节点或已说开始/继续 → 直接进入当前节点并将状态置为“学习中”；先检查已生成材料与断点，只补未完成步骤，不重复确认或重新生成。', 'node start');
   result = replaceRequired(result, /^4\. \*\*课件交给学生\*\*[^\n]+/m,
@@ -81,12 +81,9 @@ function adaptController(body) {
     '9. 保存交互断点。学生已明确继续时推进对应下一步；只报告“学完了”而未选择后续时，给一次“下一课 / 补练 / 暂停”选择，不再叠加开始确认。', 'node boundary');
   result = replaceRequired(result, /直接进下一节点[^\n]*/,
     '按第 9 步衔接下一节点', 'next node handoff');
-  result = replaceRequired(result, /→ 开始第一课（仍按「对话节奏」问"开始吗"）[^\n]*/,
+  result = replaceRequired(result, /两边都回来 → 你写「课程大纲」、核对「图片库索引」→ 问"开始吗"[^\n]*/,
     '→ 按用户已表达的范围继续第一课或交付大纲', 'parallel chain end');
-  result = replaceRequired(result, /   4\. 派 `curriculum-designer` 产大纲[^\n]*/,
-    '   4. 接收第 3 步已经派发的 `curriculum-designer` 大纲并校验；不再次派同一份大纲任务。采图缺失按 Gaps 处理，不让可选图片阻塞已可交付的课程', 'single curriculum handoff');
-  result = replaceRequired(result, /^1\. \*\*你亲自确认\*\*[^\n]*/m,
-    '1. **核对变更意图**：学生明确要求从 A 改成 B 就执行该范围的变更；只有目标含糊或会扩大范围时才澄清一次，不重复确认已经清楚的指令', 'mission change intent');
+
   result = replaceRequired(result,
     /  1\. \*\*角色规格的绝对路径\*\*：[^\n]+/,
     '  1. **角色规格的绝对路径**：`<root>/skills/<角色>/SKILL.md`，明说“先用文件读取工具读它、照它执行”；只有下游没有文件工具时才退回内联全文',
@@ -99,8 +96,8 @@ function adaptController(body) {
     /- \*\*角色不写 `<root>`\*\*：[^\n]+/,
     '- **插件根目录只读**：总控与角色均不在 `<root>` 或插件缓存写临时脚本、数据或环境。派发时明确“临时脚本与中间产物写 `<STUDYMATE_SCRATCH>`；学习产物按角色归属写 `subject_path` 或暂存目录”。发现异常文件先报告，不自动删除或收编插件目录中的文件。',
     'plugin cache writes');
-  result = replaceRequired(result, /\*\*建池与拟大纲并行\*\*[^\n]*/,
-    '**建池与拟大纲可并行**——「资源清单」落位后，有委派工具时同时派下面两个；没有时按角色规格串行完成：', 'parallel pool + outline');
+  result = replaceRequired(result, /\*\*同时派两支\*\*[^\n]*/,
+    '**同时派两支**：「资源清单」主干那一节核过后，有委派工具时同时派下面两个；没有时按角色规格串行完成：', 'parallel pool + outline');
   result = result.replace(/- \*\*验收不过就退回[^\n]+/,
     '- **验收不过由产出角色自己改**：有角色消息/继续执行工具时，向原角色发送失败原文证据；串行模式切回同一角色规范修正。不要用总控身份代改；无法继续原子 agent 时，重新执行该角色并给原产物路径与失败证据。');
   return result;
