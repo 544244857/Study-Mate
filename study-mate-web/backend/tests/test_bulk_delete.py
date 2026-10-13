@@ -13,16 +13,19 @@ def _make_session(workspace):
     return storage.create_session(title="批量删除用例", workspace=workspace)
 
 
-def test_bulk_delete_matches_same_workspace(client):
-    a1 = _make_session(r"D:\a\proj")
-    a2 = _make_session(r"D:\a\proj")
-    other = _make_session(r"D:\b\proj")
+def test_bulk_delete_matches_same_workspace(client, tmp_path):
+    # 平台中立路径：Windows 形态的 D:\... 在 Linux 上不是绝对路径，后端会按契约 400
+    proj_a = str(tmp_path / "a" / "proj")
+    proj_b = str(tmp_path / "b" / "proj")
+    a1 = _make_session(proj_a)
+    a2 = _make_session(proj_a)
+    other = _make_session(proj_b)
     plain = _make_session(None)
 
     for session in (a1, a2, other, plain):
         (UPLOADS_DIR / session["id"]).mkdir(parents=True, exist_ok=True)
 
-    response = client.post("/api/sessions/bulk-delete", json={"workspace": r"D:\a\proj"})
+    response = client.post("/api/sessions/bulk-delete", json={"workspace": proj_a})
     assert response.status_code == 200
     assert response.json() == {"ok": True, "deleted": 2}
 
@@ -39,14 +42,16 @@ def test_bulk_delete_matches_same_workspace(client):
     assert (UPLOADS_DIR / plain["id"]).is_dir()
 
     # 再删一次：已无匹配会话
-    again = client.post("/api/sessions/bulk-delete", json={"workspace": r"D:\a\proj"})
+    again = client.post("/api/sessions/bulk-delete", json={"workspace": proj_a})
     assert again.json() == {"ok": True, "deleted": 0}
 
 
-def test_bulk_delete_ignores_empty_workspace(client):
+def test_bulk_delete_ignores_empty_workspace(client, tmp_path):
     """无 workspace 的会话绝不涉及。"""
     plain = _make_session(None)
-    response = client.post("/api/sessions/bulk-delete", json={"workspace": r"D:\nope\nowhere"})
+    response = client.post(
+        "/api/sessions/bulk-delete", json={"workspace": str(tmp_path / "nope" / "nowhere")}
+    )
     assert response.json()["deleted"] == 0
     assert plain["id"] in {meta["id"] for meta in client.get("/api/sessions").json()}
 
@@ -83,11 +88,12 @@ def test_bulk_delete_relative_workspace_400(client):
     )
 
 
-def test_bulk_delete_leaves_subject_dirs(client, new_subject):
+def test_bulk_delete_leaves_subject_dirs(client, new_subject, tmp_path):
     """课程（科目）是另一套存储：批量删会话不碰科目目录。"""
     _slug, subject_dir = new_subject
-    _make_session(r"D:\subject-case\proj")
+    proj = str(tmp_path / "subject-case" / "proj")
+    _make_session(proj)
 
-    response = client.post("/api/sessions/bulk-delete", json={"workspace": r"D:\subject-case\proj"})
+    response = client.post("/api/sessions/bulk-delete", json={"workspace": proj})
     assert response.json()["deleted"] == 1
     assert subject_dir.is_dir()
