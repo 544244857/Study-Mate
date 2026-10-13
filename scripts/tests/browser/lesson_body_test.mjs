@@ -755,7 +755,7 @@ try {
       check(`${tag} 代码块本身不超正文列宽（${one.code.blockInner} ≤ ${column}）`,
         one.code.blockInner <= column + 1, `${one.code.blockInner} vs ${column}`);
 
-      /* #115：代码块与终端块共用一副文档站骨架——顶栏（三颗点 + 语言标记）、行号槽、三档行 */
+      /* #115：代码块与终端块共用一副文档网站骨架——顶栏（三颗点 + 语言标记）、行号槽、三档行 */
       const c115 = one.code115;
       const term = c115 && c115.term;
       check(`${tag} 终端块与普通代码块共用同一副骨架（终端块在：底 ${term && term.bodyBg}，顶栏写 ${term && term.lang}）`,

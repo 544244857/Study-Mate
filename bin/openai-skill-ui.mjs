@@ -27,10 +27,10 @@ const skills = new Map([
     default_prompt: '请用 $resource-scout 按学习总控给定的科目目标收集权威资料并记录缺口。',
   }],
   ['image-scout', {
-    description: 'StudyMate 采图角色：由学习总控派工，从指定资料站点收集课件图片并记录来源、许可与图片索引；不直接接管用户对话。',
+    description: 'StudyMate 采图角色：由学习总控派工，从指定资料网站收集课件图片并记录来源、许可与图片索引；不直接接管用户对话。',
     display_name: 'StudyMate · 课件采图',
-    short_description: '接受学习总控派工，从指定资料站点收集课件图片并维护来源索引',
-    default_prompt: '请用 $image-scout 从学习总控指定的资料站点收集适用图片并更新索引。',
+    short_description: '接受学习总控派工，从指定资料网站收集课件图片并维护来源索引',
+    default_prompt: '请用 $image-scout 从学习总控指定的资料网站收集适用图片并更新索引。',
   }],
   ['learning-coach', {
     description: 'StudyMate 讲解角色：由学习总控派工，为指定课程节点撰写讲解、配图与题目锚点；不出题、不写实验任务，不直接接管用户对话。',

@@ -488,9 +488,9 @@ test('数据层校验器：清单在盘上就一并报覆盖率（提示），�
   assert.equal(after.blocking, false, '提示不改整体结论');
   // 一条来源服务 var：var 不报，fn 报一条。
   assert.equal(report.problems.filter((problem) => problem.message.includes('节点 var 指不出一处来源')).length, 0);
-  // 站点分布**只报不卡**：附在报告上，也写进那一句摘要。
+  // 网站分布**只报不卡**：附在报告上，也写进那一句摘要。
   assert.deepEqual(report.hosts, [{ host: 'a.example', entries: 1 }]);
-  assert.match(report.summary, /站点分布（只报不卡）：1 个站点——a\.example 1 条/);
+  assert.match(report.summary, /网站分布（只报不卡）：1 个网站——a\.example 1 条/);
 
   // 直接给清单文件也认（它要读同目录的 curriculum.yaml 拿节点 id）。
   const direct = await call(f.ctx, 'studymate_validate_curriculum', { paths: ['demo/RESOURCES.md'] });

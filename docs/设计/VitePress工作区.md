@@ -1,6 +1,6 @@
 # VitePress 课程工作区（提案）
 
-> 状态：**提案已被取代**。目标态选了另一条路——阅读端做成宿主内的客户端插件（React），而不是独立的 VitePress 站点；静态页面降为导出能力。见 [目标态规格](目标态规格.md) 与 [ADR-0003](../adr/0003-阅读端只嵌DSH.md)。
+> 状态：**提案已被取代**。目标态选了另一条路——阅读端做成宿主内的客户端插件（React），而不是独立的 VitePress 网站；静态页面降为导出能力。见 [目标态规格](目标态规格.md) 与 [ADR-0003](../adr/0003-阅读端只嵌DSH.md)。
 > 保留本文件是为了记住当时评估过的替代方案与它的代价；**不要据此实现**。
 > 对接 [Issue #22](https://github.com/Miaotofu01/Study-Mate/issues/22)。
 > 定位：给维护者一个可分阶段落地的前端演进方案。本文件只定义迁移边界与内容协议，不替换现有 HTML 引擎。
@@ -26,7 +26,7 @@ Issue 作者的个人原型在 [yulaoshizuikeai/Study-Mate-vue](https://github.c
 - 移除了既有 Python HTML 生成路径，会打断 DSH、Codex / ChatGPT Work、Antigravity 和离线工作区；
 - 含个人 `workspace/`、另一套 `skills/` 与安装脚本，和本仓库的「引擎只读、学习数据在工作区」三分区冲突。
 
-可借鉴的只有三件事：`site/` 作为独立前端目录、用同步脚本把工作区大纲映射成站点页面、用 Vue 组件承接测验和进度。内容协议仍用本仓库的 `curriculum.yaml`、课件 Markdown 和题库。
+可借鉴的只有三件事：`site/` 作为独立前端目录、用同步脚本把工作区大纲映射成网站页面、用 Vue 组件承接测验和进度。内容协议仍用本仓库的 `curriculum.yaml`、课件 Markdown 和题库。
 
 ## 3. 目标与非目标
 
@@ -104,7 +104,7 @@ Issue 作者的个人原型在 [yulaoshizuikeai/Study-Mate-vue](https://github.c
 ## 7. 风险
 
 - **双渲染器漂移。** 阶段 1 必须复用同一份 Markdown / 题库，禁止在 `site/subjects/` 里手写第二份课件。
-- **工作区不可入库。** `workspace/` 继续 gitignore。站点构建只读外部工作区或 `examples/`。
+- **工作区不可入库。** `workspace/` 继续 gitignore。网站构建只读外部工作区或 `examples/`。
 - **门禁膨胀。** VitePress 依赖不进现有 `npm test`，单独用 `npm --prefix site run docs:build`。等阅读端稳定后再考虑是否接入 CI。
 - **公式与图片路径。** 课件相对路径按 `lessons/` 解析，阅读端要保持同一规则，否则图片池会断。
 

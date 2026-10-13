@@ -172,8 +172,8 @@ function nodeIdsOf(curriculum: unknown): string[] {
  * 还没有）、大纲不在或读不出节点（那三份数据文件那边已经各自报过问题了）。这时候不编一份
  * 空报告——「没得判」与「判过没问题」是两件事。
  *
- * 报告里另带一份 `hosts`（**站点分布，只报不卡**）：来自核验域的分节摘取，聚合的是
- * 「来源条目」那几节——总控要的「几节、几条、都来自哪些站点」在这一份报告里看全。
+ * 报告里另带一份 `hosts`（**网站分布，只报不卡**）：来自核验域的分节摘取，聚合的是
+ * 「来源条目」那几节——总控要的「几节、几条、都来自哪些网站」在这一份报告里看全。
  */
 function resourcesReport(access: DomainAccess, file: string): Record<string, unknown> | null {
   const view = access.read<{ file: string; present: boolean; markdown: string }>('resources', file);
@@ -198,7 +198,7 @@ function resourcesReport(access: DomainAccess, file: string): Record<string, unk
   return {
     ...base,
     hosts,
-    summary: `${String(base.summary)}；站点分布（只报不卡）：${hosts.length} 个站点——${shown}`
+    summary: `${String(base.summary)}；网站分布（只报不卡）：${hosts.length} 个网站——${shown}`
       + `${hosts.length > 5 ? '…' : ''}`,
   };
 }
@@ -290,7 +290,7 @@ export function validateCurriculumTool(): StudyToolSpec {
               properties: {
                 kind: TEXT,
                 ...REPORT_KEYS,
-                // #130：只有 `kind: 'resources'` 那一份带它（站点分布，只报不卡）。
+                // #130：只有 `kind: 'resources'` 那一份带它（网站分布，只报不卡）。
                 hosts: {
                   type: 'array',
                   items: {

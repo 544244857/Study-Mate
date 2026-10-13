@@ -12,7 +12,7 @@
         都当新鲜，直接跳过；`refresh` 才重核。第一遍白跑这件事就是被这一层消掉的。
      3. **先定路由表再批量**：拿第一条待核的链接探一次直连；连接层失败且有代理就再试一次
         代理，试通了就把表换成代理、**这条的结果直接复用**（不再探第二遍）。剩下的交给
-        `schedule.ts`（并发 8、同站串行 1、墙上预算到点不再起新的）。
+        `schedule.ts`（并发 8、同一网站串行 1、墙上预算到点不再起新的）。
      4. **如实报**：`failures` 只列**这一轮真探过且打不开**的（缓存里的旧结论不算数），
         `hosts` 按 hostname 从**全部**条目汇总。`next` 说下一步：还有没探完的就叫它用同一个
         manifest 再调一次；都探完了还有打不开的就叫它去换来源。
@@ -54,7 +54,7 @@ export const DEFAULT_WALL_BUDGET_MS = 120_000;
 /** 墙上预算的硬上限：十分钟。比这更长就不是「核一遍清单」而是「挂着不放了」。 */
 export const MAX_WALL_BUDGET_MS = 600_000;
 
-/** 单条请求的超时：8 秒。站点没回应就是没回应，不值得让整轮核验卡在它身上。 */
+/** 单条请求的超时：8 秒。网站没回应就是没回应，不值得让整轮核验卡在它身上。 */
 export const PROBE_TIMEOUT_MS = 8_000;
 
 /** 同时最多几条在飞。 */
@@ -296,7 +296,7 @@ function emptyReport(manifest: string, summary: string, next: string, cache: str
   };
 }
 
-/** 请求是被取消的（信号打上来）不是站点答的——这种不算结论，也不该进台账。 */
+/** 请求是被取消的（信号打上来）不是网站答的——这种不算结论，也不该进台账。 */
 function isCancelled(result: RequestResult): boolean {
   return result.transport && result.status === 0 && result.note === '已取消';
 }
@@ -345,7 +345,7 @@ function assemble(input: AssembleInput): ReachReport {
       line: link.line,
       url: link.url,
       status: verdict.status,
-      note: verdict.note === '' ? '站点答了不成功状态' : verdict.note,
+      note: verdict.note === '' ? '网站答了不成功状态' : verdict.note,
     });
   }
 
@@ -450,7 +450,7 @@ export function verifySourcesTool(): ReachToolSpec {
       schema: REACH_OUTPUT_SCHEMA,
       render: (_args, value: ReachReport) => [{
         type: 'text',
-        // 「没找到」这类空报告没有逐站行可列，直接给 summary + next 两句——那两句就是全部信息。
+        // 「没找到」这类空报告没有逐网站行可列，直接给 summary + next 两句——那两句就是全部信息。
         text: value.total === 0 && value.probed === 0 && value.cached === 0
           ? [value.summary, value.next].filter((line) => line !== '').join('\n')
           : renderReachReport(value),
@@ -551,7 +551,7 @@ export function verifySourcesTool(): ReachToolSpec {
           route = '直连';
           let result = await probe(first.url, '直连');
           if (result.transport && proxy !== null) {
-            // 连接层才换路；HTTP 4xx/5xx 是站点自己的答复，换条路也一样。
+            // 连接层才换路；HTTP 4xx/5xx 是网站自己的答复，换条路也一样。
             const retry = await probe(first.url, '代理');
             if (retry.ok) {
               route = '代理';

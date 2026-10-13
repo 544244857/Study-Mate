@@ -38,7 +38,7 @@ export type CacheEntries = Map<string, CacheEntry>;
 
 /** 打得开的留久一点：稳定来源本来就难得失效，7 天够用。 */
 const TTL_OK_MS = 7 * 24 * 60 * 60 * 1000;
-/** 打不开的留短一点：站点临时抽风不该被记一星期。 */
+/** 打不开的留短一点：网站临时抽风不该被记一星期。 */
 const TTL_FAIL_MS = 6 * 60 * 60 * 1000;
 /** 上限：一份台账不该无限长下去。超了丢最老的。 */
 const MAX_ENTRIES = 2000;

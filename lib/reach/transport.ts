@@ -64,7 +64,7 @@ export function parseProxy(raw: string | undefined | null): ProxyTarget | null {
 
 /**
  * 代理从标准环境变量来，参数可以临时覆盖一个。
- * **不硬编码端口、不试探本机常见端口**——那一场角色自己摸出 `127.0.0.1:2080` 才通上一部分站，
+ * **不硬编码端口、不试探本机常见端口**——那一场角色自己摸出 `127.0.0.1:2080` 才通上一部分网站，
  * 那是它的临时手段，不该变成引擎的行为。
  */
 export function proxyFromEnv(

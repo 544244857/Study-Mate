@@ -1,12 +1,12 @@
 /* 核验域（`lib/reach/**`，#125）：把「资源清单」里的链接核一遍。
    ────────────────────────────────────────────────────────────────────────
-   这一套**只碰 loopback**：目标站与代理都是本进程里起的真 `node:http` 服务器（`127.0.0.1`
+   这一套**只碰 loopback**：目标网站与代理都是本进程里起的真 `node:http` 服务器（`127.0.0.1`
    与 `127.0.0.0/8` 上的其它回环地址），一个到仓外的请求都没有。判据全在盘上／在服务端的
    计数里，不看日志：
 
      · 清单摘链接那一步是纯函数（按 URL 去重、1 起行号、只认 http/https）——单独一组用例；
-     · 一次核验的外部行为：计数、按站汇总、打不开的那几条、输出契约；
-     · 排班：全局并发 ≤8、同站不并发（**服务端按 Host 计数**）、某个站忙不挡整个队列；
+     · 一次核验的外部行为：计数、按网站汇总、打不开的那几条、输出契约；
+     · 排班：全局并发 ≤8、同一网站不并发（**服务端按 Host 计数**）、某个网站忙不挡整个队列；
      · 缓存：第二遍**零请求**、`refresh` 才重核、`offline` 一个 socket 都不开；
      · 墙上预算：到点交回去、`next` 叫你再调一次、第二遍接着做完；
      · 路由表：直连连接层失败、代理通 → 路由是代理，且**路由只探一次**（直连只被碰一次）。
@@ -67,9 +67,9 @@ function useBudget(t, value) {
   else process.env[BUDGET_KEY] = String(value);
 }
 
-/* ── loopback 上的目标站与代理 ─────────────────────────────────────────── */
+/* ── loopback 上的目标网站与代理 ─────────────────────────────────────────── */
 
-/** 起一个真的 HTTP 站；`handle(req, res, host)` 自己写响应。返回服务端计数。 */
+/** 起一个真的 HTTP 网站；`handle(req, res, host)` 自己写响应。返回服务端计数。 */
 async function startSite(handle) {
   const state = {
     requests: 0, inFlight: 0, maxInFlight: 0, perHost: new Map(), perHostMax: 0,
@@ -127,7 +127,7 @@ function routeHandler(table) {
 }
 
 /**
- * 直连连接层就失败的目标站：接上就写一句不是状态行的东西。用真 socket 才数得清
+ * 直连连接层就失败的目标网站：接上就写一句不是状态行的东西。用真 socket 才数得清
  * 「直连被碰了几次」——连接被拒的那种失败根本没有服务端可数。
  */
 async function startBrokenSite() {
@@ -230,7 +230,7 @@ function failResult() {
   return { ok: false, status: 0, statusText: '', contentType: '', note: '连不上（连接被拒）', transport: true };
 }
 
-test('排班：同站忙只挡它自己那一条，不挡整个队列', async () => {
+test('排班：同一网站忙只挡它自己那一条，不挡整个队列', async () => {
   const started = [];
   const targetOf = [
     { url: 'http://a/1', host: 'a' },
@@ -249,9 +249,9 @@ test('排班：同站忙只挡它自己那一条，不挡整个队列', async ()
   });
   assert.deepEqual(result.pending, []);
   assert.equal(result.outcomes.length, 4);
-  // 第 2 条与第 1 条同站、被它挡住 → b/3 先于 a/2 跑完（这就是「不挡整个队列」）。
+  // 第 2 条与第 1 条同一网站、被它挡住 → b/3 先于 a/2 跑完（这就是「不挡整个队列」）。
   assert.ok(started.indexOf('http://b/3') < started.indexOf('http://a/2'),
-    `同站忙把整个队列挡住了：${started.join('、')}`);
+    `同一网站忙把整个队列挡住了：${started.join('、')}`);
 });
 
 test('排班：到点之后不再起新的，没起过的按原序进 pending', async () => {
@@ -301,7 +301,7 @@ test('排班：HTTP 层失败（4xx）不换路', async () => {
 
 /* ── 三、一次核验的外部行为 ───────────────────────────────────────────── */
 
-test('几个链接打一次：计数、按站汇总、打不开的那条在 failures 里，输出过契约', async (t) => {
+test('几个链接打一次：计数、按网站汇总、打不开的那条在 failures 里，输出过契约', async (t) => {
   const home = useHome(t);
   useProxyEnv(t);
   const site = await startSite(routeHandler({ '/ok1': 200, '/ok2': 200 }));
@@ -390,9 +390,9 @@ test('输出契约：空清单与「没找到」都过一遍', async (t) => {
   await assertOutput(assert, ctx.definitions.get(TOOL), value);
 });
 
-/* ── 四、并发与同站礼貌（服务端计数）───────────────────────────────────── */
+/* ── 四、并发与同一网站礼貌（服务端计数）───────────────────────────────────── */
 
-test('全局并发 ≤8，且同一个站从不并发两条', async (t) => {
+test('全局并发 ≤8，且同一个网站从不并发两条', async (t) => {
   const home = useHome(t);
   useProxyEnv(t);
   const site = await startSite(okHandler(40));
@@ -411,7 +411,7 @@ test('全局并发 ≤8，且同一个站从不并发两条', async (t) => {
   assert.equal(wide.ok, 10);
   assert.ok(site.state.maxInFlight <= 8, `全局并发到了 ${site.state.maxInFlight}，超过 8`);
   assert.ok(site.state.maxInFlight >= 2, `全局并发只有 ${site.state.maxInFlight}：根本没并发起来`);
-  assert.equal(site.state.perHostMax, 1, '同一个站上同时出现了两条');
+  assert.equal(site.state.perHostMax, 1, '同一个网站上同时出现了两条');
 
   // 四条全在同一个 hostname 上 → 老老实实串行。
   site.reset();
@@ -421,8 +421,8 @@ test('全局并发 ≤8，且同一个站从不并发两条', async (t) => {
   ], { slug: 'narrow' });
   const narrow = await verify(ctx, { manifest: relativeTo(home, narrowDir) });
   assert.equal(narrow.ok, 4);
-  assert.equal(site.state.perHostMax, 1, '同站没有串行');
-  assert.equal(site.state.maxInFlight, 1, '同站串行时全局不该有第二条在飞');
+  assert.equal(site.state.perHostMax, 1, '同一网站没有串行');
+  assert.equal(site.state.maxInFlight, 1, '同一网站串行时全局不该有第二条在飞');
 });
 
 /* ── 五、缓存：第二遍零请求，refresh 才重核 ────────────────────────────── */
@@ -646,7 +646,7 @@ test('verified 不认空真：没有链接的节不算核过，同一条链接�
   assert.equal(ledger.has(byHeading.get('只有本地指针').sha256), false);
   assert.equal(ledger.has(byHeading.get('缺口').sha256), false);
 
-  // 逐节的域名分布也按节自己摘：后出现的那一节同样看得到那个站点。
+  // 逐节的域名分布也按节自己摘：后出现的那一节同样看得到那个网站。
   const fingerprints = reach.fingerprintSections(fs.readFileSync(path.join(dir, 'RESOURCES.md'), 'utf8'));
   assert.deepEqual(fingerprints[1].hosts, [{ host: '127.0.0.1', entries: 1 }]);
   assert.deepEqual(fingerprints[2].hosts, []);

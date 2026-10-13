@@ -312,7 +312,7 @@ test('#105 默认模型是空的（provider / model 空串或不是字符串）�
   }
 });
 
-test('#105 默认模型带 reasoningEffort：原样带进 agentOptions（站上学生选的那一档）', async () => {
+test('#105 默认模型带 reasoningEffort：原样带进 agentOptions（网站上学生选的那一档）', async () => {
   const { workspace } = makeWorkspace();
   const host = fakeHost({ selection: { provider: 'p', model: 'm', reasoningEffort: 'high' } });
   const view = await openAskSession(depsFor(workspace, host), { subject: '网络' });

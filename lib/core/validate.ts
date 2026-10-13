@@ -584,7 +584,7 @@ export const RESOURCE_ENTRY_LIMIT = 2;
  * 新加的写法，现存清单一条都没有；判成阻断等于升级即整片变红（与图片完整性那一条同一个
  * 口径）。总控看这几条提示决定要不要派「资料收集」补收集。
  *
- * 站点分布**不在这里**报：它在交接门禁的 `sections[].hosts` 里（只报不卡，见 #129）。
+ * 网站分布**不在这里**报：它在交接门禁的 `sections[].hosts` 里（只报不卡，见 #129）。
  */
 export function validateResources(input: ResourcesInput): ValidationReport {
   const problems: StudyProblem[] = [];
