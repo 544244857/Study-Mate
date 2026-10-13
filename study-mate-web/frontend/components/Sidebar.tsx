@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { useResizable } from "@/lib/useResizable";
+import { api } from "@/lib/api";
+import type { SessionMeta } from "@/lib/types";
 import pkg from "../package.json";
 
 const navItems = [
@@ -47,6 +49,26 @@ const SESSION_VISIBLE_COUNT = 5;
 
 type Theme = "light" | "dark";
 
+/** 按工作区分组后的一组会话（key = 规整路径，path = 原始路径，name = 组名/basename） */
+interface ProjectGroup {
+  key: string;
+  path: string;
+  name: string;
+  sessions: SessionMeta[];
+}
+
+/** 分组键：Windows 大小写不敏感，统一转小写 + 反斜杠归正斜杠；不同父目录同名不合并 */
+function normalizeWorkspaceKey(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+}
+
+/** 组名取路径 basename（原始大小写）；尾部分隔符先去掉，兼容 D:\proj\ 与 /proj/ */
+function workspaceName(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const at = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return at >= 0 ? trimmed.slice(at + 1) : trimmed;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -57,6 +79,9 @@ export function Sidebar() {
     currentSubjectSlug,
     runningSessionId,
     setCurrentSubjectSlug,
+    setActiveSessionId,
+    setActiveNodeId,
+    refreshSessions,
     newSession,
     openSession,
     deleteSession,
@@ -79,6 +104,10 @@ export function Sidebar() {
   const [sessionsOpen, setSessionsOpen] = useState(true);
   const [subjectsOpen, setSubjectsOpen] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  // 「项目」折叠区：区块折叠 + 各组历史展开（组默认展开、折叠态不持久化）
+  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [groupHistoryExpanded, setGroupHistoryExpanded] = useState<Set<string>>(new Set());
   const [showSubjectForm, setShowSubjectForm] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -130,19 +159,65 @@ export function Sidebar() {
   // 科目选中态只在课程页出现（其他页面不表达"在看哪门科目"）
   const onCourses = pathname.startsWith("/courses");
 
+  // 分组：顶层「会话」只承接未绑定工作区的会话；绑定过的按规整路径归入「项目」各组。
+  // 分组键用规整路径（大小写不敏感 + 分隔符归一），故不同父目录下同名文件夹不会合并；
+  // 组名取原始路径 basename，组头 hover（title）显示完整原始路径。
+  const { unboundSessions, projectGroups } = useMemo(() => {
+    const unbound: SessionMeta[] = [];
+    const groups = new Map<string, ProjectGroup>();
+    for (const s of sessions) {
+      const ws = s.workspace?.trim();
+      if (!ws) {
+        unbound.push(s);
+        continue;
+      }
+      const key = normalizeWorkspaceKey(ws);
+      const existing = groups.get(key);
+      if (existing) existing.sessions.push(s);
+      else groups.set(key, { key, path: ws, name: workspaceName(ws), sessions: [s] });
+    }
+    return { unboundSessions: unbound, projectGroups: Array.from(groups.values()) };
+  }, [sessions]);
+
   // 会话可见列表：收起时只显示最近 N 条；活动会话即使排在 N 条之外也强制保留
-  // （选中态不藏，否则「正在看的会话」会消失在展开按钮后面）
-  const visibleSessions = useMemo(() => {
-    if (historyExpanded) return sessions;
-    const top = sessions.slice(0, SESSION_VISIBLE_COUNT);
-    const active = activeSessionId ? sessions.find((s) => s.id === activeSessionId) : null;
+  // （选中态不藏，否则「正在看的会话」会消失在展开按钮后面）。顶层与各项目组共用此口径。
+  const capVisible = (list: SessionMeta[], expanded: boolean): SessionMeta[] => {
+    if (expanded) return list;
+    const top = list.slice(0, SESSION_VISIBLE_COUNT);
+    const active = activeSessionId ? list.find((s) => s.id === activeSessionId) : null;
     if (active && !top.some((s) => s.id === active.id)) top.push(active);
     return top;
-  }, [sessions, historyExpanded, activeSessionId]);
-  const hiddenSessionCount = historyExpanded ? 0 : sessions.length - visibleSessions.length;
+  };
+
+  const visibleSessions = capVisible(unboundSessions, historyExpanded);
+  const hiddenSessionCount = historyExpanded ? 0 : unboundSessions.length - visibleSessions.length;
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleGroupHistory = (key: string) => {
+    setGroupHistoryExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const handleNewSession = () => {
     newSession();
+    router.push("/chat");
+  };
+
+  // 项目组头「+ 新会话」：把新会话直接绑定到该项目工作区
+  const handleNewProjectSession = (workspace: string) => {
+    newSession(workspace);
     router.push("/chat");
   };
 
@@ -171,6 +246,82 @@ export function Sidebar() {
       // 忽略删除失败
     }
   };
+
+  // 删除整个项目：批量删该工作区下的会话（含附件），科目与文件夹保留。
+  // 被删组里含当前活动会话时一并清掉活动态（与 deleteSession 同一做法）。
+  const handleDeleteProject = async (group: ProjectGroup) => {
+    const confirmed = window.confirm(
+      `删除项目「${group.name}」？\n将删除其中 ${group.sessions.length} 条会话（含附件，不可恢复）；科目与文件夹保留。`,
+    );
+    if (!confirmed) return;
+    try {
+      await api.bulkDeleteSessions(group.path);
+      if (activeSessionId && group.sessions.some((s) => s.id === activeSessionId)) {
+        setActiveSessionId(null);
+        setActiveNodeId(null);
+      }
+      await refreshSessions();
+    } catch {
+      // 删除失败时静默保留原列表
+    }
+  };
+
+  // 顶层默认组与项目组共用同一份会话行 UI（重命名/删除/运行中转圈/科目徽标）
+  const renderSessionRow = (s: SessionMeta) => (
+    <div
+      key={s.id}
+      className={clsx(
+        "group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors",
+        activeSessionId === s.id
+          ? "bg-brand/10 font-medium text-brand"
+          : "text-[var(--foreground)]/80 hover:bg-[var(--muted)]/60 hover:text-[var(--foreground)]",
+      )}
+      onClick={() => handleOpenSession(s.id)}
+    >
+      {/* 正在产出回复 / 跑编排的会话：条目左侧转圈（2026-10-05 补充拍板） */}
+      {runningSessionId === s.id && (
+        <Loader2
+          data-testid="session-running"
+          className="h-3 w-3 shrink-0 animate-spin text-brand"
+          aria-label="会话运行中"
+        />
+      )}
+      <span className="min-w-0 flex-1 truncate">{s.title || "未命名会话"}</span>
+
+      {s.subject_slug && (
+        <span
+          className="shrink-0 truncate rounded px-1.5 py-0.5 text-[10px] bg-[var(--surface-card)] text-[var(--foreground)]/60 border border-[var(--border)]/50"
+          style={{ maxWidth: "4.5rem" }}
+          title={subjectName(s.subject_slug)}
+        >
+          {subjectName(s.subject_slug)}
+        </span>
+      )}
+
+      <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleRename(s.id, s.title);
+          }}
+          className="rounded p-1 opacity-60 transition-opacity hover:opacity-100"
+          title="重命名"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleDelete(s.id, s.title);
+          }}
+          className="rounded p-1 opacity-60 transition-opacity hover:opacity-100 hover:text-red-500"
+          title="删除"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </span>
+    </div>
+  );
 
   const resetForm = () => {
     setName("");
@@ -330,64 +481,10 @@ export function Sidebar() {
           {sessionsOpen && (
             <>
               <div className="flex flex-col gap-0.5">
-                {sessions.length === 0 && (
+                {unboundSessions.length === 0 && (
                   <p className="px-2 py-2 text-xs text-[var(--foreground)]/40">暂无会话</p>
                 )}
-                {visibleSessions.map((s) => (
-                  <div
-                    key={s.id}
-                    className={clsx(
-                      "group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors",
-                      activeSessionId === s.id
-                        ? "bg-brand/10 font-medium text-brand"
-                        : "text-[var(--foreground)]/80 hover:bg-[var(--muted)]/60 hover:text-[var(--foreground)]",
-                    )}
-                    onClick={() => handleOpenSession(s.id)}
-                  >
-                    {/* 正在产出回复 / 跑编排的会话：条目左侧转圈（2026-10-05 补充拍板） */}
-                    {runningSessionId === s.id && (
-                      <Loader2
-                        data-testid="session-running"
-                        className="h-3 w-3 shrink-0 animate-spin text-brand"
-                        aria-label="会话运行中"
-                      />
-                    )}
-                    <span className="min-w-0 flex-1 truncate">{s.title || "未命名会话"}</span>
-
-                    {s.subject_slug && (
-                      <span
-                        className="shrink-0 truncate rounded px-1.5 py-0.5 text-[10px] bg-[var(--surface-card)] text-[var(--foreground)]/60 border border-[var(--border)]/50"
-                        style={{ maxWidth: "4.5rem" }}
-                        title={subjectName(s.subject_slug)}
-                      >
-                        {subjectName(s.subject_slug)}
-                      </span>
-                    )}
-
-                    <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleRename(s.id, s.title);
-                        }}
-                        className="rounded p-1 opacity-60 transition-opacity hover:opacity-100"
-                        title="重命名"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleDelete(s.id, s.title);
-                        }}
-                        className="rounded p-1 opacity-60 transition-opacity hover:opacity-100 hover:text-red-500"
-                        title="删除"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </span>
-                  </div>
-                ))}
+                {visibleSessions.map(renderSessionRow)}
               </div>
 
               {/* 历史会话：默认隐藏第 N 条之后的条目，展开按钮查看全部（防止挤压科目区） */}
@@ -401,7 +498,7 @@ export function Sidebar() {
                   展开历史会话（还有 {hiddenSessionCount} 条）
                 </button>
               )}
-              {historyExpanded && sessions.length > SESSION_VISIBLE_COUNT && (
+              {historyExpanded && unboundSessions.length > SESSION_VISIBLE_COUNT && (
                 <button
                   data-testid="session-history-collapse"
                   onClick={() => setHistoryExpanded(false)}
@@ -414,6 +511,109 @@ export function Sidebar() {
             </>
           )}
         </div>
+
+        {/* 项目：按会话绑定的工作区路径分组；每组名 = basename，组头带删除 / + 新会话 */}
+        {projectGroups.length > 0 && (
+          <div data-testid="projects-section" className="mt-5">
+            <div className="mb-1.5 flex items-center px-2">
+              <button
+                onClick={() => setProjectsOpen((v) => !v)}
+                aria-expanded={projectsOpen}
+                className="flex min-w-0 items-center gap-0.5 rounded-md py-0.5 text-[11px] font-medium tracking-wide uppercase text-[var(--foreground)]/45 transition-colors hover:text-[var(--foreground)]/80"
+                title={projectsOpen ? "收起项目列表" : "展开项目列表"}
+              >
+                {projectsOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                )}
+                项目
+              </button>
+            </div>
+
+            {projectsOpen && (
+              <div className="flex flex-col gap-1.5">
+                {projectGroups.map((group) => {
+                  const groupOpen = !collapsedGroups.has(group.key);
+                  const historyOpen = groupHistoryExpanded.has(group.key);
+                  const rows = capVisible(group.sessions, historyOpen);
+                  const hiddenCount = historyOpen
+                    ? 0
+                    : group.sessions.length - rows.length;
+                  return (
+                    <div
+                      key={group.key}
+                      data-testid="project-group"
+                      data-workspace={group.path}
+                      className="rounded-xl border border-[var(--border)]/70 px-1 py-1"
+                    >
+                      <div className="flex items-center gap-0.5 px-1">
+                        <button
+                          onClick={() => toggleGroup(group.key)}
+                          aria-expanded={groupOpen}
+                          title={group.path}
+                          className="flex min-w-0 flex-1 items-center gap-0.5 rounded-md py-0.5 text-left text-xs font-medium text-[var(--foreground)]/75 transition-colors hover:text-[var(--foreground)]"
+                        >
+                          {groupOpen ? (
+                            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                          )}
+                          <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                        </button>
+                        <button
+                          data-testid="project-delete"
+                          onClick={() => void handleDeleteProject(group)}
+                          className="shrink-0 rounded p-1 text-[var(--foreground)]/50 transition-colors hover:bg-[var(--muted)] hover:text-red-500"
+                          title={`删除项目「${group.name}」`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          data-testid="project-new-session"
+                          onClick={() => handleNewProjectSession(group.path)}
+                          className="flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs text-[var(--foreground)]/60 transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                          title={`在「${group.name}」新建会话`}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          新会话
+                        </button>
+                      </div>
+
+                      {groupOpen && (
+                        <div className="mt-0.5">
+                          <div className="flex flex-col gap-0.5">
+                            {rows.map(renderSessionRow)}
+                          </div>
+                          {hiddenCount > 0 && (
+                            <button
+                              data-testid="project-history-expand"
+                              onClick={() => toggleGroupHistory(group.key)}
+                              className="mt-1 flex w-full items-center gap-1 rounded-lg px-2 py-1 text-left text-xs text-[var(--foreground)]/55 transition-colors hover:bg-[var(--muted)]/60 hover:text-[var(--foreground)]"
+                            >
+                              <ChevronRight className="h-3 w-3 shrink-0" />
+                              展开历史会话（还有 {hiddenCount} 条）
+                            </button>
+                          )}
+                          {historyOpen && group.sessions.length > SESSION_VISIBLE_COUNT && (
+                            <button
+                              data-testid="project-history-collapse"
+                              onClick={() => toggleGroupHistory(group.key)}
+                              className="mt-1 flex w-full items-center gap-1 rounded-lg px-2 py-1 text-left text-xs text-[var(--foreground)]/55 transition-colors hover:bg-[var(--muted)]/60 hover:text-[var(--foreground)]"
+                            >
+                              <ChevronDown className="h-3 w-3 shrink-0" />
+                              收起历史会话
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 科目 */}
         <div className="mt-5">

@@ -47,17 +47,19 @@ test("sidebar caps sessions at five with an expand control", async ({ page, requ
 
   await page.goto("/chat");
   const sidebar = page.locator("aside").first();
-  // 隐藏条数 = 世界里的总会话数 - 5（本目录每轮 globalSetup 清空，只多出本轮其它用例的会话）
-  const total = (
-    (await (await request.get(`${BACKEND_URL}/api/sessions`)).json()) as unknown[]
-  ).length;
+  // 隐藏条数 = 未绑定会话数 - 5（默认组只收未绑定会话；绑定到项目工作区的会话归各自项目组）
+  const unbound = (
+    (await (await request.get(`${BACKEND_URL}/api/sessions`)).json()) as Array<{
+      workspace?: string | null;
+    }>
+  ).filter((s) => !s.workspace).length;
   // 会话按 updated_at 倒序：titles[5] 最后造、最新，visibleSessions=前 5 条，最先造的 titles[0] 收进展开按钮
   for (const title of titles.slice(1)) {
     await expect(sidebar.getByText(title)).toBeVisible();
   }
   await expect(sidebar.getByText(titles[0])).toBeHidden();
   await expect(page.getByTestId("session-history-expand")).toContainText(
-    `还有 ${total - 5} 条`,
+    `还有 ${unbound - 5} 条`,
   );
 
   // 展开 → 全部可见；收起 → 回到 5 条形态

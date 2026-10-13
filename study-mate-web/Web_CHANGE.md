@@ -603,3 +603,27 @@
 
 - `StudyMate-Web_开发与计划.md` §5.1 新增 **#19 误解记录单一落点收敛**：实施内容（`_sync` 去 progress 侧写入、`save_progress` 清副本键、保留读侧迁移兜底、双落点断言调整）与实施前置（上游 §5.4 提案转决定，或维护者直接拍板）一并写明。
 - `HANDOFF.md` §2.1 ②同步为「已裁定放入 Backlog」；实施前双落点维持现状，包内 progress 校验器对该键仅非阻断提示。
+
+## 2026-10-13 · 「我的课程」空白页修复：嵌入收回 reading 契约
+
+> 性质：**只追加**。真机事故修复：`/courses` 点开全空（iframe 404），核对历史锁定断点后按既有 reading 契约重接。
+
+- **事故与根因**：`data/exports/_home` 缺失时 `/api/exports/_home/index.html` 静默 404，「我的课程」iframe 全空间白。断点在 0.8.0-beta 引擎复用轮（`04d9ea0`）：`HomeEmbed` 从 `/api/home/index.html`（iframe 请求自身就消费动态路由）改成**硬编码静态产物路径**，而 `_home` 的唯一生成触发点只剩 `GET /api/home`——前端从此无人调用，产物不再被创建。当时验收真机手动打过 `/api/home`，掩盖了「没人触发导出」；`data/exports` 被清后暴露。测试全绿的原因：E2E 只断言 iframe 存在与 title、组件测试只断言 src 字符串，404 白屏在测试体系里不可见。
+- **修复**：
+  - 后端新增 `GET /api/home/reading`（`routers/home.py`，与 `/api/courses/{slug}/reading` 同契约 `{url, entry, fresh, engine}`，注册在 `/home/{file_path:path}` 通配之前），内部跑 `export_workspace_home()`；`exporter.export_workspace_home()` 补 `EngineNodeError → ExportError` 转换（此前 `/api/home` 会 500 裸异常）。
+  - 导出新鲜度加**来源工作区标记**（`data/exports/._home.workspace`）：slug 固定 `_home` 不区分来源工作区，标记不符强制重导，修掉「工作区 A 的缓存被当成工作区 B 的首页」串产物隐患。
+  - 前端 `HomeEmbed` 改「先 reading 拿 URL 再嵌」（挂载 / 工作区切换时触发，加载态 / 错误态可重试，`data-testid="home-embed-retry"`），`api.getHomeReading(workspace)` 传入会话工作区；`CourseGraphView` 传 `activeWorkspace`。`exporter.py`「消费方一律经 reading 拿 URL」的规则重新成立。
+- **测试加固**：E2E `courses-home-embed.spec.ts` 增内容级断言（iframe 入口必须真返回 200 + text/html，404 白屏从此红）；组件测试改两个（成功嵌 URL / 失败显错误且重试恢复）；后端 `test_promote_home.py` 新增 `test_home_reading_serves_export_url`（导出落产物 + 二次命中缓存 + 标记不符强制重导）。
+- **顺带修掉一个既有用例耦合**（本轮 E2E 子集真踩）：`reading.spec.ts` 的「初次导出 fresh=false」依赖 exports 冷缓存，同轮先跑 `export.spec` 的强制重导即红；现在用例开头清 `E2E_DATA_DIR/exports/<slug>` 保证「首次」语义，不再依赖执行顺序。文件头过时的「python 引擎 gen_home」注释同步修正（实际早已真跑 `sm-export`）。
+- **文档同步**：PRD §课程图谱页（旧 `?theme=` 口径改 reading 契约）、《开发与计划》§1.2 `HomeEmbed` 职责、E2E 流程 §4、HANDOFF §1 导出集成行。
+- **验证**：后端 **526 passed / 1 skipped**（含新增用例）；`compileall` 通过；`tsc`/`npm run build` 通过；组件 **123 passed**；lint **0 errors / 52 warnings**（较基线 +1，为 `HomeEmbed` 初始化 effect 的 set-state-in-effect，与 `CourseGraphView` 同式样既有模式）；E2E 全量 **98 passed / 0 failed / 3 skipped**。真机（旧进程）已手动 `GET /api/home` 预热恢复显示——新代码需重启服务生效。
+
+## 2026-10-14 · 「项目」分组与工作区入口收口（项目 = 会话绑定的工作区）
+
+> 性质：**只追加**。设计经维护者逐点盘问拍板；ADR 与 GLOSSARY 词条经维护者裁定**本轮不建立**。
+
+- **拍板口径**：**项目 = 学习工作区**——一个项目就是一个会话绑定的工作区目录，界面按目录 basename 分组，零新元数据。侧栏**重新分区**：顶层「会话」区只放未绑定会话（默认组），项目折叠组按绑定目录分组，同一会话只出现一处。设置页「切换工作区」更名**「默认工作区」**并成为唯一全局入口（**WorkspaceOnboarding 退役**，无科目时欢迎区改为一行提示）；新会话自定义工作区走关联行下拉「**选择文件夹…**」→ 服务端目录浏览弹窗（`GET /api/fs/dirs`，只列一级子目录、上限 500 截断），**选中阶段零写入、发送首条消息后按需建目录**；**删除项目** = 批量删除绑定该工作区的全部会话（`POST /api/sessions/bulk-delete`，含附件目录、运行中会话一并删），工作区目录与科目一律不动，确认弹窗明示边界。浏览器原生选夹因拿不到绝对路径被否；目录枚举端点是相对 `workspace-files`「只动已绑定工作区」哲学的有意全盘只读例外——本机单人、未加鉴权不可公开部署的结论更强。
+- **后端**：`app/routers/fs_browse.py`（根 = Windows 盘符探测 / posix `/`；相对路径 400、不存在或非目录 404、点开头排除、casefold 排序、`MAX_DIRS=500`）；`storage.delete_sessions_for_workspace`（`expanduser+normpath+normcase` 归一比较，复用 `delete_session` 连带清 uploads）；`app/routers/chat.py` 新增 bulk-delete（空 422、非绝对 400）。
+- **前端**：`Sidebar` 重新分区（行渲染抽成共享；5 条上限 + 展开历史**按组独立**；组头 [🗑][+ 新会话]）；`newSession` 加可选 workspace 参数、context 暴露 `setActiveNodeId`；新组件 `DirectoryBrowseDialog`（列根 / 下钻 / 行内选择 / 错误重试）；关联行下拉加「选择文件夹…」且当前绑定不在候选时补显；设置页文案改「默认工作区」口径（testid 不动）。
+- **测试**：后端 **+13**（`test_fs_browse` 6、`test_bulk_delete` 7：Windows 大小写不敏感、`~` 等价、uploads 清理、重删幂等、422/400、科目零接触）；组件 **+12**（SidebarProjects 6、DirectoryBrowseDialog 5、ChatView 下拉 1）；E2E 新增 `projects-sidebar.spec.ts`（API 造绑定会话 → 分组断言 → dialog 确认删除 → 会话消失、科目与文件夹保留）；`workspace-onboarding.spec.ts` 改写为断言无科目提示（保住空工作区数据准备旅程）；`ui-round4` 侧栏上限用例口径修正——分组化后默认组按**未绑定会话数**计算隐藏条数，世界总会话数不再等于默认组规模（全量首跑真踩，差 1 条）。
+- **验证**：后端 **539 passed / 1 skipped**；`compileall` 通过；`npm run build` 通过；组件 **135 passed**；lint **0 errors / 50 warnings**（Onboarding 退役带走 2 条旧告警）；E2E 全量 **98 passed / 3 skipped / 1 failed**，唯一失败即上述 ui-round4 旧口径，修正后该 spec 3 passed，等效全绿。子代理并行实施（后端 / 前端分树派工），真机需重启前后端后生效。

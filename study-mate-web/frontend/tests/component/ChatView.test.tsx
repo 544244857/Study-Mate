@@ -177,7 +177,7 @@ describe("ChatView 新对话态关联行（E2E 状态分支层下沉）", () => 
     expect(subjectSelect.querySelectorAll("option")).toHaveLength(1);
   });
 
-  it("工作区下拉：默认项「默认工作区」+ 候选路径", () => {
+  it("工作区下拉：默认项「默认工作区」+ 候选路径 + 末尾「选择文件夹…」", () => {
     setWorkspace({
       workspaceCandidates: ["C:/ws/A", "C:/ws/B"],
       subjectsLoaded: true,
@@ -188,7 +188,23 @@ describe("ChatView 新对话态关联行（E2E 状态分支层下沉）", () => 
     const labels = Array.from(workspaceSelect.querySelectorAll("option")).map(
       (option) => option.textContent,
     );
-    expect(labels).toEqual(["默认工作区", "C:/ws/A", "C:/ws/B"]);
+    expect(labels).toEqual(["默认工作区", "C:/ws/A", "C:/ws/B", "选择文件夹…"]);
+  });
+
+  it("当前绑定不在候选里时补一条，保证选中态可见", () => {
+    setWorkspace({
+      workspaceCandidates: ["C:/ws/A"],
+      activeWorkspace: "C:/ws/other",
+      subjectsLoaded: true,
+    });
+    api.getSettings.mockResolvedValue(makeSettings([makeProvider()]));
+    render(<ChatView />);
+    const workspaceSelect = screen.getByTitle("关联工作区", { exact: true });
+    expect(workspaceSelect).toHaveValue("C:/ws/other");
+    const labels = Array.from(workspaceSelect.querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+    expect(labels).toEqual(["默认工作区", "C:/ws/other", "C:/ws/A", "选择文件夹…"]);
   });
 
   it("打开已有会话后关联行消失（只在新对话态存在）", () => {

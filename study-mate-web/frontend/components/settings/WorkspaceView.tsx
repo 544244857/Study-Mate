@@ -164,9 +164,9 @@ export function WorkspaceView() {
           className="mt-4 rounded-2xl border p-5"
           style={{ borderColor: "var(--border)" }}
         >
-          <h2 className="mb-1 text-sm font-semibold">切换工作区</h2>
+          <h2 className="mb-1 text-sm font-semibold">默认工作区</h2>
           <p className="mb-3 text-xs opacity-60">
-            填写新的目录绝对路径；新工作区下还没有科目时会从零开始。保存后立即对所有科目与文件读写生效。
+            未绑定工作区的新会话跟随此目录；已绑定的会话不受影响。保存后立即生效（无需重启）。
           </p>
           <input
             value={input}
@@ -195,7 +195,7 @@ export function WorkspaceView() {
             >
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
               <span className="min-w-0 flex-1 break-all">
-                已切换到 {savedPath}，立即生效（无需重启）
+                已保存默认工作区：{savedPath}（立即生效）
               </span>
             </div>
           )}

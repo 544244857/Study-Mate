@@ -92,7 +92,7 @@ v1.0 的旅程用例两轮全绿且幂等，但维护者人工试用（`反馈�
 | 静态产物互通 | "导出静态工作区"（gen_home 真跑） | `export.spec.ts` | 已覆盖（2026-10-02） |
 | 长期记忆 MEMORY.md 写侧 | **只剩一个入口**：评估通过后的「沉淀记忆」（右栏手动 / 小结结果区建议两个入口 2026-10-04 随会话关联区移除而悬空）→ 建议条目逐条确认 → 增量写 `.learning/MEMORY.md` | `assess-tool.spec.ts`、pytest `test_memory*.py`；`memory-flow.spec.ts`（skip） | 部分覆盖（2026-10-02；触发入口 2026-10-03；2026-10-04 两入口悬空） |
 | 换机器迁移 | —— 属运维操作 | —— | 不适用 |
-| （Web 特有）工作区设置与会话级绑定 | 设置页查看/改选工作区（PUT 写 `studymate-config.yaml`）+ **新对话关联行的「工作区」下拉**（与科目并排，空选 = 默认工作区）+ 会话绑定写进会话元数据（`workspace`） | `settings-workspace.spec.ts`、`new-session-association.spec.ts`、`workspace-onboarding.spec.ts` | 已覆盖（2026-10-02 / 2026-10-03；2026-10-04 第二轮改为关联行 + 会话级绑定，原欢迎区引导块用例改写） |
+| （Web 特有）工作区设置、会话级绑定与项目分组 | 设置页查看当前工作区 + 第二区「**默认工作区**」（PUT 写 `studymate-config.yaml`；未绑定新会话跟随它）+ **新对话关联行的「工作区」下拉**（与科目并排，空选 = 默认工作区，末尾「选择文件夹…」打开服务端目录浏览弹窗、选中即会话级绑定、零写入）+ 会话绑定写进会话元数据（`workspace`）+ 侧栏「**项目**」按绑定路径分组（组头删除走 `POST /api/sessions/bulk-delete`、`+ 新会话` 绑定该项目，删会话保留科目/文件夹）+ 无科目欢迎区提示 | `settings-workspace.spec.ts`、`new-session-association.spec.ts`、`projects-sidebar.spec.ts`、`workspace-onboarding.spec.ts` | 已覆盖（2026-10-02 / 2026-10-03；2026-10-04 第二轮改为关联行 + 会话级绑定，原欢迎区引导块用例改写；关联行加目录浏览入口 + 侧栏项目分组，无科目提示取代引导块） |
 | （Web 特有）附件区 | 聊天页右栏列出术语表 / 本地资料 / 学习记录 / 会话摘要，原文新标签页可读 | `attachments-area.spec.ts` | 已覆盖（2026-10-02） |
 | （Web 特有）模型提供商 | settings 二级界面 + 模型行四操作 + 模型编辑弹窗 | `settings-providers.spec.ts`、`settings-models.spec.ts` | 已覆盖（2026-10-02） |
 | （Web 特有）暗夜模式 | 主题切换持久化 | `theme.spec.ts` | 已覆盖 |
@@ -125,7 +125,7 @@ v1.0 的旅程用例两轮全绿且幂等，但维护者人工试用（`反馈�
 
 ## 4. 用例流程明细
 
-约定：断言优先用可访问性角色与用户可见文案；需稳定定位时给元素补 `data-testid`（不改行为与样式）。**§3 映射表是唯一全量清单**——本节只详记带特殊断言的用例（编号 4.1–4.7，已按物理顺序重排），其余用例以一句话索引指向 spec 文件；三条不再占正节的用例见文末「状态备注」。fixture 下的 canned 内容见 `backend/app/llm.py` 与 `frontend/tests/e2e/constants.ts`。
+约定：断言优先用可访问性角色与用户可见文案；需稳定定位时给元素补 `data-testid`（不改行为与样式）。**§3 映射表是唯一全量清单**——本节只详记带特殊断言的用例（编号 4.1–4.8，已按物理顺序重排），其余用例以一句话索引指向 spec 文件；三条不再占正节的用例见文末「状态备注」。fixture 下的 canned 内容见 `backend/app/llm.py` 与 `frontend/tests/e2e/constants.ts`。
 
 ### 4.1 misconception-entry.spec.ts —— 提问记误解入口
 hover 助手消息「记入概念本」→ 跳转 `/misconceptions` 预填（question / answer_summary / 科目 / 节点）；无科目 adverse 变体断言保存禁用 + 可见提示 + 补选后落盘。**弹层「科目」用 `getByRole("combobox")` 定位**——`getByLabel` 会把 textarea 的正文也算进匹配，题干含「科目」二字时会撞出两个元素。
@@ -153,13 +153,16 @@ hover 助手消息「记入概念本」→ 跳转 `/misconceptions` 预填（que
 ### 4.7 session-model.spec.ts —— 会话级模型与档位
 **用 `page.route` 计数请求**：会话内切换只写本会话 → 断言 `PATCH /api/sessions/<id>` ≥1 且 `PUT /api/settings` = 0；新对话态切换反之（`PUT` ≥1 且无会话可 PATCH）。fixture 不外呼，故"绑到没 key 的提供商"也能验；`reload` 后从侧边栏重开会话仍保持绑定。
 
+### 4.8 projects-sidebar.spec.ts —— 侧栏「项目」分组与整组删除
+用 `request`（APIRequestContext）直接打后端接口造数据：`POST /api/sessions` 建会话 + `PATCH /api/sessions/{id}` 写 `title` 与 `workspace`；绑定前先用 `node:fs` 在 `<e2e-ws>/proj-x` 下 `mkdir` 出该目录。断言要点：**顶层「会话」区只显示无绑定会话**；绑定会话出现在按路径筛选的 `project-group`（`getByTestId("project-group").filter({ has: page.getByTitle(PROJ_DIR) })`，避免与其它用例留下的绑定组混淆）里，组名 = basename `proj-x`。整组删除用 `page.on("dialog", (d) => d.accept())` 接受 `window.confirm`，点击 `project-delete` 后断言：该会话消失、该项目组 `toHaveCount(0)`、无绑定会话仍在、侧栏科目条目（如「计算机网络」）仍在、`proj-x` 文件夹仍存在。
+
 ### 其余用例索引（一句话，步骤以对应 spec 为准）
 
 以下用例无特殊断言，覆盖状态见 §3 映射表：
 
 - **旅程主线**：`generate.spec.ts`（五项向导 + 门禁 422 problems / 500 通用错误两条 mock）、`chat-course-context.spec.ts`（开场恢复，数据层校验 slug/node 与消息数）、`grading-panel.spec.ts`（criteria + 证据引用 + 缺口，重提交原地替换）、`progress-transition.spec.ts`（只渲染合法流转项 + `progress.yaml` 落盘）、`misconceptions.spec.ts`（importance / 节点筛选 + 编辑双落点）、`subject-switch.spec.ts`（侧边栏科目切换 + 图谱重建）、`export.spec.ts`（真跑 `sm-export` 全工作区导出 + 失败 mock）。
-- **Web 壳层与设置**：`chat-draft.spec.ts`（草稿按会话缓存、刷新归空）、`sidebar-resize.spec.ts`（拖宽 + 上下限 + localStorage；`/chat` 左栏是唯一 `<aside>`，右栏 `div[role="complementary"]`）、`settings-providers.spec.ts`（删除后 active 落首项 / 恢复默认 / 测试连接不可达地址）、`settings-workspace.spec.ts`（改选工作区 + `finally` 恢复）、`attachments-area.spec.ts`（术语表链接 200 + 空态）、`workspace-onboarding.spec.ts`（关联行工作区切换 + `finally` 恢复）、`new-session-association.spec.ts`（关联行 + 会话元数据落盘）、`sidebar-collapse.spec.ts`（折叠 60px + localStorage 持久化）。
-- **工具化与课程页**：`produce-tool.spec.ts`（`fixture_scenario=produce` → `produce_lesson` 工具卡 + `tools[]` 非错误；**本轮旧断言已更新为实际接线 `submit_curriculum` / `write_deliver_file` / `run_check`**）、`assess-tool.spec.ts`（`fixture_scenario=assess` → `assess_node` + records 落盘）、`production-task.spec.ts`（**本轮新增 3 条**：`task_update` 原位更新 / 结果透传 / 系统状态兜底）、`rendering.spec.ts`（**本轮新增 4 × 2 = 8**：浅 / 暗定向断言）、`courses-home-embed.spec.ts`（无参 `/courses` = 我的课程，经营视图 count 0）、`chat-subject-graph.spec.ts`（右栏图谱 → 点节点跳课程页）。
+- **Web 壳层与设置**：`chat-draft.spec.ts`（草稿按会话缓存、刷新归空）、`sidebar-resize.spec.ts`（拖宽 + 上下限 + localStorage；`/chat` 左栏是唯一 `<aside>`，右栏 `div[role="complementary"]`）、`settings-providers.spec.ts`（删除后 active 落首项 / 恢复默认 / 测试连接不可达地址）、`settings-workspace.spec.ts`（改选**默认工作区** + `finally` 恢复）、`attachments-area.spec.ts`（术语表链接 200 + 空态）、`workspace-onboarding.spec.ts`（无科目工作区在欢迎区显示提示文案 + `finally` 恢复）、`projects-sidebar.spec.ts`（侧栏项目分组 + 整组删除）、`new-session-association.spec.ts`（关联行 + 会话元数据落盘）、`sidebar-collapse.spec.ts`（折叠 60px + localStorage 持久化）。
+- **工具化与课程页**：`produce-tool.spec.ts`（`fixture_scenario=produce` → `produce_lesson` 工具卡 + `tools[]` 非错误；**本轮旧断言已更新为实际接线 `submit_curriculum` / `write_deliver_file` / `run_check`**）、`assess-tool.spec.ts`（`fixture_scenario=assess` → `assess_node` + records 落盘）、`production-task.spec.ts`（**本轮新增 3 条**：`task_update` 原位更新 / 结果透传 / 系统状态兜底）、`rendering.spec.ts`（**本轮新增 4 × 2 = 8**：浅 / 暗定向断言）、`courses-home-embed.spec.ts`（无参 `/courses` = 我的课程，经营视图 count 0；iframe 入口 `/api/exports/_home/index.html` 必须真返回 200 + text/html——曾经产物缺失时 404 白屏而用例仍绿）、`chat-subject-graph.spec.ts`（右栏图谱 → 点节点跳课程页）。
 - **旧工单恢复**：`legacy-ticket-recovery.spec.ts`（global「待归属」条 → 认领弹窗显式确认归属 / 放弃仅状态；**认领 B 仅 B 可改、A 不变**；孤儿放弃产物不变）。
 - **会话流生命周期与有序工具卡**：`chat-stream-lifecycle.spec.ts`（fixture 固定流 4 段；编辑重发「请继续」后**流式中切走再切回** / **离开 `/chat` 再回**，断言本轮流不被中断、完整末段可见——修复前切走即 abort ⇒ 红）。**2 条已绿（全量 E2E 88 = 85 pass + 3 skip）。**
 - **第四轮 UI（2026-10-05）**：`ui-round4.spec.ts` 3 条（**切页恢复**：客户端导航去课程页再后退，活动会话自动重开、空态/关联行不回归；**侧栏上限**：造 6 条新会话后默认只显 5 条 + 「展开历史会话」/收起，展开计数含世界总量；**右栏双栏**：大纲与图谱同屏、无分段切换钮、拖中间手柄向下大纲变高）；`chat-basic`（开场选项改"填充 → 手动发送"）、`course-build` / `review-chat-actions`（建课旅程首轮改经 API 带 `interview_switch` 场景驱动——普通会话由 agent 经 `start_course_interview` 切入并同轮收口——其后走 UI，入口断言同步新文案）、`component 层`（`ChatRestoreAndFill` 6 条 / `SidebarHistoryCap` 3 条；`ReviewChatActions` 等既有用例改走"填充后点发送"链路）。**3 条已绿。**

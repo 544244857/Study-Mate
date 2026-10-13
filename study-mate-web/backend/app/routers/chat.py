@@ -5,6 +5,7 @@ import asyncio
 import contextlib
 import copy
 import json
+import os
 import re
 import shutil
 import time
@@ -38,7 +39,7 @@ from ..config import (
 )
 from ..doc_extract import extract_text
 from ..llm import is_fixture_mode, stream_chat, supports_tools
-from ..models import ChatRequest, NewSessionRequest, SessionPatchRequest
+from ..models import BulkDeleteSessionsRequest, ChatRequest, NewSessionRequest, SessionPatchRequest
 from ..multimodal import (
     AUDIO_EXTENSIONS,
     AUDIO_PLACEHOLDER,
@@ -995,6 +996,18 @@ def delete_session(session_id: str) -> dict[str, bool]:
         return {"ok": storage.delete_session(session_id)}
     finally:
         lease.release()
+
+
+@router.post("/sessions/bulk-delete")
+def bulk_delete_sessions(payload: BulkDeleteSessionsRequest) -> dict[str, Any]:
+    """删除工作区指向同一目录的全部会话（删项目用）；运行中的会话不做特殊处理。"""
+    raw = (payload.workspace or "").strip()
+    if not raw:
+        raise HTTPException(422, "请提供工作区路径")
+    expanded = os.path.expanduser(raw)
+    if not os.path.isabs(expanded):
+        raise HTTPException(400, "请提供绝对路径")
+    return {"ok": True, "deleted": storage.delete_sessions_for_workspace(expanded)}
 
 
 @router.patch("/sessions/{session_id}")

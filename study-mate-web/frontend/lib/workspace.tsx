@@ -56,6 +56,7 @@ interface WorkspaceValue {
   activeSubjectSlug: string | null;
   activeNodeId: string | null;
   setActiveSessionId: (id: string | null) => void;
+  setActiveNodeId: (nodeId: string | null) => void;
   setActiveSubject: (slug: string | null, nodeId?: string | null) => void;
 
   /** 正在产出回复 / 跑建课编排的会话 id（侧栏条目转圈指示用，2026-10-05 补充拍板）；null = 没有。
@@ -68,7 +69,7 @@ interface WorkspaceValue {
   clearLoadedSession: () => void;
   openSession: (id: string) => Promise<void>;
 
-  newSession: () => void;
+  newSession: (workspace?: string | null) => void;
   deleteSession: (id: string) => Promise<void>;
   renameSession: (id: string, title: string) => Promise<void>;
 
@@ -186,14 +187,17 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const newSession = useCallback(() => {
-    // 使在飞的 openSession 失效，避免它随后把刚开的新对话覆盖回旧会话
-    openSessionRequestRef.current += 1;
-    setActiveSessionId(null);
-    setActiveNodeId(null);
-    // 新对话回到默认工作区（关联行里的工作区默认「不选」）
-    if (activeWorkspaceRef.current !== null) setActiveWorkspace(null);
-  }, [setActiveWorkspace]);
+  const newSession = useCallback(
+    (workspace: string | null = null) => {
+      // 使在飞的 openSession 失效，避免它随后把刚开的新对话覆盖回旧会话
+      openSessionRequestRef.current += 1;
+      setActiveSessionId(null);
+      setActiveNodeId(null);
+      // 缺省回默认工作区；显式传入项目路径时把新会话绑定到该项目（同一值不重复重载）
+      if (activeWorkspaceRef.current !== workspace) setActiveWorkspace(workspace);
+    },
+    [setActiveWorkspace],
+  );
 
   const openSession = useCallback(
     async (id: string) => {
@@ -281,6 +285,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       activeSubjectSlug,
       activeNodeId,
       setActiveSessionId,
+      setActiveNodeId,
       setActiveSubject,
       runningSessionId,
       setBuildingSessionId,
