@@ -200,7 +200,7 @@ async def _assess_node(slug: str, node_id: str, payload: AssessRequest):
         f"【动手安排】{node.get('practice')}",
         f"【涉及概念】{'、'.join(node.get('concepts') or []) or '无'}",
         f"【易错点】{'；'.join(node.get('pitfalls') or []) or '无'}",
-        f"【学生当前状态】{entry.get('status') or '未开始'}，掌握度 {entry.get('mastery', 0)}",
+        f"【学生当前状态】{entry.get('status') or '未开始'}",
         f"【已有误解 topic】{topics_text}",
         "【会话记录】",
         messages_text,
@@ -266,27 +266,21 @@ async def _assess_node(slug: str, node_id: str, payload: AssessRequest):
         with cs.progress_transaction(slug) as progress:
             entries = progress.setdefault("nodes", {})
             node_entry = dict(entries.get(node_id) or {})
-            target = "已通过项目验证" if node.get("kind") == "实验" else "能独立应用"
+            # 三档词表（目标态规格 §5.2）：评估通过统一置「已学完」（上游 advance 的
+            # 「证据通过」事件同口径，不再区分课型）。掌握度字段已取消，评估 meta 里的
+            # mastery 只留在评估记录文件里（assessment schema 仍有该字段），不再写进度。
+            target = "已学完"
             # 评估通过是权威置位（record-keeping 硬规则）；实验课再连 prerequisites 一起置位
             node_entry["status"] = target
-            mastery = meta.get("mastery")
-            if isinstance(mastery, (int, float)) and not isinstance(mastery, bool):
-                suggested = round(max(0.0, min(1.0, float(mastery))), 2)
-                if node.get("kind") == "实验":
-                    # 上游 record-keeping：实验课置位时掌握度「保留或上调」，不因单次评估降级
-                    previous = node_entry.get("mastery")
-                    if isinstance(previous, (int, float)) and not isinstance(previous, bool):
-                        suggested = max(suggested, round(float(previous), 2))
-                node_entry["mastery"] = suggested
             entries[node_id] = node_entry
             promoted.append({"id": node_id, "title": node.get("title", ""), "status": target})
             if node.get("kind") == "实验":
                 curriculum = cs.get_curriculum(slug) or {}
                 for prereq_id in node.get("prerequisites") or []:
                     prereq_entry = dict(entries.get(prereq_id) or {})
-                    if prereq_entry.get("status") == "已通过项目验证":
+                    if cs.normalize_status(prereq_entry.get("status")) == "已学完":
                         continue
-                    prereq_entry["status"] = "已通过项目验证"
+                    prereq_entry["status"] = "已学完"
                     entries[prereq_id] = prereq_entry
                     prereq_title = next(
                         (
@@ -296,7 +290,7 @@ async def _assess_node(slug: str, node_id: str, payload: AssessRequest):
                         ),
                         prereq_id,
                     )
-                    promoted.append({"id": prereq_id, "title": prereq_title, "status": "已通过项目验证"})
+                    promoted.append({"id": prereq_id, "title": prereq_title, "status": "已学完"})
         progress_updated = True
         effective = cs.effective_node(node, node_entry, index, cs.TRANSITIONS)
         learning_record = records_svc.write_learning_record(

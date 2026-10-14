@@ -63,6 +63,21 @@ def engine_schema_path(name: str) -> Path:
     return ENGINE_NODE_DIR / "vendor" / "studymate" / "schemas" / name
 
 
+def engine_doc_path(rel: str) -> Path:
+    """引擎包内文档定位：与 `engine_schema_path` 同一条解析顺序（vendor 优先，其次 node_modules）。
+
+    给「要内联进派工值的规范摘录」用：读包内那份才与门禁实际执行的解析器同版本；
+    仓库根的同步副本不作判定源（与 schema 同一理由，AGENTS.md 规矩 3）。
+    """
+    for candidate in (
+        ENGINE_NODE_DIR / "vendor" / "studymate",
+        ENGINE_NODE_DIR / "node_modules" / "@yunmiao" / "studymate",
+    ):
+        if (candidate / rel).is_file():
+            return candidate / rel
+    return ENGINE_NODE_DIR / "vendor" / "studymate" / rel
+
+
 def _skills_dir() -> Path:
     """角色规格目录：上游已把 `.dsh/skills/**` 迁到 `preset/skills/**`。
 

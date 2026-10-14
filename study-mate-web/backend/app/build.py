@@ -243,7 +243,9 @@ async def run_build(slug: str, provider: dict[str, Any], emit: Emit) -> None:
         # 只补默认首节点，不覆盖已有进度：重跑建课/重试不得把已推进的节点状态清空。
         nodes_progress = progress.setdefault("nodes", {})
         if first:
-            nodes_progress.setdefault(first["id"], {"status": "学习中", "mastery": 0})
+            # 三档词表（规格 §5.2）：mastery 不再写初始 0——掌握度字段已取消，
+            # 展示端对缺值自带 0 回退，新文件不该再长出这个键。
+            nodes_progress.setdefault(first["id"], {"status": "学习中"})
         progress.setdefault("project", {})["current"] = str(interview.get("project") or "")
         draft_svc.save_draft_progress(slug, progress)
         await emit({"event": "stage", "stage": "落盘", "status": "done"})

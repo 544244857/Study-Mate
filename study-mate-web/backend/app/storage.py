@@ -326,6 +326,30 @@ def delete_session(session_id: str) -> bool:
     return False
 
 
+def _norm_workspace(path: str) -> str:
+    """工作区路径归一：展开 ~，规范分隔符与尾斜杠，Windows 归一小写。"""
+    return os.path.normcase(os.path.normpath(os.path.expanduser(path)))
+
+
+def delete_sessions_for_workspace(workspace: str) -> int:
+    """删除所有工作区指向同一目录的会话，返回删除数量（含各自 uploads 附件目录）。
+
+    两边都先 `~` 展开再 normpath/normcase，故大小写、尾斜杠与分隔符差异视为同一目录；
+    workspace 为 None/空的会话一律不涉及。
+    """
+    if not workspace:
+        return 0
+    target = _norm_workspace(workspace)
+    deleted = 0
+    for meta in list_sessions():
+        bound = meta.get("workspace")
+        if not bound:
+            continue
+        if _norm_workspace(str(bound)) == target and delete_session(meta["id"]):
+            deleted += 1
+    return deleted
+
+
 def rename_session(session_id: str, title: str) -> dict[str, Any]:
     with _WRITE_LOCK:
         session = require_session(session_id)

@@ -144,7 +144,10 @@ def update_node_progress(
         with cs.progress_transaction(slug) as progress:
             entries = progress.setdefault("nodes", {})
             entry = dict(entries.get(node_id) or {})
-            current_status = entry.get("status") or node.get("status") or "未开始"
+            # 读侧归一：旧六档值映射成三档再算流转（旧工作区写回时自然收敛到新词表）
+            current_status = cs.normalize_status(
+                entry.get("status") or node.get("status") or "未开始"
+            )
 
             if payload.status is not None and payload.status != current_status:
                 if payload.status not in cs.NODE_STATUSES:
@@ -153,8 +156,6 @@ def update_node_progress(
                     raise HTTPException(409, f"不允许从 {current_status} 变更为 {payload.status}")
                 entry["status"] = payload.status
 
-            if payload.mastery is not None:
-                entry["mastery"] = round(max(0.0, min(1.0, float(payload.mastery))), 2)
             if payload.notes is not None:
                 entry["notes"] = payload.notes
             if payload.lab_status is not None:
@@ -166,3 +167,44 @@ def update_node_progress(
 
         index = next(i for i, item in enumerate(nodes) if item is node) + 1
         return {"ok": True, "node": cs.effective_node(node, entry, index, cs.TRANSITIONS)}
+
+
+@router.post("/courses/{slug}/nodes/{node_id}/start-learning")
+def start_learning(
+    slug: str,
+    node_id: str,
+    workspace: str | None = None,
+) -> dict[str, Any]:
+    """打开课件即「开始学习」：未开始 → 学习中（上游 advance「开始学习」事件口径）。
+
+    幂等：已在学习中/已学完的节点原样返回、**不进写事务**——progress_transaction 退出时
+    会无条件 save_progress（碰一次就把 updated_at 刷掉、把旧值收敛掉），重复打开课件
+    必须真正做到零写盘，所以未开始的判断先用只读 get_progress 做一遍。
+    """
+    with bound_workspace(workspace):
+        require_subject(slug)
+        curriculum = cs.get_curriculum(slug) or {}
+        nodes = [node for node in (curriculum.get("nodes") or []) if isinstance(node, dict)]
+        node = next((item for item in nodes if item.get("id") == node_id), None)
+        if node is None:
+            raise HTTPException(404, f"节点不存在：{node_id}")
+
+        def current_status() -> str:
+            entry = (cs.get_progress(slug).get("nodes") or {}).get(node_id) or {}
+            return cs.normalize_status(entry.get("status") or node.get("status") or "未开始")
+
+        index = next(i for i, item in enumerate(nodes) if item is node) + 1
+        if current_status() != "未开始":
+            entry = (cs.get_progress(slug).get("nodes") or {}).get(node_id) or {}
+            return {"ok": True, "changed": False, "node": cs.effective_node(node, entry, index, cs.TRANSITIONS)}
+
+        changed = False
+        with cs.progress_transaction(slug) as progress:
+            entries = progress.setdefault("nodes", {})
+            entry = dict(entries.get(node_id) or {})
+            if cs.normalize_status(entry.get("status") or node.get("status") or "未开始") == "未开始":
+                entry["status"] = "学习中"
+                entries[node_id] = entry
+                changed = True
+
+        return {"ok": True, "changed": changed, "node": cs.effective_node(node, entry if changed else None, index, cs.TRANSITIONS)}

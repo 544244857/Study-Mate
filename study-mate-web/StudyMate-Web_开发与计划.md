@@ -60,7 +60,7 @@
   - `ChatView` / `Composer`：对话流展示、输入控制、多模态附件、推理档位选择与中间过程折叠。
   - `RightSidebar` / `SubjectGraphPanel`：右侧上下文抽屉、科目图谱/大纲树无缝切换与附件清单。
   - `ErrorNotice`：统一错误警告组件（支持 neutral 中断与 danger 故障两态，提供展开诊断与一键复制）。
-  - `HomeEmbed`：内嵌工作区主页视图，主题与系统自适应同步。
+  - `HomeEmbed`：工作区主页视图：先经 `/api/home/reading` 按需导出（缓存命中秒回）再嵌导出应用，带加载 / 错误（可重试）态，感知会话工作区。
 
 ### 1.3 核心对外契约要点
 
@@ -130,6 +130,7 @@
 | 15 | Lab 代码沙箱执行 | 建设本地子进程代码安全执行环境，支持实操与实验课代码自动评测。 |
 | 17 | 记忆与小结入口接回 | 接回右栏悬空的会话摘要与记忆沉淀入口，移除相关测试跳过标记。 |
 | 18 | 会话工作区路径放宽 | 支持指定尚不存在的工作区目录（自动按需创建），优化新建体验。 |
+| 19 | 误解记录单一落点收敛 | 误解记录从「misconceptions.yaml + progress.yaml 副本」双落点收敛为单一落点（上游《目标态规格》§5.4）：`misconceptions._sync` 去 progress 侧写入、`save_progress` 落盘时清掉存量副本键、保留「缺 misconceptions.yaml 时从 progress 迁移」的读侧兜底；调整 `misconceptions.py` / `test_misconception_mapping.py` 的双落点断言。**实施前置**：上游 §5.4 提案转成决定（或维护者直接拍板）；包内 progress 校验器当前对该副本键只给非阻断提示，不构成阻塞。 |
 
 ### 5.2 方案待决 / 调研中（RFC / Under Review）
 

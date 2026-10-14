@@ -85,6 +85,6 @@ def test_infer_focus_node_prefers_learning_then_first_new(client, cs, new_subjec
     # 全部完成 → 无聚焦
     progress = cs.get_progress(slug)
     for node in nodes:
-        progress["nodes"][node["id"]] = {"status": "能独立应用", "mastery": 1}
+        progress["nodes"][node["id"]] = {"status": "已学完", "mastery": 1}
     cs.save_progress(slug, progress)
     assert _infer_focus_node(slug) is None

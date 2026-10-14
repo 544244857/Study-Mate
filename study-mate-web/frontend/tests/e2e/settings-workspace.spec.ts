@@ -11,6 +11,8 @@ test("workspace settings render the discovered e2e workspace", async ({ page }) 
   await page.goto("/settings/workspace");
 
   await expect(page.getByRole("heading", { name: "工作区", exact: true })).toBeVisible();
+  // 第二区标题是「默认工作区」（未绑定工作区的新会话跟随此目录）
+  await expect(page.getByRole("heading", { name: "默认工作区" })).toBeVisible();
   await expect(page.getByTestId("workspace-path")).toHaveText(E2E_WORKSPACE_DIR);
   // 来源是配置发现（不再是环境变量注入）
   await expect(page.getByTestId("workspace-source")).toContainText("studymate-config.yaml");

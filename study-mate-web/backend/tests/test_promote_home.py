@@ -79,6 +79,51 @@ def test_home_serves_workspace_export_and_files(client, cs):
     assert r2.headers["content-type"].startswith("text/css")
 
 
+def test_home_reading_serves_export_url(client, cs):
+    """/api/home/reading：「我的课程」嵌入入口——按需导出并返回 URL，二次命中缓存。
+
+    曾经前端硬编码 /api/exports/_home/index.html 且无任何调用方触发导出，全新
+    data/exports 下必 404 白屏；本用例钉住「reading 拿 URL 再嵌」的契约。
+    """
+    ws = cs.workspace_dir()
+    subject = ws / ".learning" / "subjects" / "iso-home-reading"
+    subject.mkdir(parents=True, exist_ok=True)
+    (subject / "curriculum.yaml").write_text(
+        "nodes:\n"
+        "  - id: intro\n"
+        "    title: 测试课\n"
+        "    objective: 会做一次最小提交\n"
+        "    prerequisites: []\n"
+        "    status: 未开始\n"
+        "    kind: 概念\n"
+        "edges: []\n",
+        encoding="utf-8",
+    )
+
+    r = client.get("/api/home/reading")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["url"] == "/api/exports/_home/index.html"
+
+    from app.config import DATA_DIR
+
+    assert (DATA_DIR / "exports" / "_home" / "index.html").is_file()
+
+    r2 = client.get("/api/home/reading")
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["fresh"] is True
+
+    # 来源工作区标记不符（模拟换工作区）→ 缓存作废强制重导，不吃旧区产物
+    from pathlib import Path
+
+    marker = DATA_DIR / "exports" / "._home.workspace"
+    assert marker.is_file()
+    marker.write_text(str(Path(marker.read_text(encoding="utf-8").strip()).parent / "elsewhere"), encoding="utf-8")
+    r3 = client.get("/api/home/reading")
+    assert r3.status_code == 200, r3.text
+    assert r3.json()["fresh"] is False
+
+
 def test_home_rejects_traversal(client):
     # 词法拒绝（直接调处理函数，避开 HTTP 客户端对 `..` 的归一化）
     with pytest.raises(HTTPException) as excinfo:

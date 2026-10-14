@@ -29,6 +29,7 @@ from . import curriculum_store as cs
 from . import draft as draft_svc
 from . import engine_node
 from . import roles, tickets as tickets_svc
+from .config import engine_doc_path
 
 MAX_RETRIES = 2
 # 派工路由 → 归属展示名（与 stage 标签一致；重试事件给 UI 显示用）
@@ -302,6 +303,44 @@ def _lab_delivery_values(base: Path, index: int) -> str:
     ])
 
 
+# `::: code` 规范摘录拿不到时（engine-node 未 setup、上游改了标题）的手写回落：
+# 边界与报错码与规范 §4 同口径，派工不因缺文件中断。
+_CODE_SPEC_FALLBACK = """\
+`::: code <语言>` + 可选 `alt:` / `caption:`（框内解释槽；要框内解释才用它，普通围栏照旧）
+- 指令参数只当一个语言标签用、可省（`::: code term`）；认的标签与围栏同一张表，写别的报 code-lang
+- `alt:` / `caption:` 写在块里的单独两行、必须在原文开始之前；写到指令头也报 code-lang
+- 两个字段都可选；写了没值报 code-field；字段之后一行原文都没有报 code-body
+- 原文逐字保留（缩进、空行、行首 # / ::: 都不动），收尾是单独的 ::: 行
+- 边界：原文首行自己长得像 alt: / caption: 会被当字段吃掉——整块就是这种形状时改用普通围栏
+- 呈现：caption 渲染在代码框内、代码下方，不编号；alt 落 role="group" aria-label（读屏报组名）"""
+
+
+def _code_directive_spec() -> str:
+    """`::: code` 规范摘录：读**引擎包内**《课件内容格式》§4 那一节，内联进产课派工值。
+
+    为什么内联：派工沙箱 read_roots 只有科目目录（见本文件 dispatch 的 ToolContext），
+    模型自己读不到仓库根的规范文档，SKILL.md 里「`::: code` 的写法见规范 §4」的指针是
+    悬空的——照 build.py 内联包内 schema 的先例，把规则送到模型手里，少赔门禁自修轮。
+    读包内那份：与门禁 sm-validate lesson 实际执行的 format.ts 同版本；仓库根那份是
+    同步副本，不作判定源（AGENTS.md 规矩 3）。
+    摘不到（engine-node 未 setup、上游改了标题）时回落手写摘要，派工不因缺文件中断。
+    """
+    path = engine_doc_path("docs/规范/课件内容格式.md")
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return _CODE_SPEC_FALLBACK
+    start = next(
+        (i for i, line in enumerate(lines) if line.startswith("### ") and "::: code" in line), None
+    )
+    if start is None:
+        return _CODE_SPEC_FALLBACK
+    end = next(
+        (i for i in range(start + 1, len(lines)) if lines[i].startswith(("## ", "### "))), len(lines)
+    )
+    return "\n".join(lines[start:end]).strip()
+
+
 def content_values(base: Path, slug: str, node: dict[str, Any], index: int) -> str:
     """讲解派工值：节点字段逐字 + 前置摘要 + 使命/术语/资源清单 + reference/ 原文 + 图片索引。"""
     return "\n".join(
@@ -314,6 +353,9 @@ def content_values(base: Path, slug: str, node: dict[str, Any], index: int) -> s
                 "你只负责入口及讲解；实操任务与参考解由出题角色随后交付，不因暂缺材料删除入口。"
                 if node.get("kind") == "实操" else ""
             ),
+            "",
+            "【`::: code` 怎么写（规范 §4 摘录；要框内解释才用它，普通围栏照旧）】",
+            _code_directive_spec(),
             "",
             "【前置节点摘要（总控生成）】",
             _prerequisite_summary(base, slug, node),
@@ -363,6 +405,9 @@ def experiment_values(base: Path, slug: str, node: dict[str, Any], index: int) -
             f"【实验说明页相对路径（files[0].path 用它）】{lesson_rel(index, str(node['id']), 'md')}",
             f"【实操入口】说明页必须含 [开始实操]({lab_entry_link(index)})。",
             _lab_delivery_values(base, index),
+            "",
+            "【`::: code` 怎么写（规范 §4 摘录；要框内解释才用它，普通围栏照旧）】",
+            _code_directive_spec(),
             f"【被验收节点】{'、'.join(node.get('prerequisites') or []) or '无'}",
             f"【项目目标】{(progress.get('project') or {}).get('current') or '以科目使命为准'}",
             "",
@@ -1117,7 +1162,7 @@ async def run_produce(
         if not ok:
             artifacts = [
                 lesson_rel(index, node_id, ext)
-                for ext in (("md", "html") if kind == "实验" else ("md", "quiz.json", "html"))
+                for ext in (("md",) if kind == "实验" else ("md", "quiz.json"))
             ]
             ticket = tickets_svc.create_ticket(
                 kind="produce",
@@ -1139,7 +1184,8 @@ async def run_produce(
             )
             return
 
-        artifacts = [lesson_rel(index, node_id, "md"), lesson_rel(index, node_id, "html")]
+        # html 是已退役的产物形态（node 引擎不渲染单课页，阅读走导出），不再列进产物清单
+        artifacts = [lesson_rel(index, node_id, "md")]
         if kind != "实验":
             artifacts.insert(1, lesson_rel(index, node_id, "quiz.json"))
         await emit({"event": "done", "node_id": node_id, "artifacts": artifacts})

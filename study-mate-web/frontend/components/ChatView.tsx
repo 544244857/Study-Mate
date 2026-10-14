@@ -29,6 +29,7 @@ import {
 import clsx from "clsx";
 import Markdown from "./Markdown";
 import { Composer } from "./Composer";
+import { DirectoryBrowseDialog } from "./DirectoryBrowseDialog";
 import { ErrorNotice } from "./ErrorNotice";
 import { InspectionDialog } from "./InspectionDialog";
 import { ProductionTaskCard, lessonHref } from "./ProductionTaskCard";
@@ -77,6 +78,8 @@ const STARTERS = ["讲解一个概念", "出几道练习题", "按我的课程�
 const DISCOVERY_STARTER = "不知道学什么，帮我选方向";
 // 建课完成后的一键开课：不发新端点，走普通聊天把「产出第一课」交给智能体的 produce_lesson 工具
 const FIRST_LESSON_PROMPT = "开始第一课";
+// 新对话关联行「工作区」下拉里的目录浏览入口：选中它打开 DirectoryBrowseDialog（不改绑定本身）
+const WORKSPACE_BROWSE_VALUE = "__browse__";
 
 // 右侧边栏宽度：默认 256px（原 w-64），可拖拽范围 200–480px，键与课程页互不干扰
 const RIGHT_SIDEBAR_WIDTH_KEY = "studymate-chat-right-sidebar-width";
@@ -133,6 +136,7 @@ export function ChatView() {
   const {
     sessions,
     subjects,
+    subjectsLoaded,
     activeSessionId,
     activeSubjectSlug,
     activeNodeId,
@@ -162,6 +166,8 @@ export function ChatView() {
   const [settingsFailed, setSettingsFailed] = useState(false);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [preview, setPreview] = useState<MessageAttachment | null>(null);
+  // 「选择文件夹…」目录浏览弹窗（会话级工作区绑定，零全局副作用）
+  const [browseOpen, setBrowseOpen] = useState(false);
   // 右侧边栏折叠态：新对话默认折叠；已有会话按 id 恢复其持久化值
   const [rightOpen, setRightOpen] = useState(false);
   // 建课编排（confirm 卡 → build 流 → done 卡 → 落点确认）
@@ -842,7 +848,15 @@ export function ChatView() {
                 </div>
               )}
 
-              {/* 工作区引导块已移除（2026-10-04 拍板）：工作区选择改到新对话态输入区上方的关联行 */}
+              {/* 工作区引导块已退役（选择改到新对话态输入区上方的关联行）；无科目时只留一行提示 */}
+              {!hasMessages && subjectsLoaded && subjects.length === 0 && (
+                <p
+                  data-testid="no-subject-hint"
+                  className="mx-auto mb-4 max-w-2xl text-center text-xs text-[var(--foreground)]/50"
+                >
+                  当前工作区还没有科目。可在下方关联行「工作区」里选择项目文件夹，或直接新建科目。
+                </p>
+              )}
 
               <div data-testid="chat-messages" className="flex flex-col gap-6">
                 {messages.map((msg, i) => {
@@ -1159,6 +1173,11 @@ export function ChatView() {
                     value={activeWorkspace ?? ""}
                     onChange={(e) => {
                       const value = e.target.value;
+                      // 「选择文件夹…」不直接改绑定，先打开目录浏览弹窗
+                      if (value === WORKSPACE_BROWSE_VALUE) {
+                        setBrowseOpen(true);
+                        return;
+                      }
                       setActiveWorkspace(value === "" ? null : value);
                       // 换工作区后原先的科目可能不在新工作区里，重置关联
                       setActiveSubject(null, null);
@@ -1168,11 +1187,16 @@ export function ChatView() {
                     className="min-w-0 max-w-[18rem] truncate rounded-lg border border-[var(--border)] bg-transparent px-2 py-1 text-xs outline-none focus:border-brand"
                   >
                     <option value="">默认工作区</option>
+                    {/* 当前绑定不在候选里时补一条，保证选中态可见 */}
+                    {activeWorkspace && !workspaceCandidates.includes(activeWorkspace) && (
+                      <option value={activeWorkspace}>{activeWorkspace}</option>
+                    )}
                     {workspaceCandidates.map((path) => (
                       <option key={path} value={path}>
                         {path}
                       </option>
                     ))}
+                    <option value={WORKSPACE_BROWSE_VALUE}>选择文件夹…</option>
                   </select>
                 </label>
               </div>
@@ -1226,6 +1250,17 @@ export function ChatView() {
             />
           </div>
         )}
+
+        {/* 目录浏览弹窗：选定即设为会话级工作区（不写全局配置，目录由后端按需创建） */}
+        <DirectoryBrowseDialog
+          open={browseOpen}
+          onClose={() => setBrowseOpen(false)}
+          onSelect={(path) => {
+            setActiveWorkspace(path);
+            setActiveSubject(null, null);
+            setBrowseOpen(false);
+          }}
+        />
       </div>
 
       <RightRail

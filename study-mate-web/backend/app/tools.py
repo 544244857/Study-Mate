@@ -673,20 +673,17 @@ async def _tool_get_course_outline(args: dict[str, Any], ctx: ToolContext) -> di
         title = str(node.get("title") or "")
         kind = str(node.get("kind") or "概念")
         p_info = prog_nodes.get(nid) or {}
-        status = p_info.get("status") or node.get("status") or "未开始"
-        mastery = p_info.get("mastery")
-        if mastery is None:
-            mastery = node.get("mastery")
-        m_str = f"，掌握度 {mastery}%" if mastery is not None else ""
-        lines.append(f"{i}. [{kind}] {title} ({nid}) — 状态：{status}{m_str}")
+        # 读侧归一：旧六档值映射成三档再展示（与 effective_node 同一口径）
+        status = cs.normalize_status(p_info.get("status") or node.get("status") or "未开始")
+        lines.append(f"{i}. [{kind}] {title} ({nid}) — 状态：{status}")
         nodes_summary.append({
             "id": nid,
             "title": title,
             "kind": kind,
             "status": status,
-            "mastery": mastery,
         })
-        if first_uncompleted is None and status != "已完成":
+        # 节点完成 = 三档的「已学完」；「已完成」是科目级状态，旧判断永远命不中
+        if first_uncompleted is None and status != "已学完":
             first_uncompleted = (nid, title)
 
     if first_uncompleted:
@@ -949,7 +946,14 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         ),
         parameters=_params(
             {
-                "node_id": {"type": "string", "description": "要评估的节点 id"},
+                "node_id": {
+                    "type": "string",
+                    "description": (
+                        "要评估的节点 id——**必须逐字取自 get_course_outline 返回的大纲节点 id**"
+                        "（形如 intro.version-history）；不要自造序号或简称（写 node-1 之类会 404）。"
+                        "拿不准就先调 get_course_outline 再来。"
+                    ),
+                },
                 "evidence": {
                     "type": "string",
                     "description": "学习者的作答/理解原文（评估据此判分，越具体越好）",

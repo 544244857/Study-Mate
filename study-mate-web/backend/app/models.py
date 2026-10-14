@@ -168,6 +168,12 @@ class SessionPatchRequest(BaseModel):
     active: SessionActiveRequest | None = None
 
 
+class BulkDeleteSessionsRequest(BaseModel):
+    """POST /api/sessions/bulk-delete：按工作区目录删除该项目下的全部会话。"""
+
+    workspace: str
+
+
 class SessionMeta(BaseModel):
     id: str
     title: str
@@ -197,7 +203,6 @@ class SaveCurriculumRequest(BaseModel):
 
 class UpdateProgressRequest(BaseModel):
     status: str | None = None
-    mastery: float | None = None
     notes: str | None = None
     lab_status: str | None = None
 
@@ -294,4 +299,3 @@ class SubjectSummary(BaseModel):
     created_at: str = ""
     node_total: int = 0
     node_done: int = 0
-    avg_mastery: float = 0

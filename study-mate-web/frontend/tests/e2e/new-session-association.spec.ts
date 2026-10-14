@@ -23,6 +23,10 @@ test("a new conversation can bind a workspace and the session remembers it", asy
   await expect(
     workspaceSelect.locator("option", { hasText: E2E_WORKSPACE_DIR }),
   ).toHaveCount(1);
+  // 下拉末尾有「选择文件夹…」入口（打开目录浏览弹窗；此处只断言选项存在，不驱动全流程）
+  await expect(
+    workspaceSelect.locator("option", { hasText: "选择文件夹…" }),
+  ).toHaveCount(1);
 
   // 显式绑到 fixture 工作区：科目列表按该工作区重载
   await associateWorkspace(page, E2E_WORKSPACE_DIR);

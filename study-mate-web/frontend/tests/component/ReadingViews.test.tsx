@@ -1,9 +1,10 @@
 /* LessonView / HomeEmbed 的阅读入口：一律走导出应用（reading 接口 / 全工作区导出）。 */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const { getReadingMock, listLessonsMock } = vi.hoisted(() => ({
+const { getReadingMock, getHomeReadingMock, listLessonsMock } = vi.hoisted(() => ({
   getReadingMock: vi.fn(),
+  getHomeReadingMock: vi.fn(),
   listLessonsMock: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     api: {
       ...actual.api,
       getReading: getReadingMock,
+      getHomeReading: getHomeReadingMock,
       listLessons: listLessonsMock,
     },
   };
@@ -73,11 +75,40 @@ describe("LessonView 阅读入口", () => {
 });
 
 describe("HomeEmbed", () => {
-  it("指向全工作区导出入口", () => {
+  it("reading 成功后嵌入返回的导出入口", async () => {
+    getHomeReadingMock.mockResolvedValue({
+      url: "/api/exports/_home/index.html",
+      entry: "C:/x/_home/index.html",
+      fresh: false,
+      engine: "node",
+    });
     render(<HomeEmbed />);
-    expect(screen.getByTestId("home-embed")).toHaveAttribute(
-      "src",
-      "/api/exports/_home/index.html",
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("home-embed")).toHaveAttribute(
+        "src",
+        "/api/exports/_home/index.html",
+      );
+    });
+  });
+
+  it("reading 失败显示错误态，重试后恢复", async () => {
+    getHomeReadingMock.mockRejectedValueOnce(new Error("导出失败"));
+    getHomeReadingMock.mockResolvedValue({
+      url: "/api/exports/_home/index.html",
+      entry: "C:/x/_home/index.html",
+      fresh: false,
+      engine: "node",
+    });
+    render(<HomeEmbed />);
+    await waitFor(() => {
+      expect(screen.getByText(/工作区首页加载失败/)).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId("home-embed-retry"));
+    await waitFor(() => {
+      expect(screen.getByTestId("home-embed")).toHaveAttribute(
+        "src",
+        "/api/exports/_home/index.html",
+      );
+    });
   });
 });

@@ -3,6 +3,8 @@ data/
 # 旧布局残留（含嵌套副本）兜底：运行时数据已上提一级
 backend/data/
 backend/.venv/
+# Python 字节码缓存：AGENTS.md 规矩 1 的 `compileall` 产物，跑了就会冒出来
+__pycache__/
 frontend/.next/
 # E2E / 探索测试的独立构建目录（见 frontend/next.config.js 的 STUDYMATE_NEXT_DIST）
 frontend/.next-e2e/

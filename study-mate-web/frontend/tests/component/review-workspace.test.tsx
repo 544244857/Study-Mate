@@ -66,7 +66,7 @@ describe("科目类请求透传 workspace（带值）", () => {
       api.getCourse("net", WS),
       api.patchCourse("net", { status: "暂停" }, WS),
       api.deleteCourse("net", WS),
-      api.updateNodeProgress("net", "n1", { mastery: 0.5 }, WS),
+      api.updateNodeProgress("net", "n1", { status: "学习中" }, WS),
       api.listMisconceptions("net", {}, WS),
       api.createMisconception("net", { topic: "t", question: "q", misunderstanding: "m", answer_summary: "a" }, WS),
       api.updateMisconception("net", "m1", { topic: "t" }, WS),

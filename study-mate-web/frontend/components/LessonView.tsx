@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { AlertCircle, ArrowLeft, ListChecks, Loader2 } from "lucide-react";
@@ -74,6 +74,17 @@ export function LessonView() {
     () => lessons?.find((l) => l.node_id === nodeId) ?? null,
     [lessons, nodeId],
   );
+
+  // 打开课件 = 「开始学习」（上游 advance「开始学习」事件口径）：未开始 → 学习中。
+  // 失败静默——置位是副产品，不能因它打断阅读；ref 防同科同节点重复上报。
+  const startedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!subject || !nodeId) return;
+    const key = `${subject}::${nodeId}::${workspace ?? ""}`;
+    if (startedRef.current === key) return;
+    startedRef.current = key;
+    api.startLearning(subject, nodeId, workspace).catch(() => undefined);
+  }, [subject, nodeId, workspace]);
 
   // src 走 reading 接口返回的导出应用入口（应用内导航，无深链是既定取舍）
   const fileSrc = readingSrc;

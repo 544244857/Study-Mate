@@ -19,6 +19,7 @@ from .routers import (
     chat,
     courses,
     export,
+    fs_browse,
     generate,
     home,
     lessons,
@@ -73,6 +74,7 @@ app.include_router(memory.router)
 app.include_router(lessons.router)
 app.include_router(workspace_files.router)
 app.include_router(home.router)
+app.include_router(fs_browse.router)
 app.include_router(practice.router)
 app.include_router(records.router)
 app.include_router(export.router)

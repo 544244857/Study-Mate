@@ -45,6 +45,31 @@ function copyYamlOnly(source: string, target: string): void {
   }
 }
 
+/**
+ * 把 fixture 副本里的课件与 YAML 统一回 LF：仓库提交进去的是 LF（git 索引 i/lf），
+ * Windows 检出会被 core.autocrlf 翻成 CRLF。阅读端（`lib/client.js` 内嵌解析器）的
+ * 行级正则容不下 `\r`（`.` 不匹配 `\r`、`$` 又没有 m 标志），带参数的 `:::` 指令与
+ * 标题会整段退化成原文段落——Linux 检出处是 LF，所以 CI 一直是绿的，只在 Windows
+ * 本地跑才撞上。fixture 镜像的是**仓库提交的字节**，不是本地检出的平台转译。
+ * （真机路径不受影响：产课落盘走 `roles.write_deliver` 的 newline="\n"。）
+ */
+function normalizeLineEndings(root: string): void {
+  const walk = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (/\.(md|ya?ml)$/.test(entry.name)) {
+        const raw = fs.readFileSync(full);
+        if (raw.includes(0x0d)) {
+          fs.writeFileSync(full, raw.toString("utf-8").replace(/\r\n/g, "\n"));
+        }
+      }
+    }
+  };
+  walk(root);
+}
+
 // examples 课件每个题组至多 1 道选择题，quiz.js 的组计分行（choiceCount > 1 才出现）
 // 在真实产物上触发不了；往 e2e 副本注入一个双选择题题组，§3.3 的计分断言才有落点。
 const EXTRA_QUIZ_BLOCK =
@@ -104,6 +129,7 @@ function prepareWorkspace(repoRoot: string): void {
     fs.cpSync(source, path.join(subjectDir, name), { recursive: true });
   }
   injectScoredQuizGroup(subjectDir);
+  normalizeLineEndings(subjectsDir);
 
   // 工作区发现走配置文件（STUDYMATE_CONFIG 指到 e2e-data）：PUT /api/workspace 的可观测切换
   // 才有落点，且不会写进开发者真实的 ~/.dsh

@@ -508,6 +508,17 @@ def _openai_wire_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]
 
 def _provider_url(provider: dict[str, Any], path: str) -> str:
     base = str(provider.get("base_url") or "").rstrip("/")
+    if not path.startswith("/"):
+        path = f"/{path}"
+    # 若 base 已经以该 path 结尾，避免重复拼接
+    if base.endswith(path):
+        return base
+    # 若 base 带有版本前缀（如 /v1），而 path 也以相同的 /v1/ 开头，避免重复出现 /v1/v1/
+    if base.endswith("/v1") and path.startswith("/v1/"):
+        path = path[len("/v1"):]
+    # 若 path 为 /responses 且 base 不以 /v1 或 /responses 结尾，自动补全 /v1 标准前缀
+    elif path == "/responses" and not base.endswith("/v1"):
+        path = "/v1/responses"
     return f"{base}{path}"
 
 
