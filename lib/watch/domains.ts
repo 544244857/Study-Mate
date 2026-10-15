@@ -20,7 +20,7 @@ export const WATCH_DOMAINS = [
   'workspace',
   // .learning/ 这一层（.learning 目录本身变了）
   'learning',
-  // .learning/MEMORY.md —— 共享记忆
+  // .learning/MEMORY.yaml —— 共享记忆
   'memory',
   // .learning/subjects/ 的**直接子项**变了：新建/删除/改名一个科目
   'subjects',
@@ -84,7 +84,7 @@ export function domainsOfPath(relative: string): WatchDomain[] {
 
   const rest = parts.slice(1);
   if (rest.length === 0) return ['learning'];
-  if (rest[0] === 'MEMORY.md') return ['memory'];
+  if (rest[0] === 'MEMORY.yaml') return ['memory'];
   if (rest[0] !== 'subjects') return ['workspace'];
 
   const inner = rest.slice(1);

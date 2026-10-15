@@ -236,7 +236,7 @@ function replaceRequired(text, pattern, replacement, name) {
 // 这个插件也没有引擎脚本：导出时逐名换成**本宿主做得到的那件事**（按 schema 与格式要求
 // 逐项自查）。新增原生工具时这里加一行——scripts/tests/test_skill_contracts.mjs 会检查覆盖率。
 export const NATIVE_TOOL_FALLBACK = {
-  studymate_workspace_context: '读工作区配置、.learning/MEMORY.md、当前科目的 progress.yaml 与最近的学习记录',
+  studymate_workspace_context: '读工作区配置、.learning/MEMORY.yaml、当前科目的 progress.yaml 与最近的学习记录',
   studymate_validate_pool: '按图片库规范逐项自查：图片落在 `assets/img/pool/`、索引七列表头逐字一致、命名可检索、体积合规',
   studymate_validate_curriculum: '按 `<root>/schemas/curriculum.schema.json` 与 `progress.schema.json` 逐项自查：字段齐全、`prerequisites` 指向存在的节点 id、无环、实验课前置非空',
   studymate_validate_lesson: '按内容格式逐项自查：`:::` 指令成对、`::: quiz` 锚点与题库键逐字一致、图片路径真实存在、公式标记成对',
@@ -281,7 +281,7 @@ function adaptAntigravityController(body) {
   result = replaceRequired(
     result,
     /^1\. \*\*加载 `record-keeping` 并读状态\*\*[^\n]+/m,
-    '1. **加载协议并恢复记忆**：按本技能开头的「Antigravity 宿主约定」加载调度与交互协议，并读 `record-keeping`；结合 `<LEARN_WORKSPACE>/.learning/MEMORY.md`、当前活跃科目进度表与最近的学习记录恢复学习断点。优先处理本次消息中的回答或续学意图。',
+    '1. **加载协议并恢复记忆**：按本技能开头的「Antigravity 宿主约定」加载调度与交互协议，并读 `record-keeping`；结合 `<LEARN_WORKSPACE>/.learning/MEMORY.yaml`、当前活跃科目进度表与最近的学习记录恢复学习断点。优先处理本次消息中的回答或续学意图。',
     'controller recovery'
   );
 

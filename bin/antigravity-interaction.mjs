@@ -44,7 +44,7 @@ export const AGY_HOST_GUIDE = `## Antigravity 宿主约定（导出时生成）
 - **命令执行与沙箱策略**：
   - **路径与转义**：参数必须使用完整绝对路径，统一单引号包裹；严禁未转义拼接学生输入。
   - **沙箱策略（run_command）**：优先在标准沙箱执行（\`BypassSandbox: false\`）；仅在需要外部网络抓取（\`image-scout\` 采图、\`learning-coach\` 读来源原文）、调用 \`npx\` 导出或工作区外部目录搬移时提权使用 \`BypassSandbox: true\`，且提权时保持 \`toolAction\` 与 \`toolSummary\` 逐字一致。
-- **逐次显式传参与状态幂等**：工具调用之间不假设环境变量、工作目录（Cwd）或 shell 状态保留；导出与外部命令每次都在同一条命令里写全参数。跨会话只信任盘上真实存在的文件（\`MEMORY.md\`、\`curriculum.yaml\`、\`progress.yaml\`、\`misconceptions.yaml\`、\`learning-records/\`），严禁以聊天记忆替代磁盘恢复。
+- **逐次显式传参与状态幂等**：工具调用之间不假设环境变量、工作目录（Cwd）或 shell 状态保留；导出与外部命令每次都在同一条命令里写全参数。跨会话只信任盘上真实存在的文件（\`MEMORY.yaml\`、\`curriculum.yaml\`、\`progress.yaml\`、\`misconceptions.yaml\`、\`learning-records/\`），严禁以聊天记忆替代磁盘恢复。
 - **原样无损搬运与质量防线**：子代理交付物从 \`.stage/.../deliver/\` 搬入科目目录时，必须保留原有相对路径，用标准文件复制工具原样合并，严禁通过 LLM 转录重写导致长文本或代码截断。合并前按各自领域的自查清单逐项核对（大纲按 \`<root>/schemas/curriculum.schema.json\`、图片库按 \`pool.md\` 七列与命名规范、课件内容格式按 \`::: \` 指令与锚点逐字对账）；自查没过严禁合盘。
 - **导出产物呈现与导读 Artifact**：导出完成后，总控在回复中提供可点击的绝对文件超链接（\`[打开课件：<标题>](file://<绝对路径>)\`），提示学生用现代浏览器打开享受阅读与离线 KaTeX 公式；同时可在 \`<appDataDir>/brain/<conversation-id>/\` 输出一份伴学 Markdown Artifact（如包含 Mermaid 依赖拓扑的路线图或本节核心导读），提升伴学阅读体验。
 - **局部答疑与打扰控制（local-qa）**：学生在阅读中截取课文或代码提问时，**阅读端的一段答疑会话就地回答**（不经过总控、只带当前课件 + 选中文本 + 共享记忆，控制在 200 字内，指出根因与正误对比），答完停在原地、**不写误解记录**、不派角色、不安排课程，引导学生返回课件原位置继续阅读，不强行打断主线，不重新触发全套大纲盘问；面板不可用时由总控按 \`local-qa\` 的同一套规则就地答。
@@ -52,7 +52,7 @@ export const AGY_HOST_GUIDE = `## Antigravity 宿主约定（导出时生成）
 `;
 
 export const AGY_BOOTSTRAP = `0. **定位工作区与引擎**：按“Antigravity 宿主约定”从本技能文件定位 \`<root>\`。学习工作区按以下顺序选定并记为 \`<LEARN_WORKSPACE>\`：用户本次明确指定的目录 → 非空环境变量 \`STUDYMATE_WORKSPACE\` → 非空 \`LEARN_WORKSPACE\` → 默认使用 \`~/StudyMate\`。
-   - **首次初始化**：在选定工作区创建 \`.learning/subjects/\`，并在缺失时从 \`<root>/templates/MEMORY.md\` 复制初始化 \`.learning/MEMORY.md\`；保留已有科目与记忆。向学生清晰说明实际学习工作区。
+   - **首次初始化**：在选定工作区创建 \`.learning/subjects/\`，并在缺失时从 \`<root>/templates/MEMORY.yaml\` 复制初始化 \`.learning/MEMORY.yaml\`；保留已有科目与记忆。向学生清晰说明实际学习工作区。
    - **执行准备**：本插件不含引擎脚本，校验按“Antigravity 宿主约定”逐项自查，导出用 \`npx -y @yunmiao/studymate@latest export\`（需要 Node 与一份 React）。工作区直接就是配置好的那一个，不另建临时工作区。`;
 
 export const AGY_INTAKE = `## 新科目盘问（总控执行，交互式单题推进）
@@ -84,11 +84,11 @@ export const AGY_RECORD_CONTINUITY = `## Antigravity 学习档案与状态连续
 
 在工作区 \`.learning/\` 下维护全局共享记忆与科目学习档案，跨会话只信任盘上真实存在的文件：
 
-1. **共享记忆（\`MEMORY.md\`）**：维护学生跨科目的能力水平、已被证明有效的讲解偏好、常犯思维卡点。稳定的领域基础在此更新，下一门课自动继承，无需重复自我介绍。
+1. **共享记忆（\`MEMORY.yaml\`）**：维护学生跨科目的能力水平、已被证明有效的讲解偏好、常犯思维卡点。稳定的领域基础在此更新，下一门课自动继承，无需重复自我介绍。
 2. **科目使命（\`MISSION.md\`）**：记录当前科目的终极现实目标、目标层级、约束条件（\`## Constraints\`）与主线项目方案。
 3. **大纲与进度（\`curriculum.yaml\` / \`progress.yaml\`）**：大纲记录拓扑依赖 DAG 与节点类型（${KIND_LIST}）；进度表记录各节点的学习状态（${NODE_STATUS_LIST}）——三档，掌握度字段已取消（不再写 \`mastery\`；旧文件里的旧六档状态读进来时自动映射）。
 4. **误解记录与学习记录（\`misconceptions.yaml\` / \`learning-records/\`）**：误解只写 \`misconceptions.yaml\` 一处（progress.yaml 不再重复存）；实验课验收结论写进学习记录。\`assessments/\` 与 \`sessions/\` 已退役——不再产生新文件，旧文件保留可读。
-5. **恢复会话时**：先读 \`.learning/MEMORY.md\`、当前科目的 \`progress.yaml\` 与 \`misconceptions.yaml\`、最近的学习记录，核对盘上真实产物后直接从断点继续，不重新询问整套开场。
+5. **恢复会话时**：先读 \`.learning/MEMORY.yaml\`、当前科目的 \`progress.yaml\` 与 \`misconceptions.yaml\`、最近的学习记录，核对盘上真实产物后直接从断点继续，不重新询问整套开场。
 `;
 
 export const AGY_ROLE_BOUNDARY = `## Antigravity 角色规格

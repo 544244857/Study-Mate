@@ -59,7 +59,7 @@
 
 ## 持久化与恢复
 
-总控用 `node '<root>/scripts/interaction_state.mjs'` 管理工作区内 `.learning/interaction.json`（Node 18+，零依赖）。它只存流程断点，不代替已有 MEMORY、progress、assessments 或 sessions，也不保存凭据。工作区必须是显式绝对路径，且已有 `.learning/`，不能是插件缓存或插件源目录。
+总控用 `node '<root>/scripts/interaction_state.mjs'` 管理工作区内 `.learning/interaction.json`（Node 18+，零依赖）。它只存流程断点，不代替已有 MEMORY.yaml、progress、assessments 或 sessions，也不保存凭据。工作区必须是显式绝对路径，且已有 `.learning/`，不能是插件缓存或插件源目录。
 
 ```text
 node '<root>/scripts/interaction_state.mjs' --workspace '<LEARN_WORKSPACE>' read

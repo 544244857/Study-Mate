@@ -32,7 +32,10 @@ test('路径 → 域：课件、题库、作答、记忆与「新建科目」各
     // 科目这一层：新建/删除/改名一个科目
     ['.learning/subjects/demo', ['subjects']],
     ['.learning/subjects', ['subjects']],
-    ['.learning/MEMORY.md', ['memory']],
+    ['.learning/MEMORY.yaml', ['memory']],
+    // #189：旧名不再被当成记忆——它就是一份落在 `.learning/` 下的普通文件，按「认不出来」
+    // 处理（页面整份重取）。读侧不兜旧名、不留兼容分支，这条断言钉的就是那件事。
+    ['.learning/MEMORY.md', ['workspace']],
     ['.learning', ['learning']],
     // 认不出来的：保守落 workspace（页面整份重取，绝不漏报）
     ['something-else/notes.txt', ['workspace']],

@@ -241,7 +241,7 @@ function makeWorkspace() {
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
-  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), '# 共享记忆\n');
+  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), '# 共享记忆\n');
   const files = subjectFiles('demo', { slug: 'demo', name: '演示科目', touched: '2026-05-06T07:08:09+08:00' });
   for (const [rel, content] of Object.entries(files)) {
     const file = path.join(workspace, rel);
