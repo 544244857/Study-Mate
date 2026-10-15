@@ -6,10 +6,19 @@
 
      1. **模板骨架**：`templates/MEMORY.yaml` 是带注释的**空**骨架，节与改名前一致；
         旧模板名不许还在盘上。
-     2. **全仓没有一处手写的旧名**：`MEMORY.md` 不许再出现在活文件里。旧名从此就是一份
-        普通文件——「认新名、不认旧名」的行为判据在各消费点自己的套件里：
+     2. **已跟踪文件里没有一处手写的旧名**：`MEMORY.md` 不许再出现在本仓的活文件里。
+        旧名从此就是一份普通文件——「认新名、不认旧名」的行为判据在各消费点自己的套件里：
         `test_watch_notice`（认域）、`test_host_ask_session`（答疑注入）、
         `test_tools_context`（摘要工具）、`test_host_library_payload`（图片库载荷）。
+
+   判据扫的是**已跟踪文件**（`git ls-files`），不是「工作区里所有文件」。这一条是踩过坑的：
+   开发机上总躺着未跟踪或被 ignore 的东西——本地 scratch（`.superpowers/`）、维护者真实的
+   学习工作区（`workspace/`）、一次性分析产物（`分析/`）——它们不是本仓的内容。对它们敏感
+   意味着这条门禁在本地永远红，而 CI 是干净检出、看不见这些残留：同一个判据两边给出不同
+   结论，等于把「本地 `npm test` 跑通」这条唯一的门禁废掉（CONTRIBUTING 硬规矩 3），
+   还正好撞上「测试不读写学生的 `workspace/`」那条规矩。
+   也不用一份手写的目录黑名单：那会随仓库长大而腐烂，还容易把真 offender 一起放过；
+   `git ls-files` 是仓库自己算出来的，本地与 CI 看到的是同一个集合。
 
    为什么豁免名单只有那几张：判据扫的是**手写的**文本，所以豁免只给「性质上不受这条约束」
    的文件——生成产物（CHANGELOG 由发布流程生成，CONTRIBUTING 明写不要手改）、决策记录
@@ -18,11 +27,16 @@
 
    这条判据的价值就是它的**否定式**：规则可达性套件（`test_skill_rules.mjs`）只断「必须出现」，
    钉不住「不许再出现」，于是改名这类横扫最容易留下半处旧名——某份夹具、某条注释、某个
-   模板说明表里的旧路径——而且处处都还是绿的。 */
+   模板说明表里的旧路径——而且处处都还是绿的。判据自己不空转由下面两条**合成数据自证**钉住：
+   喂一个带旧名的**已跟踪**样本进去必须报出来，未跟踪与被 ignore 的必须不报
+   （同一条纪律的先例：`scripts/release/checks.mjs` 的自检、`test_architecture_boundaries.mjs`
+   的合成图反证）。 */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { parseYaml } from '../../lib/yaml.ts';
@@ -73,7 +87,7 @@ test('#189 模板：带注释的空骨架，节与四节条目与改名前一致
   }
 });
 
-/* ── 二、全仓没有一处手写的旧名 ───────────────────────────────────────────── */
+/* ── 二、已跟踪文件里没有一处手写的旧名 ───────────────────────────────────── */
 
 /** 豁免文件：生成产物、自述历史、以及几条**故意**把旧名当输入的反证。活文件一律不豁免。 */
 const EXEMPT_FILES = new Map([
@@ -92,44 +106,120 @@ const EXEMPT_DIRS = new Map([
   ['docs/adr', '决策记录必须能同时写出旧名与新名'],
 ]);
 
-/** 不进去的目录：不是本仓的内容（`.git`）或不是手写的（依赖安装目录）。 */
-const SKIP_DIRS = new Set(['.git', 'node_modules']);
-
-function walk(dir, found = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      const relative = path.relative(ROOT, path.join(dir, entry.name)).split(path.sep).join('/');
-      if (EXEMPT_DIRS.has(relative)) continue;
-      walk(path.join(dir, entry.name), found);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    found.push(path.relative(ROOT, path.join(dir, entry.name)).split(path.sep).join('/'));
+function isExempt(relative) {
+  if (EXEMPT_FILES.has(relative)) return true;
+  for (const dir of EXEMPT_DIRS.keys()) {
+    if (relative === dir || relative.startsWith(`${dir}/`)) return true;
   }
-  return found;
+  return false;
 }
 
 /** 二进制按扩展名跳过：图是导出的产物（改它的源，不改它），源码与文档都是文本。 */
 const BINARY_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.woff', '.woff2', '.zip', '.pdf']);
 
-test('#189 全仓没有一处手写的旧名（生成产物、决策记录、自述历史与反证输入除外）', () => {
+/** `git` 在这个目录里起得来吗。起不来（没装 git）时判据明确跳过，不静默算通过。 */
+function gitRun(root, args) {
+  return spawnSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true });
+}
+
+function gitAvailable() {
+  const probe = gitRun(ROOT, ['--version']);
+  return !probe.error && probe.status === 0;
+}
+
+function isGitRepo(root) {
+  const probe = gitRun(root, ['rev-parse', '--git-dir']);
+  return !probe.error && probe.status === 0;
+}
+
+/** 仓库里**已跟踪**的文件（相对仓库根）。未跟踪与被 ignore 的一律不在里面——
+    这就是「本机的 scratch 与学习工作区不影响这条门禁」的判据本体。 */
+function trackedFiles(root) {
+  const listed = gitRun(root, ['ls-files', '-z']);
+  if (listed.error || listed.status !== 0) {
+    throw new Error(`读不到已跟踪文件清单（\`git ls-files\`）：${listed.error?.message ?? String(listed.stderr).trim()}`);
+  }
+  // `-z` 不只是分隔符：默认设置下 git 会把非 ASCII 路径转义成 `"\346…"`，那不是盘上的路径
+  return String(listed.stdout).split('\0').filter((entry) => entry !== '');
+}
+
+/** 这些文件里的旧名：`{ file, line, text }` 列表。同一段代码既扫真仓库、也扫合成样本。 */
+function oldNameOffenders(files, root) {
   const offenders = [];
-  for (const relative of walk(ROOT)) {
-    if (EXEMPT_FILES.has(relative)) continue;
+  for (const relative of files) {
+    if (isExempt(relative)) continue;
     if (BINARY_EXT.has(path.extname(relative).toLowerCase())) continue;
     let text;
     try {
-      text = fs.readFileSync(path.join(ROOT, relative), 'utf8');
+      text = fs.readFileSync(path.join(root, relative), 'utf8');
     } catch {
-      continue; // 读不出文本（二进制、坏链接）就不是「手写的旧名」
+      continue; // 已跟踪但读不到（删了没提交）：那不是一个手写的旧名
     }
     if (text.includes('\0')) continue;
-    const lines = text.split('\n');
-    for (const [index, line] of lines.entries()) {
-      if (line.includes(OLD_NAME)) offenders.push(`${relative}:${index + 1}: ${line.trim()}`);
+    for (const [index, line] of text.split('\n').entries()) {
+      if (line.includes(OLD_NAME)) offenders.push({ file: relative, line: index + 1, text: line.trim() });
     }
   }
-  assert.deepEqual(offenders, [],
-    `这些地方还写着旧名 ${OLD_NAME}——改名波及的每一处都要跟着走：\n${offenders.join('\n')}`);
+  return offenders;
+}
+
+/** 合成样本：三份文件里都写着旧名，只有一份进了索引。
+    判据的输入是索引，所以那一份必须报出来、另外两份必须不报——两条自证共用它。 */
+function syntheticRepo(t) {
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'studymate-rename-probe-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, '.gitignore'), 'ignored/\n');
+  fs.writeFileSync(path.join(root, 'clean.md'), '这一份是干净的，一个字都不提那个名字\n');
+  fs.mkdirSync(path.join(root, 'tracked'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'untracked'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'ignored'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'tracked', '旧名.md'), `第一行\n这里写着 ${OLD_NAME}\n`);
+  fs.writeFileSync(path.join(root, 'untracked', '也好旧.md'), `${OLD_NAME}\n`);
+  fs.writeFileSync(path.join(root, 'ignored', 'scratch.md'), `${OLD_NAME}\n`);
+
+  assert.equal(gitRun(root, ['init', '-q']).status, 0, '合成样本要一个真 git 仓库：判据的输入就是索引');
+  // 只把该跟踪的加进索引：`untracked/` 留在索引外，`ignored/` 被 .gitignore 挡住
+  assert.equal(gitRun(root, ['add', '--', 'tracked', 'clean.md', '.gitignore']).status, 0, '加不进索引就证不了这条');
+  return root;
+}
+
+const SAMPLES = ['tracked/旧名.md', 'untracked/也好旧.md', 'ignored/scratch.md'];
+
+test('#189 判据不空转：已跟踪文件里的旧名必须被列成 offender', (t) => {
+  if (!gitAvailable()) { t.skip('这台机器上没有 git'); return; }
+  const root = syntheticRepo(t);
+  const files = trackedFiles(root);
+  assert.ok(files.includes('tracked/旧名.md'), `已跟踪清单里没有那份样本：${JSON.stringify(files)}`);
+
+  const offenders = oldNameOffenders(files, root);
+  assert.deepEqual(offenders.map((one) => one.file), ['tracked/旧名.md'],
+    '合成样本里那份已跟踪的旧名没被列出来——这条判据空转了');
+  assert.equal(offenders[0].line, 2, '行号要指到写着旧名的那一行');
+  assert.match(offenders[0].text, /这里写着/, '报出来的该是那一行的原文');
+});
+
+test('#189 判据只认已跟踪文件：未跟踪与被 ignore 的路径一条都不进 offender', (t) => {
+  if (!gitAvailable()) { t.skip('这台机器上没有 git'); return; }
+  const root = syntheticRepo(t);
+  // 盘上确实有三份写着旧名：不这么钉一下，「一个都没报」也能被读成判据是对的
+  for (const relative of SAMPLES) {
+    assert.match(fs.readFileSync(path.join(root, relative), 'utf8'), /MEMORY\.md/, `${relative} 该是被造出来的`);
+  }
+
+  const files = trackedFiles(root);
+  assert.deepEqual(files.filter((one) => one.startsWith('untracked/') || one.startsWith('ignored/')), [],
+    '未跟踪与被 ignore 的路径不该进清单：本机 scratch 与维护者的 `workspace/` 会让门禁在本地永远红');
+  assert.deepEqual(oldNameOffenders(files, root).map((one) => one.file), ['tracked/旧名.md'],
+    '只有已跟踪的那一份算违规');
+});
+
+test('#189 已跟踪文件里没有一处手写的旧名（生成产物、决策记录、自述历史与反证输入除外）', (t) => {
+  if (!isGitRepo(ROOT)) { t.skip('不是 git 仓库（npm 安装副本），跳过'); return; }
+  const files = trackedFiles(ROOT);
+  assert.ok(files.length > 100, `已跟踪文件清单只有 ${files.length} 份，不像这个仓库——判据会空转`);
+
+  const offenders = oldNameOffenders(files, ROOT);
+  assert.deepEqual(offenders.map((one) => `${one.file}:${one.line}: ${one.text}`), [],
+    `这些地方还写着旧名 ${OLD_NAME}——改名波及的每一处都要跟着走：\n`
+    + offenders.map((one) => `${one.file}:${one.line}: ${one.text}`).join('\n'));
 });
