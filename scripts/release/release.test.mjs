@@ -168,7 +168,8 @@ const tarballFiles = ['package.json', 'README.md', 'cordis.patch.yml', 'bin/dsh-
   'openai/studymate/.codex-plugin/plugin.json', 'docs/使用/Codex与ChatGPT.md',
   'preset/learning/agent.cordis.yml', 'preset/qa/agent.cordis.yml', 'lib/preset.ts', 'preset/skills/learning-system/SKILL.md',
   'antigravity/studymate/plugin.json', 'antigravity/studymate/rules/AGENTS.md',
-  'schemas/subject.json', 'templates/MEMORY.yaml', 'templates/lab/0000-示例/check.sh', 'docs/使用/使用说明.md'];
+  'schemas/subject.json', 'templates/MEMORY.yaml', 'templates/lab/0000-示例/check.sh',
+  'templates/lab/干净态.sh', 'templates/lab/作答态.sh', 'templates/lab/自检.sh', 'docs/使用/使用说明.md'];
 const tarballPack = () => ({ name, version: '0.1.2', files: tarballFiles.map(path => ({ path })) });
 
 // package.json 的 files 是「打包清单」，validatePack 的白名单是「发放清单」——两张表分开维护，

@@ -636,14 +636,15 @@ test('反证：结构对齐判据不空转——一边漂了必须报出来', ()
 
 /* ── 八、实验骨架（#197）：照抄即用，跑手仍只从「证据」字段取命令 ──────────
    骨架（`templates/lab/`）是给**出题角色**照抄的：判分入口的框架、任务／答案／探针的布局、
-   lab 说明、干净态与作答态的跑法、在干净目录里整套重跑的自检。它**只回事实**——没有判决词，
-   也没有第二套退出码语义（跑手那条「非零不是失败判决」不能被骨架写打架）。
+   lab 说明、干净态与作答态两个运行入口、只按顺序调那两个入口的自检。它**只回事实**——
+   没有判决词，也没有第二套退出码语义（跑手那条「非零不是失败判决」不能被骨架写打架）。
 
-   这一组钉五件事（骨架内容本身的清单由随包/装机那几处套件分头守住，见 fixtures/templates.mjs）：
+   这一组钉六件事（骨架内容本身的清单由随包/装机那几处套件分头守住，见 fixtures/templates.mjs）：
      · 骨架照抄进科目之后，跑手认得这套布局（命令来源仍是「证据」字段）；
      · 盘上有 `check.sh` 不等于有命令——「证据」空着照样拒；
      · 入口固定叫 `check.sh`（跑手套件自己的夹具用 `check.mjs`，那是夹具，不是骨架）；
-     · 骨架自检能在干净目录里把两态各跑一遍，退出码原样转述；
+     · 干净态／作答态各有一个运行入口，两个都只摆盘 + 调 `check.sh` + 原样转述事实；
+     · 骨架自检能在干净目录里把两态各跑一遍，退出码原样转述（且它自己不摆盘）；
      · 骨架文件里没有判决词、没有字面退出码；lab 骨架在模板说明表里登记过。 */
 
 const SKELETON = path.join(ROOT, 'templates', 'lab');
@@ -746,11 +747,12 @@ test('骨架自检：在干净目录里把干净态与作答态各跑一遍，�
 
 test('骨架只回事实：没有判决词，也没有字面退出码', () => {
   const files = skeletonFiles();
-  assert.ok(files.length >= 8, `骨架文件太少（${files.length} 份）：判分入口、断言、任务、作答、探针、答案、说明、自检都要有`);
+  assert.ok(files.length >= 11, `骨架文件太少（${files.length} 份）：判分入口、两个运行入口、断言、任务、作答、探针、答案、说明、自检都要有`);
   // 入口固定叫 check.sh（跑手套件的夹具用 check.mjs，那是夹具，别照抄它）
   assert.ok(files.includes('0000-示例/check.sh'), '判分入口要固定叫 check.sh');
   assert.equal(files.some(name => /check\.(?:mjs|js|py)$/.test(name)), false, '骨架里不该有第二个判分入口');
   assert.ok(files.includes('自检.sh'), '骨架要自带那条「在干净目录里整套重跑」的自检');
+  assert.ok(files.includes('干净态.sh') && files.includes('作答态.sh'), '两态各要有一个运行入口');
   assert.ok(files.includes('solutions/0000-示例/作答/任务1.txt'), '答案要与任务分开放');
   assert.ok(files.includes('README.md'), 'lab 说明的骨架要带上');
 
@@ -768,4 +770,41 @@ test('骨架在模板说明表里登记过（随包发出的那一份，不是�
   assert.ok(row, 'templates/README.md 的表里要有 `lab/` 这一行');
   assert.match(row, /出题角色/, '这一行要写清谁来用它（出题角色造 lab 时照抄）');
   assert.match(row, /\.learning\/subjects\/<slug>\/lab\//, '这一行要写清它落到工作区的哪');
+});
+
+test('两个运行入口都在、都只调 check.sh：干净态与作答态各一个，自检只按顺序调它们', () => {
+  const files = skeletonFiles();
+  for (const entry of ['干净态.sh', '作答态.sh']) assert.ok(files.includes(entry), `骨架里要有 ${entry}`);
+
+  for (const name of ['干净态.sh', '作答态.sh']) {
+    const text = fs.readFileSync(path.join(SKELETON, name), 'utf8');
+    // 判分入口只有一个：入口自己跑的就是 check.sh，不直接碰断言
+    assert.match(text, /\bsh check\.sh\b/, `${name} 要把 check.sh 跑起来（判分入口仍只有它一个）`);
+    assert.doesNotMatch(text, /断言\.sh/, `${name} 不该自己调断言：那是 check.sh 的事`);
+    // 只回事实：这一次的退出码原样印出来、原样交回去（不判定、没有第二套码表）
+    assert.match(text, /退出码：%d/, `${name} 要把这一次的退出码印成事实`);
+    assert.match(text, /exit "\$CODE"/, `${name} 要把那个退出码原样交回去`);
+    assert.doesNotMatch(text, /exit\s+[0-9]/, `${name} 不许立字面退出码`);
+  }
+
+  // 两态各自的摆盘：干净态不碰参考解；作答态自己把参考解的作答拷进去，跑完随临时副本清掉
+  const clean = fs.readFileSync(path.join(SKELETON, '干净态.sh'), 'utf8');
+  assert.doesNotMatch(clean, /cp -R "\$ROOT\/solutions/, '干净态不该拷参考解（任务留白就是留白）');
+  const answered = fs.readFileSync(path.join(SKELETON, '作答态.sh'), 'utf8');
+  assert.match(answered, /cp -R "\$ROOT\/solutions\/\$TASK\/作答\/\."/, '作答态要自己把参考解的作答摆进临时副本');
+  assert.match(answered, /rm -rf "\$TMP"/, '作答态跑完要把痕迹（临时副本）清掉');
+
+  // 自检不再自己写一遍摆盘：它只按顺序调这两个入口（一处定义）
+  const selfCheck = fs.readFileSync(path.join(SKELETON, '自检.sh'), 'utf8');
+  assert.match(selfCheck, /干净态\.sh/);
+  assert.match(selfCheck, /作答态\.sh/);
+  // 判据看**代码**：注释里解释「它自己不摆盘、不跑 check.sh」不算犯规（先去掉整行注释）
+  const selfCheckCode = selfCheck.split('\n').filter(line => !/^\s*#/.test(line)).join('\n');
+  assert.doesNotMatch(selfCheckCode, /mktemp|cp -R|check\.sh/, '自检里不该再有一份摆盘或判分逻辑');
+
+  // lab 说明骨架里那两种跑法跟着入口走（角色照抄时看得见跑哪个）
+  const sheet = fs.readFileSync(path.join(SKELETON, 'README.md'), 'utf8');
+  for (const entry of ['干净态.sh', '作答态.sh', '自检.sh']) {
+    assert.ok(sheet.includes(entry), `lab 说明骨架要写清 ${entry} 怎么用`);
+  }
 });
