@@ -16,7 +16,7 @@ import {
   IdempotencyLedger, OPERATION_ID_MAX, LEDGER_MAX, checkOperationId, fingerprintOf, versionMatches,
 } from '../../lib/core/fence.ts';
 import {
-  QUESTION_KINDS, QUESTION_KIND_SHAPES, inferQuestionKind, questionKindProblem,
+  QUESTION_KINDS, QUESTION_KIND_SHAPES, inferQuestionKind, questionKindProblem, SHARED_QUESTION_FIELDS,
 } from '../../lib/core/rules.ts';
 import { checkPoolKinds } from '../../lib/core/questions.ts';
 import {
@@ -160,6 +160,21 @@ test('旧题库（不写 kind）照旧读得进：只查两组旧字段同时出
   assert.equal(both.code, 'ambiguous');
 });
 
+test('criteria 是共享字段：显式四种题型都能带；混用只看专属字段（#175）', () => {
+  assert.deepEqual([...SHARED_QUESTION_FIELDS], ['q', 'criteria']);
+  // 四种题型各带一份判分要点——都不报
+  assert.equal(questionKindProblem({ kind: '客观题', q: 'q', opts: ['a', 'b'], ans: 0, why: 'w', criteria: 'c' }), null);
+  assert.equal(questionKindProblem({ kind: '预测验证', q: 'q', 预测: 'p', 比对: 'b', criteria: 'c' }), null);
+  assert.equal(questionKindProblem({ kind: '开放题', q: 'q', answer: 'a', criteria: 'c' }), null);
+  assert.equal(questionKindProblem({ kind: '交付物', q: 'q', 交付物: 'd', 证据: 'e', criteria: 'c' }), null);
+  // 开放题仍必填 criteria
+  assert.equal(questionKindProblem({ kind: '开放题', q: 'q', answer: 'a' }).code, 'missing-field');
+  // 真正的混用照旧报 ambiguous
+  assert.equal(questionKindProblem({ kind: '预测验证', q: 'q', 预测: 'p', 比对: 'b', opts: ['a', 'b'], ans: 0, criteria: 'c' }).code, 'ambiguous');
+  assert.equal(questionKindProblem({ kind: '交付物', q: 'q', answer: 'a' }).code, 'ambiguous');
+  assert.equal(questionKindProblem({ kind: '选择题', q: 'q', criteria: 'c' }).code, 'unknown-kind');
+});
+
 test('字段的非空判据：空串、纯空白、选项少于两项、ans 不是整数都算缺', () => {
   for (const item of [
     { kind: '客观题', q: 'q', opts: ['a', 'b'], ans: 0, why: '   ' },
@@ -205,6 +220,27 @@ test('checkPoolKinds：未知题型带题库文件与**真实行号**，合格�
 
   // 干净题库（含旧写法）零问题
   assert.deepEqual(checkPoolKinds({ 锚点: [{ q: 'q', opts: ['a', 'b'], ans: 0, why: 'w' }] }, {}), []);
+});
+
+test('checkPoolKinds：带 criteria 的预测验证 / 交付物不报；真混用仍按题库行号报（#175）', () => {
+  const raw = [
+    '{',
+    '  "锚点一": [',
+    '    { "kind": "预测验证", "q": "先预测再跑", "预测": "5 次", "比对": "实测 5 次", "criteria": "先预测、有实测、能解释差异" },',
+    '    { "kind": "交付物", "q": "实现并跑测试", "交付物": "ipcalc.py", "证据": "python3 -m pytest", "criteria": "测试通过并说明契约" }',
+    '  ],',
+    '  "锚点二": [',
+    '    { "kind": "交付物", "q": "只有答案", "answer": "a" }',
+    '  ]',
+    '}',
+    '',
+  ].join('\n');
+  const issues = checkPoolKinds(JSON.parse(raw), { poolFile: 'a.quiz.json', poolRaw: raw });
+  assert.equal(issues.length, 1, JSON.stringify(issues));
+  assert.equal(issues[0].anchor, '锚点二');
+  assert.equal(issues[0].line, 7, '行号指向那道混用的题');
+  assert.equal(issues[0].code, 'ambiguous');
+  assert.match(issues[0].message, /开放题/);
 });
 
 test('checkPoolKinds：值不是数组的键不在这里报（形状坏由 pool-shape 说）', () => {

@@ -43,7 +43,8 @@ export interface PoolKindReportOptions {
  *
  * 判定口径（与 `questionKindProblem` 同一份）：
  *   · 显式写了 `kind` 且不在词表里 → `unknown-kind`（**未知题型报错**）；
- *   · 显式写了 `kind` 但字段是另一种题型的 → `ambiguous`；
+ *   · 显式写了 `kind` 但带了另一种题型的**专属字段** → `ambiguous`（`q` 与 `criteria` 是共享字段，
+ *     任何题型带都不算混用，见 `rules.ts` 的 `SHARED_QUESTION_FIELDS`）；
  *   · 显式写了 `kind` 却缺该题型的必备字段 → `missing-field`；
  *   · 没写 `kind`：只查「两组旧字段同时出现」——旧题库照旧读得进。
  *
