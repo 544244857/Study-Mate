@@ -238,7 +238,7 @@ function makeWorkspace() {
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
-  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), '# 共享记忆\n');
+  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), '# 共享记忆\n');
   const files = Object.assign(
     subjectFiles('demo', { slug: 'demo', name: '演示科目', touched: '2026-05-06T07:08:09+08:00' }),
     plainSubjectFiles('second', { slug: 'second', name: '第二科目', touched: '2026-04-01T00:00:00+08:00' }),
@@ -262,7 +262,7 @@ function makeEmptyWorkspace() {
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning', 'subjects', '半成品'), { recursive: true });
-  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), '# 共享记忆\n');
+  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), '# 共享记忆\n');
   return { root, workspace, payload: readLibrary({ workspace }) };
 }
 
@@ -273,7 +273,7 @@ function makeHalfWorkspace() {
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   const files = {
-    '.learning/MEMORY.md': '# 共享记忆\n',
+    '.learning/MEMORY.yaml': '# 共享记忆\n',
     '.learning/subjects/half/subject.yaml': [
       'slug: half', 'name: 半份科目', 'goal: 只有大纲，课件与附件还没写', 'status: 学习中', '',
     ].join('\n'),
@@ -402,7 +402,7 @@ function makeQuizWorkspace() {
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
-  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), '# 共享记忆\n');
+  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), '# 共享记忆\n');
   const files = quizSubjectFiles('demo', { slug: 'demo', name: '演示科目', touched: '2026-05-06T07:08:09+08:00' });
   for (const [rel, content] of Object.entries(files)) {
     const file = path.join(workspace, rel);

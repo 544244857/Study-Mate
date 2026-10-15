@@ -16,7 +16,7 @@
 /** 全部数据域。写错一个字母在**注册时**就炸（`assertDeclaration`），不留到调用时。 */
 export const DOMAINS = [
   'workspace',      // 工作区根：路径、配置、今天、时区，以及「在工作区里找科目」
-  'memory',         // .learning/MEMORY.md —— 共享记忆（学生画像）
+  'memory',         // .learning/MEMORY.yaml —— 共享记忆（学生画像）
   'subjects',       // subjects/<slug>/：subject.yaml、MISSION.md、RESOURCES.md、GLOSSARY.md + 节点元信息
   'curriculum',     // subjects/<slug>/curriculum.yaml —— 大纲（位次、依赖、层级）
   'progress',       // subjects/<slug>/progress.yaml —— 三档进度

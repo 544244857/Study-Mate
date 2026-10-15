@@ -278,7 +278,7 @@ function copyPayload(destination) {
  * `~/.dsh/studymate/engine/` 只是**同一份包的第二份副本**——两份会各自过期。
  *
  * standalone 的那份载荷是**只读材料**：技能、预设、schema、文档与工作区数据骨架
- * （`templates/` 下的 MEMORY/MISSION/GLOSSARY/RESOURCES/subject.yaml）。**没有可执行文件**：
+ * （`templates/` 下的 MEMORY.yaml/MISSION/GLOSSARY/RESOURCES/subject.yaml）。**没有可执行文件**：
  * 引擎已经是插件包本身，老宿主那条路只需要这些文件（Python 引擎已随 #83 退役）。
  *
  * `--mode native` 的**交接安装**（native 且 mode==='native'）走 standalone 的 <root>：

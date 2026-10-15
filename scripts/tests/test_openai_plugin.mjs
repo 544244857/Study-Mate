@@ -48,7 +48,7 @@ test('导出的 ZIP 是一份能脱离源码检出跑起来的插件', (t) => {
     'skills/learning-system/references/codex-interaction.md',
     'scripts/interaction_state.mjs', 'assets/logo.png',
     'schemas/curriculum.schema.json', 'schemas/agent-handoff.schema.json',
-    'templates/MEMORY.md', 'templates/subject.yaml',
+    'templates/MEMORY.yaml', 'templates/subject.yaml',
     'docs/规范/文件归属.md', 'README.md', 'LICENSE']) {
     assert.ok(fs.existsSync(path.join(plugin, asset)), asset);
   }
