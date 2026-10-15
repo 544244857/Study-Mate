@@ -205,7 +205,10 @@ export interface PracticeItem {
    而页面上的表现是「题目数据不完整」——所以要在题库层就报出来，别等学生点开才发现。
 
    字段名沿用仓库既有的中文词表（`empty_reason` 之外的题库字段本来就是中文：锚点、层级），
-   与 `docs/规范/课件内容格式.md` 的题库一节逐字对应。 */
+   与 `docs/规范/课件内容格式.md` 的题库一节逐字对应。
+
+   表里**只装「这种题型在题面之外另要的东西」**：题面（`q`）是四种题型的共同前提，不进这张表，
+   由 `stemProblem` 单独判（旧写法不写 `kind`，压根走不到这张表，见 #173）。 */
 
 /** 一种题型的字段要求：`required` 里每一项都要有非空值。 */
 export interface QuestionKindShape {
@@ -224,8 +227,9 @@ export const QUESTION_KIND_SHAPES: Readonly<Record<QuestionKind, QuestionKindSha
 /**
  * **共享字段**：四种题型都能带，谁也不能拿它当「这题其实是另一种题」的判据（#175）。
  *
- * 只有这两样：`q`（题面，见 #173）与 `criteria`（判分要点——出题规范要求每题的判分要点都写进
- * 它，不只开放题）。一种题型的**专属字段**就是它 `required` 里去掉这一份。
+ * 只有这两样：`q`（题面——#173 起四种题型、写不写 `kind` 都必填，判据在 `stemProblem`）与
+ * `criteria`（判分要点——出题规范要求每题的判分要点都写进它，不只开放题）。一种题型的
+ * **专属字段**就是它 `required` 里去掉这一份。
  */
 export const SHARED_QUESTION_FIELDS: readonly string[] = ['q', 'criteria'];
 
@@ -282,6 +286,27 @@ function missingField(item: Record<string, unknown>, field: string): boolean {
 }
 
 /**
+ * 缺**题面**（`q`）时的问题；有题面返回 `null`。
+ *
+ * 题面是**所有题目**的共同前提：不分题型，也不分写不写 `kind`（#173）。这条判据因此独立于
+ * `QUESTION_KIND_SHAPES`——那张表只装「这种题型自己的要求」，而旧写法（不写 `kind`）压根不进表，
+ * 只补表管不到它。真机事故就是这份题库：题干写成了 `stem`，检查全绿，学生一打开练习区，
+ * 阅读端取 `item.q` 就整块崩（`slot entry crashed`）。
+ *
+ * 报的位置在**题型专属字段之前**：共同前提缺了，先修它；一次只报一条，免得作者按题型字段改一轮才发现
+ * 题面还缺着。有题面时它什么都不说，后续判定照旧。
+ */
+function stemProblem(item: Record<string, unknown>, kindLabel = ''): QuestionKindProblem | null {
+  if (!missingField(item, 'q')) return null;
+  return {
+    code: 'missing-field',
+    kind: kindLabel,
+    message: `${kindLabel === '' ? '' : `「${kindLabel}」`}缺 ${FIELD_LABELS.q}——`
+      + '题面是所有题目的共同前提，四种题型、写不写 kind 都一样（阅读端每一道题都要渲染题面）',
+  };
+}
+
+/**
  * 从一道题的字段**推断**题型（旧题库没有 `kind`）。
  *
  * 只认旧词表的两种：写 `opts`/`ans` 的是客观题，写 `answer`/`criteria` 的是开放题。
@@ -317,13 +342,18 @@ export interface QuestionKindProblem {
  *
  * **严格度的分界**：显式写了 `kind` 的题必须逐字段满足那种题型的要求（作者声称了是哪种题，
  * 就该按那种题的判分入口给全字段）；没写 `kind` 的题只查「两组旧字段同时出现」这一条——
- * 旧题库（`opts`/`ans`/`why` 或 `answer`/`criteria`）因此照旧读得进，不会因为新规矩变红。
+ * 旧题库（`opts`/`ans`/`why` 或 `answer`/`criteria`）因此照旧读得进，不会因为**题型专属字段**
+ * 的新规矩变红（题面 `q` 是共同前提，两条路都逃不掉，见下）。
  *
  * **混用只看题型专属字段**（#175）：`q` 与 `criteria` 是共享字段（`SHARED_QUESTION_FIELDS`），
  * 任何题型带它们都不算混用——显式 `预测验证`/`交付物` 带判分要点是正常的，不该报 `ambiguous`。
  *
+ * **题面（`q`）不在这条分界里**：它是所有题目的共同前提，四种题型、写不写 `kind` 都要有（#173）——
+ * 阅读端渲染每一道题都无条件取 `q`，缺了就是整块崩，与题型推断无关。判据见 `stemProblem`。
+ *
  * `kind` 在 `knownKinds` 里但**没有字段表**时不报错：没有表就没有可查的规则，
- * 这一层不替调用方编一条。四个题型的表在 `QUESTION_KIND_SHAPES`。
+ * 这一层不替调用方编一条（题面那条共同前提例外——它不依赖字段表，见 `stemProblem`）。
+ * 四个题型的表在 `QUESTION_KIND_SHAPES`。
  */
 export function questionKindProblem(
   item: Record<string, unknown>,
@@ -341,8 +371,6 @@ export function questionKindProblem(
           + '写这四种之一，或者按旧词表删掉 kind 字段（opts/ans 认作客观题，answer/criteria 认作开放题）',
       };
     }
-    const shape = QUESTION_KIND_SHAPES[raw as QuestionKind];
-    if (shape === undefined) return null;
     const foreign = foreignFieldOf(item, raw as QuestionKind);
     if (foreign !== null) {
       return {
@@ -352,6 +380,10 @@ export function questionKindProblem(
           + '题型专属字段不能混用，改字段或改 kind（`q` 与 `criteria` 是共享字段，任何题型都能带）',
       };
     }
+    const noStem = stemProblem(item, raw);
+    if (noStem !== null) return noStem;
+    const shape = QUESTION_KIND_SHAPES[raw as QuestionKind];
+    if (shape === undefined) return null;
     for (const field of shape.required) {
       if (missingField(item, field)) {
         return {
@@ -379,7 +411,8 @@ export function questionKindProblem(
       };
     }
   }
-  return null;
+  // 宽松路只放宽「题型专属字段」，题面这条共同前提照旧管。
+  return stemProblem(item);
 }
 
 export interface QuestionMixProblem {

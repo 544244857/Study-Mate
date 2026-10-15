@@ -261,10 +261,50 @@ test('字段的非空判据：空串、纯空白、选项少于两项、ans 不�
   }
 });
 
+test('题面（q）是所有题目的共同前提：缺 q / 空串 / 纯空白 / 非字符串都报，与题型无关（#173）', () => {
+  // 真机事故的写法：字段都对，题干却写成了 stem——阅读端无脑取 `item.q`，一取就 TypeError。
+  const stem = questionKindProblem({ kind: '客观题', stem: '题干写成了 stem', opts: ['a', 'b'], ans: 0, why: 'w' });
+  assert.equal(stem.code, 'missing-field');
+  assert.equal(stem.kind, '客观题');
+  assert.match(stem.message, /题面（q）/);
+
+  for (const item of [
+    {},                                              // 空壳题
+    { q: '' },
+    { q: '   ' },
+    { q: 42 },
+    { kind: '客观题', opts: ['a', 'b'], ans: 0, why: 'w' },
+    { kind: '预测验证', 预测: 'p', 比对: 'b' },
+    { kind: '开放题', answer: 'a', criteria: 'c' },
+    { kind: '交付物', 交付物: 'd', 证据: 'e' },
+    { opts: ['a', 'b'], ans: 0, why: 'w' },          // 不写 kind 的旧写法：这条共同前提照样管
+    { answer: 'a', criteria: 'c' },
+  ]) {
+    const problem = questionKindProblem(item);
+    assert.equal(problem?.code, 'missing-field', JSON.stringify(item));
+    assert.match(problem.message, /题面（q）/, JSON.stringify(item));
+  }
+
+  // 题面与题型专属字段同时缺：先报题面（共同前提排在专属字段之前，一次只报一条）
+  const both = questionKindProblem({ kind: '客观题', opts: ['a', 'b'], ans: 0 });
+  assert.equal(both.code, 'missing-field');
+  assert.match(both.message, /题面（q）/);
+  assert.doesNotMatch(both.message, /答完的一句解释/);
+
+  // 有题面的四种题型照旧零问题（这条判据不额外要求别的字段）
+  assert.equal(questionKindProblem({ kind: '客观题', q: 'q', opts: ['a', 'b'], ans: 1, why: 'w' }), null);
+  assert.equal(questionKindProblem({ kind: '预测验证', q: 'q', 预测: 'p', 比对: 'b' }), null);
+  assert.equal(questionKindProblem({ kind: '开放题', q: 'q', answer: 'a', criteria: 'c' }), null);
+  assert.equal(questionKindProblem({ kind: '交付物', q: 'q', 交付物: 'd', 证据: 'e' }), null);
+  assert.equal(questionKindProblem({ q: '旧写法只有题面' }), null);
+});
+
 test('knownKinds 可注入：词表换了判据跟着换（不在函数里硬编码第二份）', () => {
   const custom = ['选择', '填空'];
   assert.equal(questionKindProblem({ kind: '选择', q: 'q' }, custom), null, '认得的词就不报');
   assert.equal(questionKindProblem({ kind: '客观题', q: 'q' }, custom).code, 'unknown-kind');
+  // 没有字段表的自定义题型也逃不掉题面这条共同前提（那条判据不依赖字段表）
+  assert.match(questionKindProblem({ kind: '选择' }, custom).message, /题面（q）/);
 });
 
 /* ── 三、旧六档 → 三档：逐条断言（验收标准点名的那六条）─────────────────── */

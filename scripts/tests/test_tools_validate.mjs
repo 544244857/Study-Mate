@@ -210,6 +210,28 @@ test('造坏：锚点没题、题库多余键、title 与大纲不一致、图�
   assert.deepEqual(report.anchors.map((anchor) => anchor.resolution), ['missing', 'resolved']);
 });
 
+test('#173：题面写成 stem（缺 q）的题库逐条阻断，补上题面就放行', async (t) => {
+  const f = withTools(t);
+  const poolOf = (first) => JSON.stringify({
+    什么是变量: [first, { kind: '开放题', q: '举一个跨层的例子。', answer: '隧道。', criteria: '两层以上。' }],
+  }, null, 2);
+  const quizPath = path.join(f.subject.lessonsDir, '0001-var.quiz.json');
+  // 字段都对，唯独把题干写成了 stem——阅读端取 `item.q` 就崩
+  fs.writeFileSync(quizPath, poolOf({ kind: '客观题', stem: '题干写成了 stem', opts: ['a', 'b'], ans: 0, why: 'w' }));
+
+  const broken = await call(f.ctx, 'studymate_validate_lesson', { paths: ['demo/lessons/0001-var.md'] });
+  assert.equal(broken.blocking, true);
+  const problem = find(broken.reports[0], '题面（q）');
+  assert.ok(problem, messages(broken.reports[0]).join('\n'));
+  assert.match(problem.file, /0001-var\.quiz\.json$/);
+  assert.equal(problem.line, 3, '行号指向那道题的对象位置');
+
+  // 同一道题补上题面（其余字段一个没动）→ 放行
+  fs.writeFileSync(quizPath, poolOf({ kind: '客观题', q: '题干写对了', opts: ['a', 'b'], ans: 0, why: 'w' }));
+  const fixed = await call(f.ctx, 'studymate_validate_lesson', { paths: ['demo/lessons/0001-var.md'] });
+  assert.equal(fixed.blocking, false, messages(fixed.reports[0]).join('\n'));
+});
+
 test('题库坏 JSON / 顶层不是对象 —— 各报一条，不当成崩溃', async (t) => {
   const home = useHome(t);
   const subject = writeSubject(home.workspace, 'demo', { pool: '{ "什么是变量": [ ' });

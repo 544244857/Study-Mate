@@ -243,6 +243,38 @@ test('checkPoolKinds：带 criteria 的预测验证 / 交付物不报；真混�
   assert.match(issues[0].message, /开放题/);
 });
 
+test('checkPoolKinds：缺题面（q）按那道题的真实行号报 missing-field，合格题库零问题（#173）', () => {
+  const raw = [
+    '{',
+    '  "锚点一": [',
+    '    { "kind": "客观题", "q": "题", "opts": ["a", "b"], "ans": 0, "why": "w" },',
+    '    { "kind": "客观题", "stem": "题干写成了 stem", "opts": ["a", "b"], "ans": 0, "why": "w" },',
+    '    { "opts": ["a", "b"], "ans": 0, "why": "w" }',
+    '  ]',
+    '}',
+    '',
+  ].join('\n');
+  const issues = checkPoolKinds(JSON.parse(raw), { poolFile: 'p.quiz.json', poolRaw: raw });
+  assert.deepEqual(
+    issues.map((issue) => [issue.line, issue.code, issue.index]),
+    [[4, 'missing-field', 1], [5, 'missing-field', 2]],
+    '行号指向那道题的对象，不是锚点键；旧写法（没写 kind）那条也要报',
+  );
+  assert.equal(issues[0].file, 'p.quiz.json');
+  assert.equal(issues[0].anchor, '锚点一');
+  assert.match(issues[0].message, /题面（q）/);
+
+  // 四种题型各一道、都带题面 → 零问题
+  assert.deepEqual(checkPoolKinds({
+    锚点: [
+      { kind: '客观题', q: 'q1', opts: ['a', 'b'], ans: 0, why: 'w' },
+      { kind: '预测验证', q: 'q2', 预测: 'p', 比对: 'b' },
+      { kind: '开放题', q: 'q3', answer: 'a', criteria: 'c' },
+      { kind: '交付物', q: 'q4', 交付物: 'd', 证据: 'e' },
+    ],
+  }, { poolFile: 'p.quiz.json' }), []);
+});
+
 test('checkPoolKinds：值不是数组的键不在这里报（形状坏由 pool-shape 说）', () => {
   const issues = checkPoolKinds({ 锚点: { q: '不是数组' }, 空: [] }, { poolFile: 'a.quiz.json' });
   assert.deepEqual(issues, []);

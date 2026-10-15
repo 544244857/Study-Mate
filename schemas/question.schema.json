@@ -9,7 +9,7 @@
       "enum": ["客观题", "预测验证", "开放题", "交付物"],
       "description": "题型。可省：旧题库按字段推断（opts/ans 认作客观题，answer/criteria 认作开放题）。写了就必须是这四个之一，且字段要满足该题型的要求。"
     },
-    "q": { "type": "string", "description": "题面（纯文本；多行代码写进 ``` 围栏）" },
+    "q": { "type": "string", "description": "题面（纯文本；多行代码写进 ``` 围栏）。所有题目的共同前提：四种题型、写不写 kind 都必填（本 schema 顶层 required 的唯一一项）" },
     "opts": {
       "type": "array",
       "minItems": 2,
