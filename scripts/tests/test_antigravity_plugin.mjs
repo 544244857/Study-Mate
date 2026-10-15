@@ -90,7 +90,7 @@ test('导出的 Antigravity ZIP 是一份完整的插件：角色、技能、sch
   // 5. 静态材料：schema、工作区数据骨架、文档、logo
   for (const asset of [
     'assets/logo.png',
-    'templates/MEMORY.md',
+    'templates/MEMORY.yaml',
     'templates/MISSION.md',
     'templates/GLOSSARY.md',
     'templates/RESOURCES.md',

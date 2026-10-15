@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   StudyMate · 问答域 —— 共享记忆（`.learning/MEMORY.md`）的读法
+   StudyMate · 问答域 —— 共享记忆（`.learning/MEMORY.yaml`）的读法
 
    为什么单独一个文件：这份「共享记忆在哪、读不到算什么」的判据与建会话那条路由分开放——
    路由只管「会话怎么建、标题怎么写」，记忆的落点与缺省值单独一件事，套件也各自钉各自的那一半。
@@ -12,10 +12,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-/** 真宿主里的共享记忆：`.learning/MEMORY.md`；读不到就是空（不是错误）。 */
+/** 真宿主里的共享记忆：`.learning/MEMORY.yaml`；读不到就是空（不是错误）。 */
 export function readMemoryFromWorkspace(workspace: string): string {
   try {
-    return fs.readFileSync(path.resolve(workspace, '.learning', 'MEMORY.md'), 'utf8');
+    return fs.readFileSync(path.resolve(workspace, '.learning', 'MEMORY.yaml'), 'utf8');
   } catch {
     return '';
   }
