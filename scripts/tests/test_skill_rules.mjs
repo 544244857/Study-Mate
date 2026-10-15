@@ -392,6 +392,8 @@ const RULES = {
     ['出题逐锚点交题或交一行 empty_reason（此规则归本角色规格）', '按锚点清单逐个锚点出题'],
     ['题目按锚点写成练习题库（键逐字对应，结构见格式文档 §4）', '键与「课件内容文件」的锚点逐字对应，对不上直接报错'],
     ['不改课程与档案', '不改课程与档案文件'],
+    // #193：题库在自己暂存目录里、内容文件也还没打进 empty_reason——对账只可能发生在搬入后。
+    ['锚点对账在搬入后（题库在 deliver/ 里，搬入前对不上）', '搬入后对账'],
   ],
   'resource-scout': [
     ['staged 资源清单写 handoff manifest', 'handoff.json'],
@@ -537,7 +539,9 @@ const RULES = {
     ['empty_reason 由出题人定，讲解不写', '`empty_reason` 由出题人定，你不写'],
     ['::: practice 的层级是徽标（写中文阶段名）', '会显示成徽标'],
     ['每个指令块都要有单独一行 ::: 收尾', '每个指令块都要有单独一行 `:::` 收尾'],
-    ['交稿前 --check 只修语法类报错', '题库/锚点类报错此时是预期的'],
+    ['交稿前用 studymate_validate_lesson 自检', '`studymate_validate_lesson`'],
+    // #193：题库没产出时，题目位置相关的判定不再阻断——自检的口径改成「格式层改到没有」。
+    ['题库未产出时题目位置只报「待对账」提示，格式层每一行改到没有', '待对账'],
     ['页面由阅读端产出（结构/指针/图注/公式都不归讲解）', '页面结构、上下节课指针、图注编号、图注的来源与许可、公式排版、成品样式**都不是你写的**'],
     ['只交内容：认不出的写法带行号拦下', '认不出的写法会被带行号拦下，不静默降级'],
     ['交稿前用 studymate_validate_lesson 自检', '`studymate_validate_lesson`'],
@@ -568,7 +572,7 @@ const RULES = {
     ['课件页面内单张 ≤500 KB', '≤500 KB'],
     ['着眼点照顾到、版式自定', '着眼点'],
     ['输入含 lab 载体（实操才有）', '`kind: 实操` 才有小 lab，给载体与位置'],
-    ['自检别消掉预期的题库报错', '尤其别补 `empty_reason`'],
+    ['自检别为「待对账」提示补 empty_reason、别删题目位置（旧说法「别消它」已退役）', '尤其别补 `empty_reason`'],
     ['lab 内容不抄进课件、课件只指向它', '课件只指向它'],
     ['不碰课程与档案（归总控）', '归总控'],
   ],
@@ -659,6 +663,39 @@ for (const [skill, rules] of Object.entries(RULES)) {
     }
     assert.deepEqual(missing, [],
       `${skill}: ${missing.length}/${rules.length} 条规则在新版里找不到\n${missing.join('\n')}`);
+  });
+}
+
+/* ── 否定式规则：退役的说法「不许再出现」也得有人守 ──────────────────────
+   形状与 RULES 一样（技能, 说明, 片段），断言反过来。口径被改写时，旧句从 RULES 搬到这里；
+   不搬就等于没人守——哪天改回去也没人吭声。片段仍按「这个技能够不够得着」查。 */
+const FORBIDDEN = {
+  'learning-coach': [
+    ['题库未产出不再说成「预期的报错」（#193 已降级为待对账提示）', '报错此时是预期的'],
+    ['题库未产出时不再要求「别消它」——已没有阻断可消', '别消它'],
+  ],
+};
+
+/** 命中的退役说法；抽成函数是为了能拿合成数据自证它不空转。 */
+function forbiddenHits(skill, rules, texts) {
+  const hits = [];
+  for (const [desc, fragment] of rules) {
+    for (const name of reachable(skill)) {
+      if ((texts.get(name) || '').includes(fragment)) {
+        hits.push(`· ${desc}（${JSON.stringify(fragment)} 还在 ${name}）`);
+      }
+    }
+  }
+  return hits;
+}
+
+for (const [skill, rules] of Object.entries(FORBIDDEN)) {
+  test(`${skill}：${rules.length} 条退役说法确实不在它够得着的地方`, () => {
+    const hits = forbiddenHits(skill, rules, SKILL_TEXT);
+    assert.deepEqual(hits, [], `${skill}：退役的说法又回来了\n${hits.join('\n')}`);
+    // 机制自检（合成数据）：真放一句进去必须被抓出来，否则这段否定断言只是没人跑过的声明。
+    const synthetic = new Map([['learning-coach', '这句里藏着：报错此时是预期的']]);
+    assert.equal(forbiddenHits('learning-coach', [['合成', '报错此时是预期的']], synthetic).length, 1);
   });
 }
 
