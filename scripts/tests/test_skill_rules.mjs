@@ -739,7 +739,10 @@ for (const [skill, rules] of Object.entries(FORBIDDEN)) {
    **写前自检**（首现自检 ＋ 块语法）必须排在产出「课件内容文件」那一步之前，落盘后那一步
    必须排在它之后、且只按行修。规则写对了却排在写盘之后，等于没写——#198 要理顺的就是这个。 */
 test('learning-coach：写内容是「写前自检 → 整份写出 → 落盘后按行修」', () => {
-  const steps = SKILL_TEXT.get('learning-coach').split('## 写内容')[1].split('## 速查页')[0];
+  const body = SKILL_TEXT.get('learning-coach');
+  assert.ok(body.includes('## 写内容') && body.includes('## 速查页'),
+    'learning-coach 的「写内容」与「速查页」两节标题要还在（这条顺序断言按它们取段）');
+  const steps = body.split('## 写内容')[1].split('## 速查页')[0];
   const at = fragment => steps.indexOf(fragment);
   const marks = {
     写前自检: at('**写前自检**'),
