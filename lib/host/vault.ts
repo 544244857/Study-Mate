@@ -414,7 +414,7 @@ export function createWorkspaceVault(): Vault {
 
       case 'memory': {
         const workspace = workspaceOrThrow(domain);
-        const file = path.join(workspace, '.learning', 'MEMORY.md');
+        const file = path.join(workspace, '.learning', 'MEMORY.yaml');
         const view = readFileView(file);
         return { file, present: view.present, markdown: view.text };
       }

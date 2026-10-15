@@ -135,7 +135,7 @@ export interface AskSessionDeps {
   agentDefaultModel?: AskDefaultModel | null;
   /** `ctx.llm` 拿到的模型服务（可能没有） */
   llm?: unknown;
-  /** 读共享记忆（`.learning/MEMORY.md`） */
+  /** 读共享记忆（`.learning/MEMORY.yaml`） */
   readMemory?: (workspace: string) => string;
   /** 现造会话 id（测试注入；不注入就是 `studymate-qa-<uuid>`） */
   createId?: () => string;

@@ -35,21 +35,24 @@ import {
 const TEMPS = [];
 after(() => { for (const dir of TEMPS) fs.rmSync(dir, { recursive: true, force: true }); });
 
-const MEMORY_MD = '讲法偏好：先给结论再给为什么。\n';
+const MEMORY_YAML = '讲法偏好：先给结论再给为什么。\n';
 
-function makeWorkspace({ withMemory = true } = {}) {
+/** `onlyOld`：只在旧名（`MEMORY.md`）那份文件里写同样的正文——#189 起注入的文本**只**来自
+    `MEMORY.yaml`，旧名就是一份普通文件，读侧不兜它、也没有兼容分支。 */
+function makeWorkspace({ withMemory = true, onlyOld = false } = {}) {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'studymate-qa-session-'));
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
-  if (withMemory) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), MEMORY_MD);
+  if (withMemory) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), MEMORY_YAML);
+  if (onlyOld) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), MEMORY_YAML);
   return { root, workspace };
 }
 
 /* ── 假宿主半：预设注册表 / agents / sessionTitle / llm ─────────────────── */
 
 /** 记下每一次调用的假 ctx 服务。 */
-function fakeHost({ memory = MEMORY_MD, preset = { id: QA_AGENT_PRESET }, failResolve = null, withTitle = true, withAgents = true, withDefaultModel = true, selection = { provider: 'fake-provider', model: 'fake-model' } } = {}) {
+function fakeHost({ memory = MEMORY_YAML, preset = { id: QA_AGENT_PRESET }, failResolve = null, withTitle = true, withAgents = true, withDefaultModel = true, selection = { provider: 'fake-provider', model: 'fake-model' } } = {}) {
   const calls = { resolve: [], acquireScope: [], create: [], mount: [], disposeScope: 0, inject: [], rename: [], currentSelection: [] };
   const messages = [];
   const created = new Map();
@@ -194,7 +197,7 @@ test('#105 建会话：共享记忆注入一条且只注入一条（模型可见
   assert.equal(typeof message.id, 'string');
   assert.ok(message.id.length > 0);
   assert.equal(message.role, 'user');
-  assert.deepEqual(message.content, [{ type: 'text', text: MEMORY_MD.trim() }]);
+  assert.deepEqual(message.content, [{ type: 'text', text: MEMORY_YAML.trim() }]);
   assert.equal(message.source.kind, 'user');
 });
 
@@ -207,6 +210,17 @@ test('#105 建会话：共享记忆为空就不注入（不是注入一条空的
   assert.equal(view.memoryInjected, false);
   assert.equal(host.messages.length, 0);
   // 会话照样建得起来：没有共享记忆的新工作区不是错误
+  assert.equal(host.calls.create.length, 1);
+});
+
+test('#189 建会话：只有旧名那份文件时也不注入——读侧不兜旧名，不留兼容分支', async () => {
+  const { workspace } = makeWorkspace({ withMemory: false, onlyOld: true });
+  const host = fakeHost();
+  const view = await openAskSession(depsFor(workspace, host), { subject: '网络' });
+
+  assert.equal(view.ok, true, '旧名不认不等于建不成会话');
+  assert.equal(view.memoryInjected, false, '旧名就是一份普通文件：它的正文一个字都不该进上下文');
+  assert.equal(host.messages.length, 0);
   assert.equal(host.calls.create.length, 1);
 });
 

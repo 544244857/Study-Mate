@@ -101,7 +101,7 @@ function makeWorkspace(tree = {}, { memory = '# 共享记忆\n' } = {}) {
   const root = tmpRoot();
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
-  if (memory !== null) writeTree(path.join(workspace, '.learning'), { 'MEMORY.md': memory });
+  if (memory !== null) writeTree(path.join(workspace, '.learning'), { 'MEMORY.yaml': memory });
   writeTree(workspace, tree);
   return { root, workspace };
 }
@@ -122,7 +122,7 @@ test('readLibrary 的顶层就那五个键，含义各自钉住', () => {
   assert.equal(payload.workspace, workspace);
   // generated_at 是 ISO 时间戳（只钉形状，不钉具体时刻）
   assert.match(payload.generated_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
-  // memory_md 是 .learning/MEMORY.md 的正文，没有就是空串
+  // memory_md 是 .learning/MEMORY.yaml 的正文，没有就是空串
   assert.equal(payload.memory_md, '# 共享记忆\n');
   // today 取各科目 updated_at 的字典序最大者的前 10 位
   assert.equal(payload.today, '2026-05-06');

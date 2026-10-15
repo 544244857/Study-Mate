@@ -32,7 +32,7 @@ function withTools(t, options = {}) {
 
 test('开场一次调用拿到：工作区路径、今天、科目现状（当前节点 + 三档）、记录与能力', async (t) => {
   const f = withTools(t);
-  fs.writeFileSync(path.join(f.workspace, '.learning', 'MEMORY.md'), '# 画像\n\n喜欢动手。\n');
+  fs.writeFileSync(path.join(f.workspace, '.learning', 'MEMORY.yaml'), '# 画像\n\n喜欢动手。\n');
   fs.writeFileSync(path.join(f.dir, 'learning-records', '2026-05-06-变量.md'),
     '# 变量这一课\n\n- 日期：2026-05-06\n\n学会了。\n');
 
@@ -61,6 +61,8 @@ test('开场一次调用拿到：工作区路径、今天、科目现状（当�
 
   assert.equal(value.memory.present, true);
   assert.match(value.memory.markdown, /喜欢动手/);
+  // #189：回报的路径要以新名结尾，不是只「读到了内容」——总控照着这个路径去读盘
+  assert.match(value.memory.file, /[\\/]\.learning[\\/]MEMORY\.yaml$/);
   assert.equal(value.capabilities.model.available, false);
   assert.deepEqual(value.notes, []);
 });
