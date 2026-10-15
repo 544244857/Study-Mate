@@ -744,6 +744,8 @@ if (process.argv.includes('--probe')) {
     assert.equal(fs.existsSync(path.join(config.root, 'preset', 'learning', 'agent.cordis.yml')), true);
     assert.equal(fs.existsSync(path.join(config.root, 'schemas', 'curriculum.schema.json')), true);
     assert.equal(fs.existsSync(path.join(config.root, 'templates', 'MEMORY.yaml')), true);
+    // #197：工作区数据骨架里的 lab 骨架也要在装机后存在（这条要真 DSH，属按需组）
+    assert.equal(fs.existsSync(path.join(config.root, 'templates', 'lab', '0000-示例', 'check.sh')), true);
     assert.equal(fs.existsSync(path.join(config.root, 'preset', 'skills', 'learning-system', 'SKILL.md')), true);
     assert.equal(fs.realpathSync(config.workspace), fs.realpathSync(f.workspace));
   });
