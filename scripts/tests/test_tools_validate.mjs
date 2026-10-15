@@ -146,6 +146,28 @@ test('干净的课件放行，并给出锚点四态（resolved）', async (t) =>
   assert.deepEqual(report.node, { id: 'var', title: '变量', number: '0001' });
 });
 
+test('#175：带 criteria 的预测验证 / 交付物题库放行，真混用仍逐条阻断', async (t) => {
+  // 判分要点（criteria）是共享字段：这两种题型带着它本来是出题规范的正常写法
+  const clean = withTools(t, {
+    pool: JSON.stringify({
+      什么是变量: [
+        { kind: '预测验证', q: '先预测再跑', 预测: '5 次', 比对: '实测 5 次', criteria: '先预测、有实测、能解释差异' },
+        { kind: '交付物', q: '实现并跑测试', 交付物: 'ipcalc.py', 证据: 'python3 -m pytest', criteria: '测试通过并说明契约' },
+      ],
+    }, null, 2),
+  });
+  const value = await call(clean.ctx, 'studymate_validate_lesson', { paths: ['demo/lessons/0001-var.md'] });
+  assert.equal(value.blocking, false, messages(value.reports[0]).join('\n'));
+
+  // 真正混用专属字段（交付物题带开放题的 answer 而缺自己那两样）照旧阻断
+  const mixed = withTools(t, {
+    pool: JSON.stringify({ 什么是变量: [{ kind: '交付物', q: '只有答案', answer: 'a' }] }, null, 2),
+  });
+  const bad = await call(mixed.ctx, 'studymate_validate_lesson', { paths: ['demo/lessons/0001-var.md'] });
+  assert.equal(bad.blocking, true);
+  assert.ok(find(bad.reports[0], '题型专属字段不能混用'), messages(bad.reports[0]).join('\n'));
+});
+
 test('造坏：锚点没题、题库多余键、title 与大纲不一致、图片不存在 —— 逐条带行号', async (t) => {
   const home = useHome(t);
   const subject = writeSubject(home.workspace, 'demo', {

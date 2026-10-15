@@ -308,6 +308,9 @@ const groups = {
       // 界面文案里一个判决词都没有，入口只有一颗「跑一次」按钮且不点不跑。
       // 渲染函数在工厂闭包里，靠 fixtures/client_harness.mjs 的 React 桩调起来。
       'scripts/tests/test_client_lab_run.mjs',
+      // #175：判分要点（criteria）是共享字段——预测验证 / 交付物的展开面板也要显示它，
+      // 开放题照旧两块。同一套夹具（client_harness.mjs）把 SubjectiveBody 逐题型调起来。
+      'scripts/tests/test_client_quiz_fields.mjs',
       // #69：架构边界与依赖无环断言（扫真实 import 图，域规则表默认拒绝）
       'scripts/tests/test_architecture_boundaries.mjs',
       // 工具域 lib/tools/**（#68）：域声明与越权即抛、工作区摘要、四个校验器、两个改写工具。

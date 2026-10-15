@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import {
   LAYERS, LAYER_RULES, judgeLayer, meetsLayer, missingCriteria,
   QUESTION_KINDS, QUESTION_KIND_SHAPES, QUESTION_RULES, layersForQuestion, questionsForLayer, servesLayer,
-  checkQuestionMix, inferQuestionKind, questionKindProblem,
+  checkQuestionMix, inferQuestionKind, questionKindProblem, SHARED_QUESTION_FIELDS,
   TIERS, LEGACY_TIERS, LEGACY_TIER_MAP, toTier, isTier,
   EVIDENCE_BY_TRUST, NON_INDEPENDENT_EVIDENCE, isIndependentEvidence, evidenceRank,
   advance, checkCoverage,
@@ -207,6 +207,43 @@ test('旧题库（不写 kind）照旧读得进：只查两组旧字段同时出
   const both = questionKindProblem({ q: 'q', opts: ['a', 'b'], ans: 0, why: 'w', answer: 'a', criteria: 'c' });
   assert.equal(both.code, 'ambiguous');
   assert.match(both.message, /只能二选一/);
+});
+
+test('criteria 是共享字段：显式四种题型都能带，混用只按题型专属字段判（#175）', () => {
+  // 四种题型各带一份判分要点——都不报（判分要点是每种题型的判分入口，不只开放题要）
+  assert.equal(questionKindProblem({ kind: '客观题', q: 'q', opts: ['a', 'b'], ans: 0, why: 'w', criteria: 'c' }), null);
+  assert.equal(questionKindProblem({ kind: '预测验证', q: 'q', 预测: 'p', 比对: 'b', criteria: 'c' }), null);
+  assert.equal(questionKindProblem({ kind: '开放题', q: 'q', answer: 'a', criteria: 'c' }), null);
+  assert.equal(questionKindProblem({ kind: '交付物', q: 'q', 交付物: 'd', 证据: 'e', criteria: 'c' }), null);
+
+  // 共享 ≠ 都不要：开放题缺 criteria 仍报 missing-field
+  assert.equal(questionKindProblem({ kind: '开放题', q: 'q', answer: 'a' }).code, 'missing-field');
+
+  // 真正的混用照旧报 ambiguous，且点名的是另一组的**专属字段**
+  const choiceInPredict = questionKindProblem({ kind: '预测验证', q: 'q', 预测: 'p', 比对: 'b', opts: ['a', 'b'], ans: 0, criteria: 'c' });
+  assert.equal(choiceInPredict.code, 'ambiguous');
+  assert.match(choiceInPredict.message, /客观题/);
+  const answerInDeliverable = questionKindProblem({ kind: '交付物', q: 'q', answer: 'a' });
+  assert.equal(answerInDeliverable.code, 'ambiguous');
+  assert.match(answerInDeliverable.message, /开放题/);
+
+  // 未知题型照旧先报 unknown-kind（带 criteria 也不改变）
+  assert.equal(questionKindProblem({ kind: '选择题', q: 'q', criteria: 'c' }).code, 'unknown-kind');
+});
+
+test('共享字段表只有题面（#173）与判分要点，且每种题型都剩得下专属字段', () => {
+  assert.deepEqual([...SHARED_QUESTION_FIELDS], ['q', 'criteria']);
+  assert.ok(QUESTION_KIND_SHAPES['开放题'].required.includes('criteria'), '开放题仍必填 criteria');
+  // 专属字段两两不交：一个字段只属于一种题型，混用判定才能「谁先命中就是谁」（没有二义）
+  const ownerOf = new Map();
+  for (const kind of QUESTION_KINDS) {
+    const exclusive = QUESTION_KIND_SHAPES[kind].required.filter((field) => !SHARED_QUESTION_FIELDS.includes(field));
+    assert.ok(exclusive.length > 0, `${kind} 一个专属字段都没有——混用就无从判起`);
+    for (const field of exclusive) {
+      assert.equal(ownerOf.has(field), false, `专属字段 ${field} 同时属于「${ownerOf.get(field)}」与「${kind}」`);
+      ownerOf.set(field, kind);
+    }
+  }
 });
 
 test('字段的非空判据：空串、纯空白、选项少于两项、ans 不是整数都算缺', () => {

@@ -221,6 +221,40 @@ export const QUESTION_KIND_SHAPES: Readonly<Record<QuestionKind, QuestionKindSha
   交付物: { kind: '交付物', required: ['交付物', '证据'] },
 };
 
+/**
+ * **共享字段**：四种题型都能带，谁也不能拿它当「这题其实是另一种题」的判据（#175）。
+ *
+ * 只有这两样：`q`（题面，见 #173）与 `criteria`（判分要点——出题规范要求每题的判分要点都写进
+ * 它，不只开放题）。一种题型的**专属字段**就是它 `required` 里去掉这一份。
+ */
+export const SHARED_QUESTION_FIELDS: readonly string[] = ['q', 'criteria'];
+
+/** 一种题型的**专属字段**：它自己的必填字段里去掉共享字段。混用判定只看这一份。 */
+function exclusiveFieldsOf(kind: QuestionKind): readonly string[] {
+  return QUESTION_KIND_SHAPES[kind].required.filter((field) => !SHARED_QUESTION_FIELDS.includes(field));
+}
+
+/**
+ * 显式写了 `kind` 的题里，有没有**别的题型的专属字段**。
+ *
+ * 为什么不能沿用 `inferQuestionKind`：那份推断把 `criteria` 当成开放题的信号（旧题库的口径），
+ * 而 `criteria` 从 #175 起是共享字段——拿它判混用会把「预测验证 + 判分要点」这种正常题判死。
+ * 返回 `null` 表示没有混用；有则连字段归属的题型一起给出，报错才能说清混了哪一组。
+ */
+function foreignFieldOf(
+  item: Record<string, unknown>,
+  kind: QuestionKind,
+): { field: string; owner: QuestionKind } | null {
+  for (const owner of QUESTION_KINDS) {
+    if (owner === kind) continue;
+    // 专属字段表两两不交（套件断言这条不变式）：一个字段只属于一种题型，所以谁先命中就是谁。
+    for (const field of exclusiveFieldsOf(owner)) {
+      if (Object.hasOwn(item, field)) return { field, owner };
+    }
+  }
+  return null;
+}
+
 /** 字段名的中文说法：报错要能直接读，不用读者自己去猜 `opts` 是什么。 */
 const FIELD_LABELS: Readonly<Record<string, string>> = {
   q: '题面（q）',
@@ -254,6 +288,10 @@ function missingField(item: Record<string, unknown>, field: string): boolean {
  * 推断不出来返回 `null`——**不猜**：猜错的代价是拿一种题型的判分入口去判另一种题。
  * 调用方对「显式写了 kind」与「靠推断」用不同的严格度：显式写了就要逐字段满足，
  * 推断出来的只做形状冲突检查（旧题库不该因为新规矩而读不进去）。
+ *
+ * **`criteria` 在这里仍是开放题的信号**（旧题库当年只把它用在开放题上），但它是共享字段：
+ * 显式写了 `kind` 的那条路**不许**拿这份推断当混用判据，只看 `QUESTION_KIND_SHAPES` 里的
+ * 专属字段（见 `foreignFieldOf`）。
  */
 export function inferQuestionKind(item: Record<string, unknown>): QuestionKind | null {
   const choice = Object.hasOwn(item, 'opts') || Object.hasOwn(item, 'ans');
@@ -281,6 +319,9 @@ export interface QuestionKindProblem {
  * 就该按那种题的判分入口给全字段）；没写 `kind` 的题只查「两组旧字段同时出现」这一条——
  * 旧题库（`opts`/`ans`/`why` 或 `answer`/`criteria`）因此照旧读得进，不会因为新规矩变红。
  *
+ * **混用只看题型专属字段**（#175）：`q` 与 `criteria` 是共享字段（`SHARED_QUESTION_FIELDS`），
+ * 任何题型带它们都不算混用——显式 `预测验证`/`交付物` 带判分要点是正常的，不该报 `ambiguous`。
+ *
  * `kind` 在 `knownKinds` 里但**没有字段表**时不报错：没有表就没有可查的规则，
  * 这一层不替调用方编一条。四个题型的表在 `QUESTION_KIND_SHAPES`。
  */
@@ -290,7 +331,6 @@ export function questionKindProblem(
 ): QuestionKindProblem | null {
   const raw = item.kind;
   const explicit = raw !== undefined && raw !== null;
-  const inferred = inferQuestionKind(item);
 
   if (explicit) {
     if (typeof raw !== 'string' || !knownKinds.includes(raw)) {
@@ -301,16 +341,17 @@ export function questionKindProblem(
           + '写这四种之一，或者按旧词表删掉 kind 字段（opts/ans 认作客观题，answer/criteria 认作开放题）',
       };
     }
-    if (inferred !== null && inferred !== raw) {
+    const shape = QUESTION_KIND_SHAPES[raw as QuestionKind];
+    if (shape === undefined) return null;
+    const foreign = foreignFieldOf(item, raw as QuestionKind);
+    if (foreign !== null) {
       return {
         code: 'ambiguous',
         kind: raw,
-        message: `题型标成「${raw}」，字段却是「${inferred}」那一组——`
-          + '两组字段不能同时出现，改字段或改 kind',
+        message: `题型标成「${raw}」，却带了「${foreign.owner}」的 ${FIELD_LABELS[foreign.field] ?? foreign.field}——`
+          + '题型专属字段不能混用，改字段或改 kind（`q` 与 `criteria` 是共享字段，任何题型都能带）',
       };
     }
-    const shape = QUESTION_KIND_SHAPES[raw as QuestionKind];
-    if (shape === undefined) return null;
     for (const field of shape.required) {
       if (missingField(item, field)) {
         return {
@@ -324,6 +365,8 @@ export function questionKindProblem(
     return null;
   }
 
+  // 没写 kind：按旧词表推断。推断得出来就没有形状冲突；推不出来再看是不是两组旧字段同时出现。
+  const inferred = inferQuestionKind(item);
   if (inferred === null) {
     const choice = Object.hasOwn(item, 'opts') || Object.hasOwn(item, 'ans');
     const open = Object.hasOwn(item, 'answer') || Object.hasOwn(item, 'criteria');
