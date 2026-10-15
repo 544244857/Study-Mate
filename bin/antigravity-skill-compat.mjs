@@ -428,10 +428,12 @@ export function adaptAntigravitySkill(content, name) {
     // 回报配置里的工作区，这里换成 Antigravity 的选定顺序（用户指定 → 环境变量 → 默认
     // `~/StudyMate`）。**暂存模式已删**（ADR-0008），所以没有落点问答、没有偏好文件、
     // 也没有搬运——只在写不进去时问一次可写位置。
+    // 锚点带上了 #192 那句「两份记忆全角色直写」的例外：正文改口径时这里要同步改，
+    // 改漏了 `replaceRequired` 会整份报错（不是静默空转）。
     adaptedBody = replaceRequired(
       adaptedBody,
-      /^学习状态由你（主教练）亲自读写，不派角色。\*\*工作区根[^\n]*/m,
-      '学习状态由你（主教练）亲自读写，不派角色。**工作区根**：按「Antigravity 宿主约定」选定 `<LEARN_WORKSPACE>`（用户本次指定目录 → 环境变量 → 默认 `~/StudyMate`）；学习数据全在它下面，不另建临时工作区，也不在会话目录里找学习文件。',
+      /^学习状态由你（主教练）亲自读写，不派角色；\*\*唯一的例外是两份记忆[^\n]*/m,
+      '学习状态由你（主教练）亲自读写，不派角色；**唯一的例外是两份记忆——任何角色收尾时都直接往里追加，不经过你转交**。**工作区根**：按「Antigravity 宿主约定」选定 `<LEARN_WORKSPACE>`（用户本次指定目录 → 环境变量 → 默认 `~/StudyMate`）；学习数据全在它下面，不另建临时工作区，也不在会话目录里找学习文件。',
       'record-keeping workspace root'
     );
     adaptedBody = replaceRequired(
