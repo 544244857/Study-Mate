@@ -30,6 +30,11 @@ test('路径 → 域：课件、题库、作答、记忆与「新建科目」各
     ['.learning/subjects/demo/MISSION.md', ['mission']],
     ['.learning/subjects/demo/GLOSSARY.md', ['glossary']],
     ['.learning/subjects/demo/RESOURCES.md', ['resources']],
+    // #191：科目记忆——科目目录下那份 `MEMORY.yaml`（只装「积累」，永不进任何上下文）。
+    // 它**自成一域**，不是 `memory`：那一域是**注入源的切片**（共享记忆的画像三节），而科目
+    // 记忆既不在任何载荷里、也不进任何注入。混进 `memory` 会让页面以为要重取画像；落回
+    // `subject`（认不出时的兜底）则等于监听域根本没认出这份文件。
+    [`.learning/subjects/demo/${memory.MEMORY_FILE}`, ['subject-memory']],
     // 科目这一层：新建/删除/改名一个科目
     ['.learning/subjects/demo', ['subjects']],
     ['.learning/subjects', ['subjects']],
@@ -52,6 +57,14 @@ test('路径 → 域：课件、题库、作答、记忆与「新建科目」各
   }
   // Windows 上 fs.watch 给的是反斜杠
   assert.deepEqual(domains.domainsOfPath('.learning\\subjects\\demo\\lessons\\0001-var.md'), ['lesson']);
+
+  // #191 的另一半：认出来，**且不因此把它当注入源**。监听域一个字节的内容都不带，所以这里
+  // 判的是域名——`memory` 是「注入源（共享记忆画像三节）变了」的意思，科目记忆不许借它。
+  const subjectMemory = domains.domainsOfPath(`.learning/subjects/demo/${memory.MEMORY_FILE}`);
+  assert.equal(subjectMemory.includes('memory'), false,
+    '科目记忆借了 `memory` 域：页面会以为那份只含画像三节的载荷该重取');
+  assert.ok(domains.WATCH_DOMAINS.includes('subject-memory'),
+    '`subject-memory` 要在监听域词表里（形状是稳定契约：阅读端与真 DSH 探针都按它断言）');
 });
 
 test('一批路径 → 通知里的 domains：升序、去重、空集兜底', () => {

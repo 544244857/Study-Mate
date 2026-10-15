@@ -60,16 +60,36 @@ const MEMORY_INJECTED = [
   '  有效的讲法: 先给结论再给为什么。',
 ].join('\n');
 
+/** #191 科目记忆：**只对这门课成立**的做法与事实（科目目录下那份 `MEMORY.yaml`）。它和共享
+    记忆一样永不进任何上下文，所以每个夹具工作区都真写一份**带内容**的进去——否定断言于是
+    处在「盘上真有一份科目记忆」的状态里，而不是靠「没人读它」。用词（`/tmp/lab-probe`）
+    在共享记忆里一次都不出现，否定断言不会因为共用词而假阳性。 */
+const SUBJECT_MEMORY_YAML = [
+  '# 科目记忆 —— 只对这门课成立的做法与事实。',
+  '#',
+  '积累:',
+  '  演示环境: 这门课的 lab 要在 /tmp/lab-probe 下跑。',
+  '',
+].join('\n');
+
+const SUBJECT_MEMORY_FRAGMENTS = ['科目记忆', '演示环境', '/tmp/lab-probe'];
+
 /** `onlyOld`：只在旧名（`MEMORY.md`）那份文件里写同样的正文——#189 起注入的文本**只**来自
     `MEMORY.yaml`，旧名就是一份普通文件，读侧不兜它、也没有兼容分支。
-    `memory`：换一份记忆文本（例如「只有 `积累`」那种没有画像内容的文件）。 */
-function makeWorkspace({ withMemory = true, onlyOld = false, memory = MEMORY_YAML } = {}) {
+    `memory`：换一份记忆文本（例如「只有 `积累`」那种没有画像内容的文件）。
+    `subjectMemory`：换一份科目记忆的文本（`null` = 这份工作区里没有科目记忆）。 */
+function makeWorkspace({ withMemory = true, onlyOld = false, memory = MEMORY_YAML, subjectMemory = SUBJECT_MEMORY_YAML } = {}) {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'studymate-qa-session-'));
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
   if (withMemory) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), memory);
   if (onlyOld) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), memory);
+  if (subjectMemory !== null) {
+    const subjectDir = path.join(workspace, '.learning', 'subjects', 'demo');
+    fs.mkdirSync(subjectDir, { recursive: true });
+    fs.writeFileSync(path.join(subjectDir, 'MEMORY.yaml'), subjectMemory);
+  }
   return { root, workspace };
 }
 
@@ -262,6 +282,28 @@ test('#105 建会话：共享记忆为空就不注入（不是注入一条空的
   assert.equal(host.messages.length, 0);
   // 会话照样建得起来：没有共享记忆的新工作区不是错误
   assert.equal(host.calls.create.length, 1);
+});
+
+test('#191 建会话：科目记忆一个字都不进注入（盘上那份带内容的科目记忆是活的）', async () => {
+  const { workspace } = makeWorkspace();
+  // 正面：盘上真有一份**带内容**的科目记忆——不然这条否定断言只是「文件不存在」
+  const onDisk = fs.readFileSync(path.join(workspace, '.learning', 'subjects', 'demo', 'MEMORY.yaml'), 'utf8');
+  assert.ok(onDisk.includes('/tmp/lab-probe'), '夹具要真的把科目记忆的内容写下去');
+
+  const host = fakeHost();
+  const view = await openAskSession(depsFor(workspace, host), { subject: '网络' });
+
+  assert.equal(view.ok, true);
+  assert.equal(view.memoryInjected, true, '共享记忆的画像三节照样注入');
+  // 科目记忆不新增注入条目：开张仍只有共享记忆那一条
+  assert.equal(host.messages.length, 1, '科目记忆被当成可注入的东西了：' + JSON.stringify(host.messages));
+  for (const message of host.messages) {
+    const text = message.content.map((block) => block.text ?? '').join('\n');
+    for (const fragment of SUBJECT_MEMORY_FRAGMENTS) {
+      assert.equal(text.includes(fragment), false,
+        `注入文本里出现了科目记忆的「${fragment}」：${text}`);
+    }
+  }
 });
 
 test('#189 建会话：只有旧名那份文件时也不注入——读侧不兜旧名，不留兼容分支', async () => {

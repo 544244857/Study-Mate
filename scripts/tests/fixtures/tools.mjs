@@ -97,6 +97,9 @@ export function subjectYaml(slug, { name = '演示科目', status = '进行中' 
 
 /**
  * 造一个科目目录。默认两个概念节点、第一课带题库、第二课只有内容文件。
+ * `options.subjectMemory` 给了就再写一份**科目记忆**（`<科目>/MEMORY.yaml`，#191）——
+ * 默认不写：科目记忆是**按需存在**的（建科目时预置），要钉「它一个字都不进上下文」的
+ * 用例自己显式带上，别的用例不必凭空多一份文件。
  * @returns {{dir: string, lessonsDir: string}}
  */
 export function writeSubject(workspace, slug, options = {}) {
@@ -104,6 +107,9 @@ export function writeSubject(workspace, slug, options = {}) {
   const lessonsDir = path.join(dir, 'lessons');
   fs.mkdirSync(lessonsDir, { recursive: true });
   fs.mkdirSync(path.join(dir, 'learning-records'), { recursive: true });
+  if (options.subjectMemory !== undefined && options.subjectMemory !== null) {
+    fs.writeFileSync(path.join(dir, 'MEMORY.yaml'), options.subjectMemory);
+  }
   const nodes = options.nodes ?? [
     { id: 'var', title: '变量' },
     { id: 'fn', title: '函数', prerequisites: ['var'] },

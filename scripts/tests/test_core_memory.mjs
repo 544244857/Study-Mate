@@ -180,6 +180,69 @@ test('#190 科目记忆按「只有一节」判：多出来的节名要报出来
   assert.equal(view.injectable, '');
 });
 
+/* ── 科目记忆的骨架（#191）─────────────────────────────────────────────
+   目标文件名与共享记忆**一样**（都叫 `MEMORY.yaml`），所以 `templates/` 下的源名必须
+   可区分：共享那份占着 `MEMORY.yaml`，科目这份叫 `subject-MEMORY.yaml`。
+   判据对着真模板跑：建科目时预置的那份骨架必须解析得开、只有「积累」一节、一条内容都没有
+   ——空骨架是**正常状态**（新科目就是这样），不该被当成「有内容可读」或「有东西可注入」。 */
+
+const SUBJECT_TEMPLATE = 'subject-MEMORY.yaml';
+
+test('#191 科目骨架：只有「积累」一节、带注释、一条内容都没有、一个字都不进上下文', () => {
+  const file = path.join(ROOT, 'templates', SUBJECT_TEMPLATE);
+  assert.equal(fs.existsSync(file), true, `templates/${SUBJECT_TEMPLATE} 不在盘上——建科目时就没有骨架可套`);
+  const template = fs.readFileSync(file, 'utf8');
+  assert.match(template, /^#/m, '带注释的空骨架是票面要求：角色第一次写就知道该写什么形状');
+
+  const view = readMemoryFile('subject', template);
+  assert.equal(view.present, true);
+  assert.deepEqual(view.sections.map((section) => section.heading), [...MEMORY_SECTIONS.subject],
+    '科目记忆只有「积累」一节（画像三节是共享记忆的位置）');
+  assert.deepEqual(view.missing, []);
+  assert.deepEqual(view.unknown, []);
+  assert.equal(view.empty, true, '骨架是空的：注释与空映射都不算内容');
+  assert.equal(view.injectable, '', '整份科目记忆都不进上下文');
+  assert.deepEqual(view.accumulations, [], '空骨架里一条 `积累` 都没有');
+
+  // 源名要登记在给人看的说明表里，且写清它落到工作区的哪一处
+  const readme = fs.readFileSync(path.join(ROOT, 'templates', 'README.md'), 'utf8');
+  assert.ok(readme.includes(SUBJECT_TEMPLATE), 'templates/README.md 要登记科目骨架的源名');
+  assert.ok(readme.includes('.learning/subjects/<slug>/MEMORY.yaml'), '登记表要写清它落到科目目录下');
+});
+
+test('#191 科目骨架：填上一条「键 + 一句话」就按科目记忆读出来（from 是 subject），仍不进注入', () => {
+  const template = fs.readFileSync(path.join(ROOT, 'templates', SUBJECT_TEMPLATE), 'utf8');
+  // 骨架里 `积累: {}` 是「这一节还没有条目」；角色就是这么往里加一条的
+  const filled = template.replace(/^积累: \{\}$/m, [
+    '积累:',
+    '  探针结论: 这门课的 lab 要在 /tmp 下跑。',
+  ].join('\n'));
+  assert.notEqual(filled, template, '骨架里该有一个空的 `积累: {}` 供替换');
+
+  const report = readMemory({ subject: filled });
+  assert.deepEqual(report.subject.missing, []);
+  // 期望行号自己数一遍（不从模块算）：角色 grep 到的键在第几行，回报里就得是第几行
+  const line = filled.split('\n').findIndex((one) => one.includes('探针结论')) + 1;
+  assert.deepEqual(report.accumulations, [
+    { key: '探针结论', content: '这门课的 lab 要在 /tmp 下跑。', from: 'subject', line },
+  ], '科目记忆的键与内容读得出来（角色干活要 grep 键），出处是 subject');
+  assert.equal(report.subject.empty, false, '填过一条就不是空骨架了');
+  assert.equal(report.injectable, '', '共享记忆不在场：没有可注入的东西');
+  assert.equal(report.subject.injectable, '');
+  assert.equal(report.injectable.includes('探针结论'), false);
+  assert.equal(report.injectable.includes('/tmp'), false);
+});
+
+test('#191 科目记忆缺「积累」一节：报出来，不是静默当空', () => {
+  const view = readMemoryFile('subject', ['# 一份只有注释的科目记忆', '', '# 什么都没有', ''].join('\n'));
+
+  assert.equal(view.present, true, '文件在盘上');
+  assert.deepEqual(view.sections, [], '一个节都没有');
+  assert.deepEqual(view.missing, [...MEMORY_SECTIONS.subject], '规范里该有的节名要交代清楚');
+  assert.equal(view.empty, true);
+  assert.equal(view.injectable, '');
+});
+
 /* ── 边界：手写 YAML 的几种常见写法 ─────────────────────────────────────── */
 
 test('#190 边界：引号键、列表值、块标量与三种空值写法都收得住', () => {

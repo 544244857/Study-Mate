@@ -110,6 +110,35 @@ test('#190 摘要：记忆里没有画像内容（只有 `积累`）时 `markdow
   assert.match(value.memory.file, /[\\/]\.learning[\\/]MEMORY\.yaml$/);
 });
 
+/** #191 科目记忆：只对这门课成立的做法与事实（科目目录下那份）。用词在共享记忆里一次都不
+    出现——否定断言不会因为共用词而假阳性。 */
+const SUBJECT_MEMORY_YAML = [
+  '# 科目记忆 —— 只对这门课成立的做法与事实。',
+  '#',
+  '积累:',
+  '  演示环境: 这门课的 lab 要在 /tmp/lab-probe 下跑。',
+  '',
+].join('\n');
+
+test('#191 摘要：科目记忆一个字都不进摘要（盘上那份带内容的科目记忆是活的）', async (t) => {
+  const f = withTools(t, { subjectMemory: SUBJECT_MEMORY_YAML });
+  fs.writeFileSync(path.join(f.workspace, '.learning', 'MEMORY.yaml'), MEMORY_YAML);
+  // 正面：盘上真有一份**带内容**的科目记忆——不然这条否定断言只是「文件不存在」
+  assert.match(fs.readFileSync(path.join(f.dir, 'MEMORY.yaml'), 'utf8'), /lab-probe/,
+    '夹具要真的把科目记忆写进科目目录');
+
+  const value = await execute(f.ctx, 'studymate_workspace_context', {});
+  await assertOutput(assert, f.ctx.definitions.get('studymate_workspace_context'), value);
+
+  // 摘要的**每一个字段**都不许带上科目记忆：`memory.markdown` 是共享记忆画像三节的投影，
+  // 科目现状那一份也不该把科目记忆读进上下文
+  const dump = JSON.stringify(value);
+  for (const fragment of ['科目记忆', '演示环境', '/tmp/lab-probe']) {
+    assert.equal(dump.includes(fragment), false, `摘要里出现了科目记忆的「${fragment}」：${dump}`);
+  }
+  assert.equal(value.memory.markdown, MEMORY_PROJECTION, '共享记忆的画像三节照旧');
+});
+
 test('三档状态来自 progress.yaml；旧词表读到就映射（不静默当学会）', async (t) => {
   const home = useHome(t);
   writeSubject(home.workspace, 'demo', {
