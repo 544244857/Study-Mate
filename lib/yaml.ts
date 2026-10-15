@@ -399,7 +399,7 @@ function isBlockScalarHeader(text: string): boolean {
  * 空行折成一个换行（更深的缩进行原样保留）。chomping：`-` 去掉结尾换行、默认留一个、`+` 全留。
  */
 function readBlockScalar(header: SourceLine, headerText: string, parentIndent: number): { value: string; next: number } {
-  const indicator = headerText[1] ?? '';
+  const indicator = headerText[0] ?? '';
   const chomp = headerText.includes('-') ? 'strip' : headerText.includes('+') ? 'keep' : 'clip';
   const explicit = /\d/.exec(headerText);
   const start = header.line; // 1 起：下一行的下标就是它
@@ -441,7 +441,9 @@ function readBlockScalar(header: SourceLine, headerText: string, parentIndent: n
     if (chomp === 'clip') text = `${text.replace(/\n+$/, '')}\n`;
     else if (chomp === 'strip') text = text.replace(/\n+$/, '');
   }
-  return { value: text, next: index };
+  // `next` 交回去的是**下一行的行号**（1 起）。`index` 是 `sourceLines` 的 0 起下标，
+  // 差一位就会把块的末行当成块外的结构再解析一遍。
+  return { value: text, next: index + 1 };
 }
 
 function skipFlowSpace(text: string, i: number): number {

@@ -88,6 +88,45 @@ test('注释：整行与行尾都去掉，引号里的 # 不算注释', () => {
   ].join('\n')), { a: 1, b: '值是 # 不是注释' });
 });
 
+test('块标量：| 保换行、> 折行，块后面还能接同级键', () => {
+  const opts = { blockScalars: true };
+  // 块标量后面跟着同级键：解析器要把「块结束后的那一行」交回去。
+  // 交错了（0-based 下标当 1-based 行号用）就会把块的末行当结构重复解析。
+  assert.deepEqual(parseYaml([
+    'a: |-',
+    '  第一行',
+    '  第二行',
+    'b: 尾',
+    '',
+  ].join('\n'), opts), { a: '第一行\n第二行', b: '尾' });
+
+  // `|` 保换行（`|-` 之外的 chomp 默认值）：这里的换行不许被折成空格
+  assert.deepEqual(parseYaml([
+    'a: |',
+    '  第一行',
+    '  第二行',
+    'b: 尾',
+    '',
+  ].join('\n'), opts), { a: '第一行\n第二行\n', b: '尾' });
+
+  // `>-` 折行：非空行之间的单个换行折成空格
+  assert.deepEqual(parseYaml([
+    'a: >-',
+    '  折叠一',
+    '  折叠二',
+    'b: 尾',
+    '',
+  ].join('\n'), opts), { a: '折叠一 折叠二', b: '尾' });
+
+  // 列表项里的块标量，后面还有同级列表项
+  assert.deepEqual(parseYaml([
+    '- |-',
+    '  第一项',
+    '- 第二项',
+    '',
+  ].join('\n'), opts), ['第一项', '第二项']);
+});
+
 test('空文档与裸流式集合', () => {
   assert.equal(parseYaml(''), null);
   assert.equal(parseYaml('# 只有注释\n'), null);
