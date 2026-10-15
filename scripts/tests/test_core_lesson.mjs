@@ -144,9 +144,9 @@ test('ambiguous：两个候选只差空白时也必须报出来（旧实现看 J
   // 用 `' x'` 与 `'x '` 当候选：它们 strip 之后是 `x` 与 `x`，**精确**那一步就撞上了。
   // 旧实现的 `exact` 是 Map，后写的覆盖先写的——于是 `锚点：x` 指向哪个**看键序**。
   const forward = run(['::: quiz 理解 锚点：x', ':::'],
-    { pool: { ' x': [{}], 'x ': [{}] }, poolFile: 'a.quiz.json', poolPresent: true });
+    { pool: { ' x': [{ q: '题' }], 'x ': [{ q: '题' }] }, poolFile: 'a.quiz.json', poolPresent: true });
   const backward = run(['::: quiz 理解 锚点：x', ':::'],
-    { pool: { 'x ': [{}], ' x': [{}] }, poolFile: 'a.quiz.json', poolPresent: true });
+    { pool: { 'x ': [{ q: '题' }], ' x': [{ q: '题' }] }, poolFile: 'a.quiz.json', poolPresent: true });
   assert.equal(forward.errors.find((item) => item.code === 'anchor-ambiguous').line, 6);
   assert.equal(backward.errors.find((item) => item.code === 'anchor-ambiguous').line, 6);
   assert.deepEqual(forward.reconciliation.anchors[0].keys,

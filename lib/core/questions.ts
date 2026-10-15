@@ -42,11 +42,12 @@ export interface PoolKindReportOptions {
  * 逐题查题库里的题型与字段。
  *
  * 判定口径（与 `questionKindProblem` 同一份）：
+ *   · 缺**题面**（`q`）→ `missing-field`——那是所有题目的共同前提，与题型、与写不写 `kind` 无关（#173）；
  *   · 显式写了 `kind` 且不在词表里 → `unknown-kind`（**未知题型报错**）；
  *   · 显式写了 `kind` 但带了另一种题型的**专属字段** → `ambiguous`（`q` 与 `criteria` 是共享字段，
  *     任何题型带都不算混用，见 `rules.ts` 的 `SHARED_QUESTION_FIELDS`）；
  *   · 显式写了 `kind` 却缺该题型的必备字段 → `missing-field`；
- *   · 没写 `kind`：只查「两组旧字段同时出现」——旧题库照旧读得进。
+ *   · 没写 `kind`：只查「两组旧字段同时出现」——旧题库照旧读得进，但题面照旧必填。
  *
  * 值不是数组的键（形状坏）不在这里报：`lib/core/lesson.ts` 的 `pool-shape` 已经报过，
  * 重复报同一件事只会让人以为有两个问题。
