@@ -30,6 +30,9 @@ const {
   LAYERS, LAYER_RULES, QUESTION_KINDS, QUESTION_KIND_SHAPES, QUESTION_RULES,
   EVIDENCE_BY_TRUST, NON_INDEPENDENT_EVIDENCE,
 } = await import(pathToFileURL(path.join(ROOT, 'lib/core/rules.ts')).href);
+// 跑手回的那份事实（`lib/lab/runner.ts` 的 `RunFacts`，JSON 形状是 `tools.ts` 里这张 schema）：
+// #196 把 lab 判分契约写进 `layered-practice` 第六节，字段名以实现为准，这里逐字对账。
+const { RUN_FACTS_SCHEMA } = await import(pathToFileURL(path.join(ROOT, 'lib/lab/tools.ts')).href);
 
 const sources = new Map(fs.readdirSync(SKILLS_DIR, { withFileTypes: true })
   .filter(entry => entry.isDirectory())
@@ -159,5 +162,30 @@ test('evidence-check 的证据资格清单与代码常量逐条对齐', () => {
   }
   for (const kind of NON_INDEPENDENT_EVIDENCE) {
     assert.ok(text.includes(kind), `evidence-check 少了排除清单里的「${kind}」`);
+  }
+});
+
+test('layered-practice 的 lab 判分契约与跑手回的事实字段逐字对账', () => {
+  // #196：契约正文在 `layered-practice` 第六节；事实字段的唯一出处是跑手（`RunFacts`）。
+  // 规格里那几组名字不是手抄的第二份——**名字从实现里取**：先在实现里确认它还在，
+  // 再要求规格逐字有。任一边改名（把 `结局` 改成 `状态`、或从 `RunFacts` 里删掉截断）
+  // 这条都会红，而不是让规格悄悄教出一套跑手不回的字段。
+  const text = sources.get('layered-practice');
+  assert.ok(text, '技能目录里没有 layered-practice');
+  const facts = ['结局', '退出码', '信号', 'stdout', 'stderr', '字节', '截断'];
+  const gone = facts.filter(field => !RUN_FACTS_SCHEMA.required.includes(field));
+  assert.deepEqual(gone, [],
+    `跑手不再产出这些事实（${gone.join('、')}）：规格与实现分叉了，先定字段名再改规格`);
+  for (const field of facts) {
+    assert.ok(text.includes(`\`${field}\``), `lab 判分契约没点名跑手回的事实 \`${field}\``);
+  }
+  // `结局` 的取值照 enum 对账：规格里少一个，读者就以为不会有那种结束方式。
+  for (const ending of RUN_FACTS_SCHEMA.properties.结局.enum) {
+    assert.ok(text.includes(`\`${ending}\``), `lab 判分契约的「结局」少了「${ending}」`);
+  }
+  // 反向：这一层不产生结论。契约里不许把判定写成跑手会回的字段（反引号那种写法）——
+  // 「通过与否不在这一层」是规矩，不是字段。
+  for (const forbidden of ['通过', 'passed', '成功', '失败']) {
+    assert.ok(!text.includes(`\`${forbidden}\``), `lab 判分契约把「${forbidden}」写成了跑手回的字段`);
   }
 });
