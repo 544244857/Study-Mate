@@ -173,13 +173,41 @@ test('同一个锚点被两个题目位置引用 → 报错并指出第一次的
 
 /* ── 题库的两个方向 ───────────────────────────────────────────────────── */
 
-test('有 ::: quiz 但题库文件不在 → 报错，并且逐条锚点也报没题', () => {
+/* #193：分层只按「题库文件在不在」（poolPresent）。明确不在 → 题目位置相关的判定整体降级成
+   一条「待对账」提示（这是待办不是缺陷，对账在搬入后由总控跑）；文件在、内容没读进来（坏 JSON）
+   与「没被告知在不在」都照旧逐条阻断——那两种情况下闸门放松就是悄悄放行。 */
+test('有 ::: quiz 但题库文件不在 → 不阻断，只给一条带处数的「待对账」提示', () => {
   const result = run([...QUIZ_BLOCK], { pool: null, poolPresent: false, poolFile: 'a.quiz.json' });
-  assert.deepEqual(codes(result).sort(), ['anchor-missing', 'pool-missing']);
-  const missing = result.errors.find((item) => item.code === 'pool-missing');
-  assert.equal(missing.file, 'a.quiz.json');
-  assert.equal(missing.line, 1);
+  assert.deepEqual(codes(result), []);
+  assert.equal(result.notes.length, 1);
+  assert.match(result.notes[0].message, /1 处锚点待对账/);
+  assert.match(result.notes[0].message, /待办不是缺陷/);
+  assert.match(result.notes[0].message, /搬入后由总控跑对账/);
   assert.equal(result.reconciliation, null);
+});
+
+test('题库文件不在时，格式类与正文自身的错照旧阻断（降级只覆盖题库未产出）', () => {
+  const format = run(['::: fancy 标题', ':::', '', ...QUIZ_BLOCK],
+    { pool: null, poolPresent: false, poolFile: 'a.quiz.json' });
+  assert.deepEqual(codes(format), ['unknown-directive']);
+
+  const duplicate = run(['::: quiz 理解 锚点：同一个', ':::', '',
+    '::: quiz 改造 锚点：同一个', ':::'],
+  { pool: null, poolPresent: false, poolFile: 'a.quiz.json' });
+  assert.deepEqual(codes(duplicate), ['anchor-duplicate']);
+});
+
+test('题库文件在、内容没读进来（坏 JSON）→ 照旧逐条阻断，不算「未产出」', () => {
+  const result = run([...QUIZ_BLOCK], { pool: null, poolPresent: true, poolFile: 'a.quiz.json' });
+  assert.deepEqual(codes(result), ['anchor-missing']);
+  assert.deepEqual(result.notes, []);
+  assert.equal(result.reconciliation, null);
+});
+
+test('没被告知题库在不在 → 照旧逐条报没题（既有纯函数调用方行为不变）', () => {
+  const result = run([...QUIZ_BLOCK], { poolFile: 'a.quiz.json' });
+  assert.deepEqual(codes(result), ['anchor-missing']);
+  assert.deepEqual(result.notes, []);
 });
 
 test('一个题目位置都没有、题库文件却在 → 报错（整份交付没人用）', () => {
@@ -196,6 +224,7 @@ test('一个题目位置都没有、题库文件却在 → 报错（整份交付
 test('没有题目位置也没有题库 → 什么都不报（kind: 实验 的说明页）', () => {
   const result = run(['## 一节', '', '正文。'], { pool: null, poolPresent: false, poolFile: 'a.quiz.json' });
   assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.notes, []);   // 没有题目位置就没有「待对账」可言
   assert.equal(result.flags.needsQuiz, false);
   assert.equal(result.reconciliation, null);
 });

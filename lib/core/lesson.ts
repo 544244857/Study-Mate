@@ -8,11 +8,16 @@
    与 Python 的对齐点（迁移前的 Python 渲染器的 main 那段）：
      · front matter 的两个字段 + `title` 与大纲逐字一致（`check_title_match`）；
      · 同名锚点被两个题目位置引用 → 报错（`check_duplicate_anchors`）；
-     · 有 `::: quiz` 但题库文件不在 → 报错（`load_quiz`）；
+     · 有 `::: quiz` 、题库文件的**内容**也没读进来 → 报错（`load_quiz` 那一支）；
      · 一个题目位置都没有、题库文件却在 → 报错（`main` 那段 `needs_quiz`）；
      · 题库里多出来的键 → 报错（`load_quiz` 的反方向对账）；
      · 题库值必须是**非空数组**、顶层必须是对象（`load_quiz` 的形状校验）；
      · 锚点没题又没 `empty_reason:` → 报错；有 `empty_reason:` → 一行提示、不算错。
+
+   **一处有意与 Python 分叉（#193）**：调用方**确证题库文件不在盘上**（`poolPresent === false`）时，
+   题目位置相关的判定不再逐条报错，改成一条带处数的「待对账」提示——讲解交稿时题还没出，
+   它修不了这件事，于是格式层才阻断。文件在盘上而内容读不进来（坏 JSON、顶层不是对象）照旧
+   逐条阻断：**「文件在不在」与「内容读进来没有」分开判**，放松只发生在明确「不在」时。
 
    「题库 JSON 语法错」也**不抛异常**：调用方把 `JSON.parse` 的报错交给
    `poolJsonError()` 转成一条普通错误（`lib/library.ts` 的 `readLibrary` 里读题库那段
@@ -40,7 +45,9 @@ export interface ParseLessonOptions {
   pool?: Record<string, unknown> | null;
   /** 题库文件在报错里显示的名字 */
   poolFile?: string;
-  /** 调用方查过：题库文件在盘上存在吗（决定「有 ::: quiz 却没有题库」这条错报不报） */
+  /** 调用方查过：题库文件在盘上存在吗。**分层只按它**（#193）：
+   * 明确 `false` = 还没产出 → 题目位置相关的判定降级为一条「待对账」提示；
+   * `true`（文件在，内容读不进来也算）与没告知（`undefined`）都照旧逐条阻断。 */
   poolPresent?: boolean;
   /** 题库 JSON 的**原文**：给了就按 JSON 的真实位置给键报行号（不给就全报第 1 行） */
   poolRaw?: string;
@@ -102,16 +109,14 @@ export function parseLesson(
   // 解析层不碰文件系统，但「外链不是本地相对路径」是纯语法的判定，不该漏。
   checkFigureSources(blocks, options.checkFigureSrc ?? null, ctx);
 
-  // 两个方向的「题库在不在」都要报，但**报哪一条**取决于盘上有没有题库文件与有没有
-  // 题目位置——这与 Python main 那段的 `needs_quiz` / `os.path.isfile` 组合逐字一致：
-  //   有 quiz 有题库 → 正常对账（含 orphans）；
-  //   有 quiz 没题库 → 「找不到题库文件」+ 逐条锚点没题（**不报 orphans**，Python 也不报）；
-  //   没 quiz 有题库 → 「一个题目位置都没有，题库文件却还在」（Python 在这一支**不报**
-  //                    orphans，所以这里也走同一条口径，别让它多出 N 条重复的错）；
-  //   没 quiz 没题库 → 什么都不报（`kind: 实验` 的说明页就是这样）。
-  const poolOnDisk = options.poolPresent !== false && options.pool != null;
-  checkPoolPresence(quizzes.length > 0, options, ctx);
-  const reconciliation = reconcile(quizzes, options, ctx, poolOnDisk);
+  // 两个方向的「题库在不在」都要报，但**报哪一条**取决于题库文件在不在盘上与有没有题目位置：
+  //   有 quiz 有题库（内容也读进来了） → 正常对账（含 orphans）；
+  //   有 quiz 题库文件确证不在（#193）→ 一条「待对账」提示带处数，**不阻断**；
+  //   有 quiz 文件在、内容读不进来  → 「没有题」逐条阻断（坏 JSON 不许被当成「未产出」）；
+  //   没 quiz 有题库                 → 「一个题目位置都没有，题库文件却还在」；
+  //   没 quiz 没题库                 → 什么都不报（`kind: 实验` 的说明页就是这样）。
+  const poolAbsent = options.poolPresent === false;
+  const reconciliation = reconcile(quizzes, options, ctx, poolAbsent);
   if (reconciliation && quizzes.length === 0) reportUnusedPool(options.poolFile ?? '题库', problems);
 
   // 正文的 title 也是散文：真标签照拦（Python 在渲染前单独查一遍）
@@ -213,7 +218,7 @@ function checkFigureSources(
 /* ── 对账 + 两个方向的报错 ─────────────────────────────────────────────── */
 
 function reconcile(
-  quizzes: QuizBlock[], options: ParseLessonOptions, ctx: LessonCtx, poolOnDisk: boolean,
+  quizzes: QuizBlock[], options: ParseLessonOptions, ctx: LessonCtx, poolAbsent: boolean,
 ): AnchorReconciliation | null {
   const poolFile = options.poolFile ?? '题库';
   const lineOf = options.poolRaw ? poolKeyLines(options.poolRaw) : null;
@@ -222,9 +227,21 @@ function reconcile(
     text: quiz.anchor, level: quiz.level, line: quiz.line,
   }));
 
-  // 题库没读进来（文件不在 / JSON 坏了）时，Python 的 `self.quiz` 是 None：
-  // 每条锚点照样报「没有题」，只是没有形状抱怨、也没有 orphans。
-  if (!poolOnDisk) {
+  // #193：题库文件**确证不在盘上** = 题还没出。讲解改不动这件事，所以题目位置相关的判定整体
+  // 降级成一条带处数的提示——对账在搬入后由总控跑（那时题库与内容文件都在正式科目目录里）。
+  // 分层只按这一条判据：下面那一支「文件在、内容读不进来」照旧逐条阻断，绝不混判。
+  if (poolAbsent) {
+    if (quizzes.length > 0) {
+      ctx.problems.note(ctx.file, 1,
+        `正文里有 ${quizzes.length} 处锚点待对账：题库文件还没产出——`
+        + '这是待办不是缺陷，搬入后由总控跑对账（题库一到位就照旧逐字对账）');
+    }
+    return null;
+  }
+
+  // 题库的**内容**没读进来（坏 JSON / 顶层不是对象，或调用方没告知文件在不在）时，
+  // Python 的 `self.quiz` 是 None：每条锚点照样报「没有题」，只是没有形状抱怨、也没有 orphans。
+  if (options.pool == null) {
     for (const quiz of quizzes) {
       if (quiz.empty_reason) {
         ctx.problems.note(ctx.file, quiz.line,
@@ -316,16 +333,6 @@ function reconcile(
     'pool-orphan');
   }
   return result;
-}
-
-/** 题库文件在不在盘上：决定「有 `::: quiz` 却没有题库」这条错报不报。 */
-function checkPoolPresence(
-  needsQuiz: boolean, options: ParseLessonOptions, ctx: LessonCtx,
-): void {
-  if (needsQuiz && options.pool == null && options.poolPresent === false) {
-    ctx.problems.add(options.poolFile ?? '题库', 1,
-      '内容里有 ::: quiz，但找不到题库文件（出题角色产出 .quiz.json）', 'pool-missing');
-  }
 }
 
 /**

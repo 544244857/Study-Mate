@@ -251,7 +251,8 @@ export const ERROR_CODES = [
   'code-lang', 'code-body', 'code-field',
   'links-item', 'links-empty', 'stray-empty-reason',
   'anchor-missing', 'anchor-duplicate', 'anchor-ambiguous', 'anchor-stale',
-  'pool-orphan', 'pool-shape', 'pool-json', 'pool-missing', 'pool-unused',
+  // #193 起没有 `pool-missing`：题库文件确证不在是**待对账提示**，不再是错误码
+  'pool-orphan', 'pool-shape', 'pool-json', 'pool-unused',
   // 题库里每道题的题型结论（词表与字段要求在 lib/core/rules.ts）；行号指向那道题在 JSON 里的位置
   'pool-unknown-kind', 'pool-ambiguous', 'pool-missing-field',
 ] as const;
