@@ -26,7 +26,9 @@ jobs:
   publish:
     needs: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 等待窗口本身就要 30 分钟（scripts/release/release.mjs 的 npm 异步入库等待），
+    # 20 分钟会把还在正常等待的任务掐掉。
+    timeout-minutes: 40
     environment: npm
     permissions:
       contents: write
@@ -36,6 +38,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_BUMP: ${{ inputs.bump }}
       NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      # npm 异步入库的等待上限；要临时加长就调这里，别超上面的 job 超时。
+      RELEASE_NPM_WAIT_SECONDS: '1800'
     steps:
       - uses: actions/checkout@v7
         with:

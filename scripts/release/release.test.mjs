@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { addChangelog, bumpVersion, mergedPullRequests, notesFromChangelog, registryVersion,
-  releaseNotes, releasePlan, validatePack, verifyPublished, verifyPublishOrder,
+  releaseNotes, releasePlan, validatePack, verifyPublished, verifyPublishOrder, publishWaitSeconds,
+  publicationPending, waitForPublished,
   buildReleasePlugin, ensureGithubRelease, ensureReleaseAsset, withInstallationNotes } from './release.mjs';
 
 const repository = 'Miaotofu01/Study-Mate';
@@ -120,6 +121,45 @@ test('npm status distinguishes unpublished from registry failure and immutable c
   verifyPublishOrder('0.1.2', { version: '0.1.1' });
   assert.throws(() => verifyPublishOrder('0.1.2', { version: '0.1.3' }), /refusing to replace/);
   assert.throws(() => verifyPublishOrder('0.1.2', { version: '1.0.0-beta' }), /not a stable version/);
+});
+
+// npm 对大包是异步入库：CLI 返回成功时 registry 上还查不到。2026-10-15 那次
+// 8.1 MB 的包迟到约 55 分钟，旧的「60 次 × 5 秒」窗口把一次成功的发布报成失败，
+// 且失败点在 GitHub Release 之前，发布只做了一半（#182）。
+test('npm publication waiting tolerates delayed registry visibility and reports the waiting window', async t => {
+  t.after(() => { delete process.env.RELEASE_NPM_WAIT_SECONDS; });
+  const remote = { name, version: '2.0.2', dist: { integrity: 'sha512-matching' } };
+  let clock = 0;
+  const sleep = async ms => { clock += ms; };
+  const now = () => clock;
+
+  // 迟到 55 分钟的包：窗口够长就能等到，且前几分钟是密轮询。
+  const slow = [];
+  const found = await waitForPublished('2.0.2', {
+    totalMs: 3600_000, sleep, now,
+    request: async () => {
+      slow.push(clock);
+      return clock >= 3300_000 ? { status: 200, ok: true, json: async () => remote } : { status: 404 };
+    },
+  });
+  assert.equal(found.remote, remote);
+  assert.equal(found.attempts, slow.length);
+  assert.ok(found.elapsed >= 3300_000 && found.elapsed <= 3600_000);
+  assert.ok(slow.filter(at => at <= 60_000).length > 10, '前 60 秒应多次查询');
+
+  // 窗口内始终没出现：返回 null 而不是抛错，调用方据此给出可诊断的现场。
+  const missing = await waitForPublished('2.0.2', { totalMs: 60_000, sleep, now, request: async () => ({ status: 404 }) });
+  assert.equal(missing.remote, null);
+  assert.ok(missing.elapsed <= 60_000);
+  const message = publicationPending('2.0.2', { ...missing, status: 0 });
+  assert.match(message, /registry\.npmjs\.org\/@yunmiao\/studymate\/2\.0\.2/);
+  assert.match(message, /队列/);
+  assert.match(message, /RELEASE_NPM_WAIT_SECONDS/);
+
+  process.env.RELEASE_NPM_WAIT_SECONDS = '120';
+  assert.equal(publishWaitSeconds(), 120);
+  process.env.RELEASE_NPM_WAIT_SECONDS = 'soon';
+  assert.throws(() => publishWaitSeconds(), /RELEASE_NPM_WAIT_SECONDS/);
 });
 
 const tarballFiles = ['package.json', 'README.md', 'cordis.patch.yml', 'bin/dsh-plugin.ts', 'bin/studymate.mjs', 'bin/skill-compat.mjs',

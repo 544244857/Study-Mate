@@ -43,11 +43,15 @@ GitHub 发布 job 引用 `npm` environment，不要求设置审批人。仓库�
 
 随后更新 `package.json`（若有 npm lockfile，也同步根版本），原子推送版本 commit 和 `vX.Y.Z` tag。若 `main` 在检查期间发生变化，发布会停止，需要从最新 `main` 重新触发。正式发包前构建并核对同版本 OpenAI ZIP。包内容经过清单与完整性检查后，使用 `npm pack` 的同一个 tarball 发布到官方 npm registry，附带 provenance；确认 registry 的 SHA-512 完整性相同后创建 GitHub Release，并上传 `studymate-openai.zip`。
 
+**npm 的入库是异步的**：`npm publish` 返回成功只代表 npm 受理了这次发布，CLI 自己会提示 `Your package is being processed and may take a few minutes to become available.`。流程在发包后轮询 registry，等到这个版本可见并核对完整性一致，才创建 GitHub Release。等待窗口默认 30 分钟（前几分钟 5 秒一次，之后退避），由 `.github/workflows/release.yml` 的 `RELEASE_NPM_WAIT_SECONDS` 给出，job 超时留了余量（40 分钟）；要临时加长就调这两个数，窗口上限由 job 超时决定。
+
 ## 失败后重试
 
 重跑旧任务仍使用当时的 commit，不会包含后来推送的修复。如果检查失败后已修复代码，且本次版本 tag 尚未创建，请在 **Actions → Release → Run workflow** 从最新 `main` 新建一次发布。
 
 如果只是网络等临时故障，代码没有变化，或本次版本 commit/tag 已经推送，在原任务点击 **Re-run failed jobs**。版本 tag 保存了源 commit 和发布信息，流程会继续这个版本；如果 npm 已经发布相同 tarball，则跳过发布并补齐 Release 和 ZIP。已有同名 ZIP 必须通过 SHA-256 内容核对；相同则复用，冲突则停止，不删除或覆盖。若同一 npm 版本内容不同、tag 来源不同、registry 状态不明，流程也会失败并保留现场。
+
+如果等待窗口内 registry 上一直没出现这个版本（报错里会给出查过的 URL 和已等时长），先打开报错里的 npm 页面确认包是否已经入库——迟到的包仍然会被重跑认领，重跑不会重复发包；确认包真没发出去，再用更长的 `RELEASE_NPM_WAIT_SECONDS` 重跑。等待窗口落空时失败发生在 GitHub Release 之前，所以现场可能是「npm 有、tag 有、Release 没有」，重跑会补齐缺的那一半。
 
 如果 npm 的 `latest` 已经是更高版本，旧任务不会补发较低版本并把 `latest` 降回去。
 
