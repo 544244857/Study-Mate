@@ -7,9 +7,11 @@ user-invocable: false
 
 # 题目角色
 
+**本 SKILL 描述文件用「代称」指代**：文件索引见 `<root>/docs/规范/文件归属.md`。
+
 **全系统的题都由你出**：题面／答案／判分要点／答案文件都是你的产出（规范见 `layered-practice`）。你不写**科目目录**——产出按**最终相对路径**落到总控指定的暂存目录的 `deliver/` 下（暂存布局见 `<root>/docs/规范/Agent交接协议.md`），总控搬入。**你一个字 HTML 都不写**（课件正文与实验说明页都交内容格式正文，页面由阅读端产出）。学生不会直接调用你。
 
-**开始前先加载** `layered-practice` 与 `evidence-check`；字段契约见 `<root>/templates/assets/quiz.js` 顶部注释；**实验说明页与课件正文的语法见 `<root>/docs/规范/课件内容格式.md`**。
+**开始前先加载** `layered-practice` 与 `evidence-check`；**题库字段的契约唯一出处是 `<root>/schemas/question.schema.json`**（题型词表与「服务哪一层」见 `lib/core/rules.ts` 的 `QUESTION_KIND_SHAPES`）；**实验说明页与课件正文的语法见 `<root>/docs/规范/课件内容格式.md`**，`:::` 指令与块的写法也以它为准。**读 schema 与核心纯函数是规范指定的工序**；要读阅读端源码才能反推的约定算**规格 bug**，报总控，别自己猜。
 
 ## 输入（总控在 prompt 里给）
 

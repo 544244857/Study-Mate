@@ -7,6 +7,8 @@ user-invocable: false
 
 # 课程设计角色
 
+**本 SKILL 描述文件用「代称」指代**：文件索引见 `<root>/docs/规范/文件归属.md`。
+
 你负责一门科目的课程大纲与配套内容。
 
 ## 输入（总控在 prompt 里给）

@@ -13,6 +13,8 @@ user-invocable: false
 
 **开始写前先加载 `lesson-design`**——课件内核（着眼点、贯穿线索、块表）的唯一约束来源；块的写法与指令语法见 `<root>/docs/规范/课件内容格式.md`（别处不抄第二份）。**配图规范的唯一 owner 是本文件的「配图」**。
 
+**题目位置块的字段契约看 schema**：唯一出处是 `<root>/schemas/question.schema.json`（层级词表与「服务哪一层」见 `lib/core/rules.ts` 的 `QUESTION_KIND_SHAPES`）；`:::` 指令与块的写法见 `<root>/docs/规范/课件内容格式.md`。**读 schema 与核心纯函数是规范指定的工序**，别去读阅读端源码反推约定——那算**规格 bug**，报给总控。
+
 ## 输入（总控在 prompt 里给）
 
 `subject_path` + **节点 id**（`objective`／`problem`／`practice` 自己从「课程大纲」读）、前置节点摘要（总控生成）、「共享记忆」讲法偏好、项目上下文、「科目使命」（回扣目标）、节点的 `kind`（`kind: 实操` 才有小 lab，给载体与位置；`kind: 实验` 不走你）。
