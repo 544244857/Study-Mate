@@ -649,7 +649,7 @@ export function buildLibrary(options: { workspace?: string; root?: string } = {}
     workspace,
     generated_at: new Date().toISOString(),
     today: updated.length === 0 ? '' : updated[updated.length - 1].slice(0, 10),
-    memory_md: readTextIfPresent(path.join(learningDir, 'MEMORY.md')) ?? '',
+    memory_md: readTextIfPresent(path.join(learningDir, 'MEMORY.yaml')) ?? '',
     subjects,
   };
 }

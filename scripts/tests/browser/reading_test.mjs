@@ -82,7 +82,7 @@ function makeWorkspace() {
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
-  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), '# 共享记忆\n');
+  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), '# 共享记忆\n');
   const files = Object.assign(
     subjectFiles('demo', { slug: 'demo', name: '演示科目' }),
     subjectFiles('second', { slug: 'second', name: '第二科目' }),

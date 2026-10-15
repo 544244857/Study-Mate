@@ -204,7 +204,7 @@ Antigravity / Codex / ChatGPT Work 上没有原生工具，也**没有引擎脚�
 
 | 你要做的事 | 在本宿主怎么做 |
 |---|---|
-| 读工作区现状 | 直接读工作区配置、`.learning/MEMORY.md`、当前科目的 `progress.yaml` 与最近的学习记录 |
+| 读工作区现状 | 直接读工作区配置、`.learning/MEMORY.yaml`、当前科目的 `progress.yaml` 与最近的学习记录 |
 | 数据层校验 | 按 `<root>/schemas/{curriculum,progress,subject}.schema.json` 逐项自查：字段齐全、`prerequisites` 指向存在的节点 id、无环、实验课前置非空 |
 | 内容层校验 | 按内容格式逐项自查：`:::` 指令成对、`::: quiz` 锚点与题库键逐字一致、图片路径真实存在、公式标记成对 |
 | 图片库校验 | 按图片库规范逐项自查：图片落在 `assets/img/pool/`、索引七列表头逐字一致、命名可检索、体积合规 |

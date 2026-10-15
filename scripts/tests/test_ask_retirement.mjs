@@ -47,7 +47,7 @@ after(() => {
   else process.env.DSH_HOME = ORIGINAL_DSH_HOME;
 });
 
-const MEMORY_MD = '讲法偏好：先给结论再给为什么。\n';
+const MEMORY_YAML = '讲法偏好：先给结论再给为什么。\n';
 /** 一份误解记录：**三个来源都有**，最后一条还是更老的写法（`question` / `date`，没有 source）。
  *  它同时是「建会话那条链路一个字都不落盘」的字节基准与「读侧照样读得进」的输入。 */
 const MISCONCEPTIONS_YAML = [
@@ -80,7 +80,7 @@ function makeWorkspace() {
   const workspace = path.join(root, 'ws');
   const subjectDir = path.join(workspace, '.learning', 'subjects', '网络');
   fs.mkdirSync(subjectDir, { recursive: true });
-  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), MEMORY_MD);
+  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), MEMORY_YAML);
   fs.writeFileSync(path.join(subjectDir, 'misconceptions.yaml'), MISCONCEPTIONS_YAML);
   // DSH_HOME 指向临时目录：`resolveWorkspace()` 走的是 `~/.dsh/studymate-config.yaml`。
   const dshHome = path.join(root, '.dsh');
