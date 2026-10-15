@@ -41,7 +41,7 @@ flowchart TD
   - `resource-scout`：检索权威教材、官方文档与行业标准，产出资源清单与 `## Gaps`。
   - `image-scout`：抓取高质量概念图与流程图，校验尺寸格式，维护 7 列表头索引。
   - `curriculum-designer`：构建知识依赖拓扑有向无环图（DAG），制定标准大纲与实验课里程碑。
-  - `learning-coach`：撰写教材级深度课件正文、真实场景钩子、LaTeX 数学公式与题目锚点。
+  - `learning-coach`：撰写教材级深度课件正文、配图与题目锚点。
   - `practice-evaluator`：全系统题目与评估的唯一 Owner，设计四层练习、整套 Lab 任务，基于真实运行证据核验与批改。
 - **12 个完整 Skill 规范（`skills/`）**：全部采用标准规范 Frontmatter，在 Antigravity 中 100% 完整可见与常驻。
 
