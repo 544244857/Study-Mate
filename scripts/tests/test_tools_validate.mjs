@@ -239,10 +239,66 @@ test('题库坏 JSON / 顶层不是对象 —— 各报一条，不当成崩溃'
   tools.registerValidatorTools(ctx.ctx);
   let value = await call(ctx, 'studymate_validate_lesson', { paths: ['demo/lessons/0001-var.md'] });
   assert.ok(find(value.reports[0], '题库不是合法 JSON'), messages(value.reports[0]).join('\n'));
+  // #193：文件**在**、内容读不进来 → 照旧逐条阻断。分层只看「文件在不在」，坏 JSON 不算「未产出」。
+  assert.equal(value.reports[0].poolPresent, true);
+  assert.equal(value.blocking, true);
+  assert.ok(find(value.reports[0], '没有题'), messages(value.reports[0]).join('\n'));
+  assert.ok(!messages(value.reports[0]).some((line) => line.includes('待对账')),
+    '文件在盘上就不该出现「待对账」那条提示');
 
   fs.writeFileSync(path.join(subject.lessonsDir, '0001-var.quiz.json'), '[]\n');
   value = await call(ctx, 'studymate_validate_lesson', { paths: ['demo/lessons/0001-var.md'] });
   assert.ok(find(value.reports[0], '最外层是对象'), messages(value.reports[0]).join('\n'));
+});
+
+/* #193：题库文件没产出时，讲解交稿第一次有可信的放行结论——题目位置相关的问题降级成一条
+   「待对账」提示（搬入后由总控跑对账），格式类问题照旧阻断。 */
+test('#193：题库文件不在 → 放行，只剩一条「待对账」提示带处数', async (t) => {
+  const f = withTools(t, { pool: null });   // 只写内容文件，题库文件不落盘
+  const value = await call(f.ctx, 'studymate_validate_lesson', { paths: ['demo/lessons/0001-var.md'] });
+  const report = value.reports[0];
+  assert.equal(report.poolPresent, false);
+  assert.equal(value.blocking, false, messages(report).join('\n'));
+  assert.match(value.summary, /放行/);
+  assert.equal(report.problems.length, 1);
+  assert.equal(report.problems[0].blocking, false);
+  assert.match(report.problems[0].message, /1 处锚点待对账/);
+  assert.match(report.problems[0].message, /搬入后由总控跑对账/);
+  assert.deepEqual(report.anchors, []);
+  assert.deepEqual(report.orphans, []);
+});
+
+test('#193：题库文件不在不放松格式层——格式类问题照旧阻断，提示只是不拦', async (t) => {
+  const f = withTools(t, {
+    pool: null,
+    lesson: [
+      '---',
+      'title: 变量',
+      'goal: 一句话。',
+      '---',
+      '',
+      '::: fancy 没有这个指令',   // 6：格式层的问题，阻断
+      ':::',
+      '',
+      '::: quiz 理解 锚点：什么是变量',
+      ':::',
+      '',
+    ].join('\n'),
+  });
+  const value = await call(f.ctx, 'studymate_validate_lesson', { paths: ['demo/lessons/0001-var.md'] });
+  const report = value.reports[0];
+  assert.equal(value.blocking, true);
+  assert.ok(find(report, '未知指令'), messages(report).join('\n'));
+  assert.ok(find(report, '1 处锚点待对账'), messages(report).join('\n'));
+});
+
+test('#193：工具参数仍然只有「路径 + 科目」——没有开关可加', async () => {
+  const ctx = fakeContext();
+  tools.registerValidatorTools(ctx.ctx);
+  const definition = ctx.definitions.get('studymate_validate_lesson');
+  assert.deepEqual(Object.keys(definition.parameters.properties), ['paths', 'subject']);
+  assert.deepEqual(definition.parameters.required, ['paths']);
+  assert.equal(definition.parameters.additionalProperties, false);
 });
 
 test('科目目录一次校验目录下每一课；文件不存在报一条阻断', async (t) => {
