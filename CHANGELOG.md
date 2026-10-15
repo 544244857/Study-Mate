@@ -1,5 +1,169 @@
 # 更新日志
 
+<!-- studymate-release:v2.0.2 -->
+## [2.0.2](https://github.com/Miaotofu01/Study-Mate/releases/tag/v2.0.2) - 2026-10-15
+
+### 已合并的 Pull Request
+
+- docs(安装):无头宿主只支持 v1.0.0（\#161） ([#162](https://github.com/Miaotofu01/Study-Mate/pull/162))
+- fix(答疑):会话开张注入课件指针，agent 不用猜节点 id（\#163） ([#164](https://github.com/Miaotofu01/Study-Mate/pull/164))
+- fix(阅读端): 栏宽把手落点只算自己那一侧的窄轨 ([#167](https://github.com/Miaotofu01/Study-Mate/pull/167))
+- fix(解析器): 块标量读不到后面跟着的同级键 ([#177](https://github.com/Miaotofu01/Study-Mate/pull/177))
+- fix(提示词): 课件补一条「支点先有来历」，拦掉介绍前先拿它当参照物 ([#179](https://github.com/Miaotofu01/Study-Mate/pull/179))
+- fix(题库校验): criteria 是共享字段，预测验证/交付物带判分要点不再误报（\#175） ([#180](https://github.com/Miaotofu01/Study-Mate/pull/180))
+- fix(题库校验): 题面 q 是所有题目的共同前提，缺了按题库行号报 missing-field（\#173） ([#181](https://github.com/Miaotofu01/Study-Mate/pull/181))
+
+### 所有提交
+
+- docs(安装):声明无头宿主只支持 v1.0.0（\#159） ([7ab2c0a](https://github.com/Miaotofu01/Study-Mate/commit/7ab2c0a028b9a7514617d712ec4ef602f1c85c3d))
+
+  > Codex / ChatGPT Work 与 Google Antigravity 两侧的支持范围停在 v1.0.0：README 两个小节
+  > 改成指向 v1.0.0 的产物（Codex 给 ZIP 直链，Antigravity 给 git checkout v1.0.0 再构建），
+  > 两份宿主说明各加一句支持范围，安装说明的 Codex 一节跟着改，发布说明里补一句「Release
+  > 每个版本仍会构建 ZIP，但 1.1.0 起不保证在那两侧可用」。
+  > 
+  > README 的安装/更新小节由维护者本人在同一分支上改写，一并带上。
+  > 
+  > 门禁：npm test 退出码 0。
+
+- merge(安装): 跟上 main（v2.0.1） ([09aa0e8](https://github.com/Miaotofu01/Study-Mate/commit/09aa0e856c8c505736882f930d244fed28354b79))
+- Merge pull request \#162 from Miaotofu01/docs/161-无头宿主只支持-1.0.0 ([b19b93e](https://github.com/Miaotofu01/Study-Mate/commit/b19b93e1e814db7a64804183f4888167cb7e900a))
+
+  > docs(安装):无头宿主只支持 v1.0.0（\#161）
+
+- fix(答疑):会话开张注入课件指针，agent 不用猜节点 id（\#163） ([e3db252](https://github.com/Miaotofu01/Study-Mate/commit/e3db2521ceb7c4fe00850b94b39c6a347e38c756))
+
+  > 阅读端右栏的答疑面板取不到课件正文：请求体里只有拼标题要的两个展示名，agent 手上唯一像
+  > 节点 id 的东西是引用块里的来源路径（\`&lt;科目&gt;/&lt;课件文件名&gt;\`），而取课件的工具只认节点 id、
+  > 带 \`/\` 或 \`..\` 一律回「没有」——于是它猜三次、放弃，只按引用那一段答。
+  > 
+  > 改成：客户端把节点 id 与课件名一起发出去；宿主半在建会话时把节点 id 明写进上下文（照共享
+  > 记忆那条注入的路，多注入一条「课件指针」，说明工具只认节点 id、别拿路径去试）；\`local-qa\`
+  > 技能里也点明「就用开张时给你的那一个 id」。没有可用的 id 就不注入，不拿半句话占位。
+  > 
+  > 门禁：npm test 退出码 0；npm run test:browser 全部通过（含问答面板那一套）。
+  > 
+  > 门禁读数：installer 28=27过+1跳、openai 6、antigravity 6、引擎与发布 35+289+816=815过+1跳、
+  > 静态 60；npm run test:browser 578 条断言全过、0 失败。
+
+- Merge pull request \#164 from Miaotofu01/fix/163-答疑提示词带上节点-id ([63db27a](https://github.com/Miaotofu01/Study-Mate/commit/63db27aaefc1275ed289156675cc11468442f48c))
+
+  > fix(答疑):会话开张注入课件指针，agent 不用猜节点 id（\#163）
+
+- fix(阅读端): 栏宽把手落点只算自己那一侧的窄轨 ([8c819b1](https://github.com/Miaotofu01/Study-Mate/commit/8c819b13f1b78aaccf6fd58fc9fc2ccfece43c3b))
+
+  > \`rails\` 是\*\*两条\*\*窄轨的和（画布预算要它：planPanes / clamp\* / drawerWidth），
+  > 可把手落点把它整份加给了自己那一侧，于是左右两把手各朝中间偏一条窄轨
+  > （本机 38px）：右把手落进正文、压在正文滚动条的左边，左把手落进正文右侧。
+  > 表现在盘面上就是——正文↔题目 那根\*\*可拖的分界线\*\*和正文自己的滚动条并排成
+  > 两根线，本该压在栏线上的那根跑到了滚动条左边；节点栏那一侧同理。
+  > 
+  > measure() 现在按侧量窄轨（railWidths），handleAt(side, railWidths, …) 只加
+  > 自己那一侧；\`rails\` 仍旧只喂画布预算，拖拽数学与 clamp 一字未动。
+  > 收起态落在窄轨内缘、抽屉态是窄轨 + 抽屉宽，两条行为不变。
+  > 
+  > scripts/tests/test\_client\_panes.mjs 补四条读数：落点 = 自己那侧窄轨 + 栏宽、
+  > 两边各取自己的、收起/抽屉态，外加一条扫调用点的静态读数（传的必须是
+  > railWidths，不是两条的和）——纯函数对不上「公式在、喂错了量」这种错法。
+
+- Merge pull request \#167 from instpe/fix/阅读端把手偏移 ([23387db](https://github.com/Miaotofu01/Study-Mate/commit/23387dbc41184ca3d85431988f6431829568e0a3))
+
+  > fix(阅读端): 栏宽把手落点只算自己那一侧的窄轨
+
+- fix(解析器): 块标量读不到后面跟着的同级键 ([538691b](https://github.com/Miaotofu01/Study-Mate/commit/538691b5280fd1bc7bfecf11750d5b76a39b9182))
+
+  > \`readBlockScalar\` 里两处错，合起来让 YAML 子集解析器读不了任何「块标量后面
+  > 还有内容」的文件：
+  > 
+  > - \`indicator\` 取的是 \`headerText\[1\]\`——\`|-\` 取到 \`-\`、\`|\` 取到 undefined，
+  >   于是所有 \`|\` 块都落进 \`&gt;\` 的折叠分支，换行被折成空格。这条不报错，只是
+  >   解析出来的内容错，比报错更难发现。
+  > - 返回的 \`next\` 是 \`sourceLines\` 的 0 起下标，而调用方
+  >   \`firstLineAtOrAfter(lines, i + 1, block.next)\` 拿它当 1 起行号比，少 1 会让
+  >   块的末行被当成块外的结构再解析一遍，报「缩进比同级多了 N 个空格」。
+  > 
+  > 在 DSH 上的表现：\`bin/dsh-plugin.ts\` 启动时要解析档位的 \`cordis.patch.yml\`，
+  > 那份文件里只要有 \`|-\` 块标量（写人设、长提示词的常见写法），解析就抛错，而异常
+  > 被同一个 try 的 catch 吞成一条 console.warn——两条预设静默不注册、
+  > \`studymate-config.yaml\` 也不生成，用户只看到阅读端报「读不到学习工作区」。
+  > 
+  > 两处必须一起改：只改第二处，解析会「成功」，但把折叠过的文本写回用户档位的
+  > \`cordis.patch.yml\`，那是静默损坏。
+  > 
+  > 补一条特征化用例，覆盖 \`|-\` / \`|\` / \`&gt;-\` 与列表项里的块标量，每条后面都跟着
+  > 同级键——正是原先漏掉的形状。在未修复的代码上，这条用例报的就是
+  > \`&lt;yaml&gt;:3:3: 缩进比同级多了 2 个空格\`。
+  > 
+  > refs \#176
+
+- fix(提示词): 课件补一条「支点先有来历」，拦掉介绍前先拿它当参照物（\#178） ([7636e6d](https://github.com/Miaotofu01/Study-Mate/commit/7636e6dc6508ddfa67b762331060cb210cd2d346))
+
+  > 终端工作流第 2 课在介绍 man 之前，正文已经拿「手册」当句子的支点（36／65／74／122／135 行），
+  > 而正式介绍它的第 6 节在 296 行、上一课从未出现这个词——学生不是忘了，是没学过。
+  > 
+  > 规则原本有两处，都不在执行自检的射程里：§四.6 防的是「教了不该教的」，而引用一个还没交代的
+  > 名字不在它的判据内（它什么都不教）；§五 那句在行文风格段中间，不在 §四.8 重读自检扫的范围内，
+  > 且术语那条落在 §一「弱约束」标签下。结构性诱因是本课要讲的三段命名，其来历本身就在手册的
+  > SYNOPSIS 里，而大纲把手册排在本课后两节。
+  > 
+  > - lesson-design §四 新增第 7 条「句子的支点也要先有来历」（原 7／8 顺延为 8／9），带判定办法与
+  >   错误／正确／保留三段，错误示例直接用闯祸的那句；放 §四 而非 §五／§一，才会被重读自检扫到。
+  > - learning-coach 写内容新增第 7 步「首现自检」，返回顺延为第 8 项并加一句自检结论。
+  > - scripts/tests/test\_skill\_rules.mjs 四下钉住新规则。
+  > 
+  > 只要求「当场补一句最小交代」，不要求提前讲透整节——否则会与大纲顺序打架，写了也执行不了。
+  > 这是提示词层加固，不是机器门禁：校验器只查格式与锚点，查不了「读者此刻知不知道」。
+  > 
+  > Refs \#178
+
+- Merge remote-tracking branch 'origin/main' into fix/178-课件支点先有来历 ([ab0ed21](https://github.com/Miaotofu01/Study-Mate/commit/ab0ed210187198302ecff18a9666c05eba812ceb))
+- Merge pull request \#179 from Miaotofu01/fix/178-课件支点先有来历 ([2237e2f](https://github.com/Miaotofu01/Study-Mate/commit/2237e2f7f272471e21cf286e6cc4eb622711e45f))
+
+  > fix(提示词): 课件补一条「支点先有来历」，拦掉介绍前先拿它当参照物
+
+- Merge pull request \#177 from elmews/fix/yaml-block-scalar ([de8b2d1](https://github.com/Miaotofu01/Study-Mate/commit/de8b2d199cac7e98de1a1593461fb112bb8cb9f9))
+
+  > fix(解析器): 块标量读不到后面跟着的同级键
+
+- fix(题库校验): criteria 是共享字段，预测验证/交付物带判分要点不再误报（\#175） ([a46ac6b](https://github.com/Miaotofu01/Study-Mate/commit/a46ac6bba93489b7cb3a6eca82b96845f7e6799c))
+
+  > 出题规范要求每题的判分要点都写进 \`criteria\`，而校验器把 \`criteria\` 当成开放题专属信号：
+  > 显式写了 \`预测验证\`/\`交付物\` 的题只要带 \`criteria\` 就被判成「两组字段同时出现」，阻断发布。
+  > 
+  > - \`lib/core/rules.ts\`：新增 \`SHARED\_QUESTION\_FIELDS\`（\`q\` 与 \`criteria\`）。显式 \`kind\` 的混用判定
+  >   改看各题型的\*\*专属字段\*\*（必填字段去掉共享字段），不再拿旧格式推断当判据；\`inferQuestionKind\`
+  >   与「不写 kind」那条宽松路原样保留，旧题库行为不退化。开放题缺 \`criteria\` 仍报 \`missing-field\`，
+  >   真实混用（如交付物题带 \`answer\`）仍报 \`ambiguous\`。
+  > - \`lib/client.js\`：\`预测验证\`/\`交付物\` 的展开面板补「判分要点」那一块（没写就不占空档）。
+  > - \`schemas/question.schema.json\`、\`docs/规范/课件内容格式.md\`、\`layered-practice\`：\`criteria\`
+  >   的说明与出题要求从「开放题专属/每题必填」收敛成「共享字段：开放题必填，其余有就写」。
+  > - 回归：规则层、题库层（带题库行号）、课件级 \`studymate\_validate\_lesson\`、阅读端面板各一条；
+  >   另断言专属字段两两不交（混用判定没有二义）。
+
+- Merge pull request \#180 from Miaotofu01/fix/175-题型共享判分要点 ([41686e7](https://github.com/Miaotofu01/Study-Mate/commit/41686e7622b947b7446f3b0faa74f2c49c87e970))
+
+  > fix(题库校验): criteria 是共享字段，预测验证/交付物带判分要点不再误报（\#175）
+
+- fix(题库校验): 题面 q 是所有题目的共同前提，缺了按题库行号报 missing-field（\#173） ([b6e32b6](https://github.com/Miaotofu01/Study-Mate/commit/b6e32b652ecfaf79b82b81797dedb9b6dc6d59cc))
+
+  > \`QUESTION\_KIND\_SHAPES\` 四行只装各题型\*\*在题面之外\*\*另要的字段，\`q\` 谁都没要求；
+  > 不写 \`kind\` 的旧题库又压根不进那张表。于是题干写成 \`stem\` 的题库能过全部产课检查，
+  > 学生一打开练习区，阅读端取 \`item.q\` 就是整块崩（\`slot entry crashed\`）。
+  > 
+  > 题面因此抽成一条独立于题型的判据（\`stemProblem\`），显式 \`kind\` 与旧写法两条路都过它：
+  > 缺 \`q\`、空串、纯空白、非字符串（含空壳题 \`{}\`）一律 \`missing-field\` 并带题库文件与行号；
+  > 报的位置在题型专属字段之前——共同前提先修。\`kind\` 会省，但题面不会。
+  > 题型专属字段、未知题型、真混用三处判定一字不动（\`q\` 齐全的题库行为逐条不变），
+  > 「值不是数组」仍只由 \`pool-shape\` 报一条。字段表与出题规范同步写明「题面不进专属字段表」。
+
+- Merge pull request \#181 from Miaotofu01/fix/173-题面必填 ([d32e336](https://github.com/Miaotofu01/Study-Mate/commit/d32e33659bf75703ada9d63d03822c9e45c43900))
+
+  > fix(题库校验): 题面 q 是所有题目的共同前提，缺了按题库行号报 missing-field（\#173）
+
+
+[完整比较](https://github.com/Miaotofu01/Study-Mate/compare/v2.0.1...v2.0.2)
+<!-- /studymate-release:v2.0.2 -->
+
 <!-- studymate-release:v2.0.1 -->
 ## [2.0.1](https://github.com/Miaotofu01/Study-Mate/releases/tag/v2.0.1) - 2026-10-10
 
