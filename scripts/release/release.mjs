@@ -188,6 +188,9 @@ export function validatePack(pack) {
     if (!files.includes(required)) throw new Error(`npm tarball is missing ${required}.`);
   }
   for (const prefix of ['schemas/', 'templates/', 'docs/']) if (!files.some(file => file.startsWith(prefix))) throw new Error(`npm tarball is missing ${prefix}.`);
+  // #197：工作区数据骨架里的 lab 骨架——出题角色照抄的那一份（判分入口固定叫 check.sh）。
+  // 前缀检查只证明 `templates/` 里有东西，认不出骨架整份丢了；这一个文件是它的代表。
+  if (!files.includes('templates/lab/0000-示例/check.sh')) throw new Error('npm tarball is missing templates/lab/0000-示例/check.sh.');
   for (const required of ['bin/openai-interaction.mjs', 'bin/openai-skill-ui.mjs',
     'openai/studymate/scripts/interaction_state.mjs', 'openai/studymate/skills/learning-system/references/codex-interaction.md']) {
     if (!files.includes(required)) throw new Error(`npm tarball is missing ${required}.`);

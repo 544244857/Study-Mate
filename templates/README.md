@@ -10,6 +10,13 @@
 | `MISSION.md` | 新建一门科目 | `.learning/subjects/<slug>/MISSION.md` |
 | `RESOURCES.md` | 新建一门科目／「资料收集」交回清单后 | `.learning/subjects/<slug>/RESOURCES.md` |
 | `GLOSSARY.md` | 新建一门科目（先写 `## 待掌握`） | `.learning/subjects/<slug>/GLOSSARY.md` |
+| `lab/`（目录树） | **出题角色**造 lab 时（`kind: 实操`／`kind: 实验`），照抄后只填题目与断言 | `.learning/subjects/<slug>/lab/` |
+
+- `lab/` 是**整棵目录树**的骨架（任务目录、答案目录、lab 说明、判分入口 `check.sh`、
+  断言、作答与探针、`自检.sh`），不是建科目时自动落盘的那几个文件：概念课不产 lab，
+  空着一份骨架只会是假产物。造 lab 的那一步从 `<root>/templates/lab/` 照抄，
+  把示例目录改名成 `<NNNN>-<主题>`、换掉题目与断言——判分入口、布局与自检都照抄，别另起一套。
+  判分契约见 `layered-practice` 第六节；路径与维护者见 [文件归属](../docs/规范/文件归属.md)。
 
 - **文件归属与代称**的唯一出处是 [文件归属](../docs/规范/文件归属.md)；字段形状以 `schemas/` 为准
   （`subject.yaml` ↔ `subject.schema.json`，其余是 Markdown，按文件里的分节写）。
