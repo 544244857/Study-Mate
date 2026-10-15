@@ -12,7 +12,13 @@
    这是**纯函数**、不含 IO、不认识 ctx：单元测试直接喂一串路径断言就完事。
    认不出来的路径一律落 `workspace`——保守方向：宁可让页面整份重取一次，
    也不要漏报（漏报就是「页面停在旧内容上」，那是这张 ticket 要消灭的东西）。
+
+   记忆文件名取自纯函数域的 `lib/core/memory.ts`（#190）：监听域只管「哪一片变了」，
+   一个字节的内容都不带，所以它没有投影可做——它认的文件名必须与记忆模块同一个，
+   否则页面收不到「记忆变了」，那份只含画像三节的载荷就永远停在旧内容上。
    ───────────────────────────────────────────────────────────────────────── */
+
+import { MEMORY_FILE } from '../core/memory.ts';
 
 /** 通知里 `domains` 的词表（稳定契约：阅读端、单测、真 DSH 探针都按它断言）。 */
 export const WATCH_DOMAINS = [
@@ -20,7 +26,8 @@ export const WATCH_DOMAINS = [
   'workspace',
   // .learning/ 这一层（.learning 目录本身变了）
   'learning',
-  // .learning/MEMORY.yaml —— 共享记忆
+  // .learning/MEMORY.yaml —— 共享记忆（文件名与 `lib/core/memory.ts` 同一份词表）：
+  // 这一片变了，页面重取载荷；载荷里只有画像三节（#190），`积累` 不进任何注入。
   'memory',
   // .learning/subjects/ 的**直接子项**变了：新建/删除/改名一个科目
   'subjects',
@@ -84,7 +91,7 @@ export function domainsOfPath(relative: string): WatchDomain[] {
 
   const rest = parts.slice(1);
   if (rest.length === 0) return ['learning'];
-  if (rest[0] === 'MEMORY.yaml') return ['memory'];
+  if (rest[0] === MEMORY_FILE) return ['memory'];
   if (rest[0] !== 'subjects') return ['workspace'];
 
   const inner = rest.slice(1);

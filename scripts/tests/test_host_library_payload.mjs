@@ -97,7 +97,24 @@ function minimalSubject() {
   };
 }
 
-function makeWorkspace(tree = {}, { memory = '# 共享记忆\n' } = {}) {
+/** 一份像样的共享记忆（#190）：画像三节里有内容的那一节 + 一条 `积累`。
+    `fish 脾气` 在画像节里一次都不出现——否定断言不会因为共用词而假阳性。 */
+const MEMORY_YAML = [
+  '我是谁:',
+  '  现有技能: [终端]',
+  '',
+  '教学偏好:',
+  '  有效的讲法: []',
+  '',
+  '积累:',
+  '  fish 脾气: 这台机器上 fish 不吃双横线。',
+  '',
+].join('\n');
+
+/** `memory_md` 的期望值**手写**：画像三节里**有内容**的那一节，原样（投影只有这一节）。 */
+const MEMORY_PROJECTION = ['我是谁:', '  现有技能: [终端]'].join('\n');
+
+function makeWorkspace(tree = {}, { memory = MEMORY_YAML } = {}) {
   const root = tmpRoot();
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
@@ -122,8 +139,13 @@ test('readLibrary 的顶层就那五个键，含义各自钉住', () => {
   assert.equal(payload.workspace, workspace);
   // generated_at 是 ISO 时间戳（只钉形状，不钉具体时刻）
   assert.match(payload.generated_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
-  // memory_md 是 .learning/MEMORY.yaml 的正文，没有就是空串
-  assert.equal(payload.memory_md, '# 共享记忆\n');
+  // memory_md 是 .learning/MEMORY.yaml 里**画像三节**的投影（#190），没有就是空串：
+  // 页面拿到的是学生画像，`积累`（角色攒下的干活笔记）一个字都不进展开的载荷
+  assert.equal(payload.memory_md, MEMORY_PROJECTION);
+  for (const fragment of ['积累', 'fish 脾气', '不吃双横线']) {
+    assert.equal(payload.memory_md.includes(fragment), false,
+      `载荷里出现了「${fragment}」：${payload.memory_md}`);
+  }
   // today 取各科目 updated_at 的字典序最大者的前 10 位
   assert.equal(payload.today, '2026-05-06');
   assert.equal(payload.subjects.length, 1);

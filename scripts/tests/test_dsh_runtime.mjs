@@ -174,7 +174,9 @@ async function probeNativeTools(app, home, presetTools, presetScope) {
   fs.writeFileSync(path.join(probeDsh, 'studymate-config.yaml'),
     `# StudyMate 学习工作区与引擎项目定位\n${JSON.stringify({ workspace: probeWorkspace }, null, 2)}\n`);
   writeSubject(probeWorkspace, 'demo');
-  fs.writeFileSync(path.join(probeWorkspace, '.learning', 'MEMORY.yaml'), '# 画像\n\n探针用。\n');
+  // #190：分节写（画像三节 + `积累`）——没写进画像节的内容不会被注入，探针要一份像样的工作区
+  fs.writeFileSync(path.join(probeWorkspace, '.learning', 'MEMORY.yaml'),
+    ['我是谁:', '  现有技能: [终端]', '', '积累:', '  探针: 这份工作区是探针造的。', ''].join('\n'));
 
   const previousDshHome = process.env.DSH_HOME;
   process.env.DSH_HOME = probeDsh;

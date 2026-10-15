@@ -11,7 +11,8 @@
        会话建得起来、学生一按发送就抛 `has no provider/model`（实测踩过，见本套件末三条）；
      · `setup` 里真的 `mount` 了预设（顺序：resolve → acquireScope → create(setup: mount)）；
      · 标题拼成「答疑 · 科目 · 节点」并交给 `ctx.sessionTitle.rename`；
-     · 共享记忆**注入一条且只注入一次**（多条消息就是重复注入）；
+     · 共享记忆**注入一条且只注入一次**（多条消息就是重复注入），而且注入的**只有画像三节**——
+       `积累` 是角色干活用的，学生提问时它一个字都不该进上下文（#190）；
      · 没有可用模型 / 没有部署默认模型时**一条会话都不建**、如实说明；
      · 宿主没挂 `sessionTitle` 时如实降级（`renamed:false`，会话照样建起来）；
      · 预设读不到 / 会话服务不在 → 走 `lib/route-envelope.ts` 的唯一信封；
@@ -35,17 +36,40 @@ import {
 const TEMPS = [];
 after(() => { for (const dir of TEMPS) fs.rmSync(dir, { recursive: true, force: true }); });
 
-const MEMORY_YAML = '讲法偏好：先给结论再给为什么。\n';
+/** 一份像样的共享记忆：画像三节各有内容，`积累` 里那条用词（`fish 脾气`）在三节里一次都不出现，
+    所以「注入文本里没有它」这条否定断言不会因为共用词而假阳性。 */
+const MEMORY_YAML = [
+  '我是谁:',
+  '  各领域当前水平: [网络入门]',
+  '',
+  '教学偏好:',
+  '  有效的讲法: 先给结论再给为什么。',
+  '',
+  '积累:',
+  '  fish 脾气: 这台机器上 fish 不吃双横线。',
+  '',
+].join('\n');
+
+/** 注入的期望值**手写**（不从模块算）：画像三节里**有内容**的那两节，按白名单顺序原样接起来。
+    第三份 `学习习惯` 这次没写——缺节就不进投影，注入的不是一堆空壳。 */
+const MEMORY_INJECTED = [
+  '我是谁:',
+  '  各领域当前水平: [网络入门]',
+  '',
+  '教学偏好:',
+  '  有效的讲法: 先给结论再给为什么。',
+].join('\n');
 
 /** `onlyOld`：只在旧名（`MEMORY.md`）那份文件里写同样的正文——#189 起注入的文本**只**来自
-    `MEMORY.yaml`，旧名就是一份普通文件，读侧不兜它、也没有兼容分支。 */
-function makeWorkspace({ withMemory = true, onlyOld = false } = {}) {
+    `MEMORY.yaml`，旧名就是一份普通文件，读侧不兜它、也没有兼容分支。
+    `memory`：换一份记忆文本（例如「只有 `积累`」那种没有画像内容的文件）。 */
+function makeWorkspace({ withMemory = true, onlyOld = false, memory = MEMORY_YAML } = {}) {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'studymate-qa-session-'));
   TEMPS.push(root);
   const workspace = path.join(root, 'ws');
   fs.mkdirSync(path.join(workspace, '.learning'), { recursive: true });
-  if (withMemory) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), MEMORY_YAML);
-  if (onlyOld) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), MEMORY_YAML);
+  if (withMemory) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), memory);
+  if (onlyOld) fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), memory);
   return { root, workspace };
 }
 
@@ -197,8 +221,35 @@ test('#105 建会话：共享记忆注入一条且只注入一条（模型可见
   assert.equal(typeof message.id, 'string');
   assert.ok(message.id.length > 0);
   assert.equal(message.role, 'user');
-  assert.deepEqual(message.content, [{ type: 'text', text: MEMORY_YAML.trim() }]);
+  // #190：注入的文本就是画像三节那一段，一字不差——不是整份文件、也不带 `积累`
+  assert.deepEqual(message.content, [{ type: 'text', text: MEMORY_INJECTED }]);
+  for (const fragment of ['积累', 'fish 脾气', '不吃双横线']) {
+    assert.equal(message.content[0].text.includes(fragment), false,
+      `注入文本里出现了「${fragment}」：${message.content[0].text}`);
+  }
   assert.equal(message.source.kind, 'user');
+});
+
+test('#190 建会话：记忆里没有画像内容（只有 `积累`／空骨架）就不注入', async () => {
+  // 只有 `积累`：角色攒下的干活笔记一个字都不该进学生的答疑上下文
+  const only = ['积累:', '  fish 脾气: 这台机器上 fish 不吃双横线。', ''].join('\n');
+  const first = makeWorkspace({ memory: only });
+  const host = fakeHost();
+  const view = await openAskSession(depsFor(first.workspace, host), { subject: '网络' });
+
+  assert.equal(view.ok, true, '记忆里没画像内容不等于建不成会话');
+  assert.equal(view.memoryInjected, false, '`积累` 不是可注入的内容');
+  assert.equal(host.messages.length, 0);
+
+  // 带注释的空骨架（新工作区第一次提问时的样子）：四个节名齐全、一条内容都没有 → 也不注入
+  const skeleton = ['# 学习者记忆', '', '我是谁:', '  现有技能: []', '', '教学偏好:', '  有效的讲法: []', '', '积累: {}', ''].join('\n');
+  const second = makeWorkspace({ memory: skeleton });
+  const empty = fakeHost();
+  const skeletonView = await openAskSession(depsFor(second.workspace, empty), { subject: '网络' });
+
+  assert.equal(skeletonView.ok, true);
+  assert.equal(skeletonView.memoryInjected, false, '空骨架注入进去只是一堆空壳，等于没注入');
+  assert.equal(empty.messages.length, 0);
 });
 
 test('#105 建会话：共享记忆为空就不注入（不是注入一条空的）', async () => {

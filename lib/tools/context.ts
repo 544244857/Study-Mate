@@ -2,7 +2,7 @@
    StudyMate · 工具域 —— `studymate_workspace_context`
 
    替掉「总控开场自己读一堆文件」：一次调用拿到**结构化摘要**——工作区路径、时区与今天、
-   科目清单（含当前节点与状态）、最近学习记录、共享记忆、可用能力。
+   科目清单（含当前节点与状态）、最近学习记录、共享记忆的画像三节、可用能力。
 
    读域：workspace / memory / subjects / curriculum / progress / records。
    它们互相之间不越界：`subjects` 的切片里没有题库、没有课件正文（见 `vault.ts` 的逐域投影），
@@ -13,6 +13,7 @@
    ───────────────────────────────────────────────────────────────────────── */
 
 import { probeModel } from './capability.ts';
+import { readMemory } from '../core/memory.ts';
 import type { ServiceReader } from './capability.ts';
 import type { StudyToolSpec } from './define.ts';
 import type { WorkspaceFacts } from '../host/vault.ts';
@@ -216,7 +217,7 @@ function summarize(input: {
 export function workspaceContextTool(ctx: ServiceReader): StudyToolSpec {
   return {
     name: 'studymate_workspace_context',
-    description: '读学习工作区，回报路径、今天、科目现状（当前节点与三档进度）、最近学习记录与可用能力。',
+    description: '读学习工作区，回报路径、今天、科目现状（当前节点与三档进度）、最近学习记录、共享记忆的画像三节与可用能力。',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -292,7 +293,16 @@ export function workspaceContextTool(ctx: ServiceReader): StudyToolSpec {
         notes.push(`工作区 ${facts.path} 里还没有可用科目（建课建到一半、大纲里一个节点都没有的目录不算）——先建一个。`);
       }
 
-      const memory = run.access.read<{ file: string; present: boolean; markdown: string }>('memory');
+      const raw = run.access.read<{ file: string; present: boolean; markdown: string }>('memory');
+      /* #190：`markdown` 只放**画像三节**的投影——`积累` 是角色攒下的干活笔记，永不进上下文。
+         形状（`file` / `present` / `markdown` 三个键）一个字都没动：它是插件与总控之间的字段
+         契约，改的是值，不是契约（ADR-0014「宿主契约不动」）。`present` 照实报「文件在不在」，
+         所以「只有 `积累`」的文件是 `present: true` + 空 `markdown`。 */
+      const memory = {
+        file: raw.file,
+        present: raw.present,
+        markdown: readMemory({ shared: raw.markdown }).injectable,
+      };
       const wanted = typeof args.subject === 'string' ? args.subject.trim() : '';
       const selected = summarize({ subjects, curriculum, progress, records, wanted });
       if (wanted !== '' && selected.length === 0) {
