@@ -161,10 +161,14 @@ export interface AskSessionView {
   reason?: string;
 }
 
-/** 请求体：`{ subject, node }` 只用来拼标题（缺就少写一节）。 */
+/** 请求体：`{ subject, node }` 只用来拼标题（缺就少写一节）；`nodeId` / `lesson` 用来给 agent 一条课件指针。 */
 export interface AskSessionInput {
   subject?: unknown;
   node?: unknown;
+  /** 这一课的节点 id：取课件的工具只认它（`lib/tools/lesson-read.ts`）。缺就不注入指针。 */
+  nodeId?: unknown;
+  /** 课件文件（`<slug>/<文件名>.md`）：只写进指针里当路标，不进工具参数。 */
+  lesson?: unknown;
 }
 
 /* ── 零件 ──────────────────────────────────────────────────────────────── */
@@ -219,6 +223,35 @@ function memoryMessage(text: string): unknown {
     content: [{ type: 'text', text }],
     source: { kind: 'user' },
   };
+}
+
+/**
+ * 节点 id 的安全形状：非空、不带空白与控制字符、不含 `/`、`\`、`..`，长度有上限。
+ *
+ * 这里只管「能不能安全地拼进一句话」——这个 id 到底存不存在、合不合课件 schema，是取课件那个
+ * 工具的事（它拿不到就回一条「没有」）。不卡死成 `schemas/curriculum.schema.json` 那种
+ * 小写点分式，是为了不把「id 还没按规范写」的工作区一并挡在门外。
+ */
+function usableNodeId(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const id = value.trim();
+  if (id === '' || id.length > 64) return '';
+  if (/[\s/\\\u0000-\u001f]/.test(id) || id.includes('..')) return '';
+  return id;
+}
+
+/**
+ * 这一课在哪、拿什么读：会话开张时注入一条，agent 就不用拿文件路径去猜工具参数（#163）。
+ * 空串 = 没有可用的节点 id，调用方据此不注入。
+ */
+function lessonPointer(input: AskSessionInput): string {
+  const id = usableNodeId(input.nodeId);
+  if (id === '') return '';
+  const lesson = typeof input.lesson === 'string' ? input.lesson.trim() : '';
+  const where = lesson !== '' && lesson.length <= 200 && !/[\s\u0000-\u001f]/.test(lesson)
+    ? `（这一课的课件：${lesson}）` : '';
+  return `这一课的节点 id 是 ${id}${where}。要读正文或这一节点的题，就调 studymate_lesson_read 传这个 id——`
+    + '它只认节点 id，带 / 或 .. 一律回报「没有」；别拿文件路径、科目名或标题去试。';
 }
 
 /** 还租来的预设 revision：`acquireScope` 的返回值是 `AsyncDisposable`（可能带 `dispose`）。 */
@@ -331,6 +364,13 @@ export async function openAskSession(deps: AskSessionDeps, input: AskSessionInpu
     memoryInjected = true;
   }
 
+  // 5′ 课件指针：把这一课的节点 id 明写进上下文，agent 才谈得上按需读正文（#163）。
+  //    和记忆一样是「开张一条」，没给可用的 id 就不注入——不拿半句话占位。
+  const pointer = lessonPointer(input);
+  if (pointer !== '' && live && typeof live.inject === 'function') {
+    live.inject(memoryMessage(pointer));
+  }
+
   return { available: true, ok: true, sessionId, title, renamed, memoryInjected };
 }
 
@@ -370,7 +410,7 @@ export function registerAskSessionRoute(ctx: AskSessionRouteContext): void {
       fetch: async (request: Request): Promise<Response> => {
         const body = await request.json().catch(() => null);
         if (!body || typeof body !== 'object') {
-          return routeError(400, 'body-invalid', '请求体要是 JSON 对象：{ subject, node }（只用来拼标题）', { available: true });
+          return routeError(400, 'body-invalid', '请求体要是 JSON 对象：{ subject, node } 拼标题，{ nodeId, lesson } 给课件指针（都可缺）', { available: true });
         }
         const workspace = resolveWorkspace();
         if (!workspace) {

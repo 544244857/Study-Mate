@@ -56,7 +56,7 @@ function loadPure() {
 }
 
 const PURE = loadPure();
-const { planPanes, drawerWidth, PANE_LIMITS, MIN_CENTER, DRAWER_SLIT } = PURE;
+const { planPanes, drawerWidth, PANE_LIMITS, MIN_CENTER, DRAWER_SLIT, handleAt } = PURE;
 
 const RAILS = 76;                                   // 两条 38px 窄轨（CSS 里 --smb-rail 一处定义）
 const STORED = { left: 264, right: 372 };           // 默认记忆值
@@ -258,4 +258,44 @@ test('脚本侧不再写第二遍：rails 是入参，换一个值分配跟着�
   const hits = [...code.matchAll(new RegExp(`\\b${rail}\\b`, 'g'))];
   assert.deepEqual(hits.map((one) => code.slice(Math.max(0, one.index - 24), one.index + 24)), [],
     `脚本里又写了一遍窄轨宽 ${rail}（把手偏移、几何常量都该从量出来的 rails 走）`);
+});
+
+/* ── 把手落点：只加**自己那一侧**的窄轨 ───────────────────────────────────
+   《规格》§4.4「栏宽拖拽」：把手贴在栏的**内侧边缘**上。窄轨有两条，各在画布一端；
+   `rails` 是两条的**和**（画布预算要它），一根把手却只能加自己那一侧的那条。
+   搞混的现场（本套件第一次跑就丢过的那个 bug）：右把手落进正文、压在正文滚动条的左边，
+   左把手落进正文右侧——两条本该压在栏线上的线成了分开的两根。 */
+
+test('把手落在栏的内侧边缘：自己那侧的窄轨 + 栏宽', () => {
+  const rails = { left: 38, right: 38 };
+  assert.equal(handleAt('left', rails, 'column', 264, 0), 38 + 264);
+  assert.equal(handleAt('right', rails, 'column', 372, 0), 38 + 372);
+});
+
+test('两边各取自己的窄轨，不是两条的和', () => {
+  // 宽窄不等的两条窄轨（真实渲染量出来可能是 38/44 这种），落点必须各跟各的
+  const rails = { left: 38, right: 44 };
+  assert.equal(handleAt('left', rails, 'column', 264, 0), 302, '左把手跟左边那条');
+  assert.equal(handleAt('right', rails, 'column', 372, 0), 416, '右把手跟右边那条');
+  assert.notEqual(handleAt('right', rails, 'column', 372, 0), 38 + 44 + 372,
+    '把手落点加的是两条窄轨的和——那正是让它朝中间偏一条窄轨的写法');
+});
+
+test('收起态落在窄轨内缘；抽屉态的落点也按自己那侧算', () => {
+  const rails = { left: 38, right: 38 };
+  assert.equal(handleAt('left', rails, 'off', 0, 0), 38, '收起时贴窄轨内侧边缘，拖一下就能展开');
+  assert.equal(handleAt('right', rails, 'off', 0, 0), 38);
+  assert.equal(handleAt('left', rails, 'drawer', 0, 320), 38 + 320, '抽屉也要能拖，落点是窄轨 + 抽屉宽');
+  assert.equal(handleAt('right', rails, 'drawer', 0, 372), 38 + 372);
+});
+
+test('组件把 railWidths（按侧）传进 handleAt，不是 rails（两条的和）', () => {
+  // 纯函数对不上这种错法：公式在、却喂了错的量。所以这里扫调用点本身
+  const calls = [...SOURCE.matchAll(/handleAt\('(left|right)',\s*([A-Za-z_$][\w$]*)/g)]
+    .map((one) => ({ side: one[1], rails: one[2] }));
+  assert.deepEqual(calls.map((one) => one.side).sort(), ['left', 'right'], '两条栏各要一次把手落点');
+  for (const call of calls) {
+    assert.equal(call.rails, 'railWidths',
+      `${call.side} 把手的落点没按侧取窄轨（传了 ${call.rails}）——两条的和只属于画布预算`);
+  }
 });

@@ -5,8 +5,9 @@
    自己发请求，正文交给宿主的 `conversation.content`（`variant:'embedded'`），会话由插件宿主半
    建、客户端只 retain。于是这一条套件改守新形态的几件事：
 
-     · 打开问答就有一条会话：POST `/api/studymate/qa/session`（请求体只有拼标题要的两个名字），
-       然后 `retain` 它——来源标签是 `studymateAsk`（**不是** `mainView`）；
+     · 打开问答就有一条会话：POST `/api/studymate/qa/session`（请求体带拼标题要的两个展示名，
+       外加**课件指针**用的节点 id 与课件路径，见 #163），然后 `retain` 它——来源标签是
+       `studymateAsk`（**不是** `mainView`）；
      · 面板嵌的是 `conversation.content`，而且被 `SessionProvider` 包着、指着我们 retain 的那条；
      · 「新对话」建一条新的并换过去，上一条被 release；「上一段会话」只列答疑会话（标题前缀认）；
      · 切「题目」tab 再切回、以及**真刷新页面**之后，会话还在（不重复建）。
@@ -552,9 +553,10 @@ try {
       seen.creates === 1 && !!seen.lastCreate && seen.lastCreate.url.indexOf('/api/studymate/qa/session') === 0,
       `creates=${seen.creates} last=${JSON.stringify(seen.lastCreate)}`);
     const body = seen.lastCreate ? JSON.parse(seen.lastCreate.body) : {};
-    check('[打开] 请求体只有拼标题要的两个展示名（面板不背会话）',
-      JSON.stringify(Object.keys(body).sort()) === JSON.stringify(['node', 'subject'])
-      && body.subject === '演示科目' && body.node === '变量',
+    check('[打开] 请求体：两个展示名（拼标题）+ 课件指针（节点 id 与课件路径，面板不背会话）',
+      JSON.stringify(Object.keys(body).sort()) === JSON.stringify(['lesson', 'node', 'nodeId', 'subject'])
+      && body.subject === '演示科目' && body.node === '变量'
+      && body.nodeId === '变量' && body.lesson === 'demo/1-变量.md',
       JSON.stringify(body));
     check('[打开] retain 了刚建的那条，来源标签是 studymateAsk（绝不能用 mainView）',
       seen.retains.length === 1 && seen.retains[0].source === 'studymateAsk'
