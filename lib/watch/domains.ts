@@ -16,6 +16,8 @@
    记忆文件名取自纯函数域的 `lib/core/memory.ts`（#190）：监听域只管「哪一片变了」，
    一个字节的内容都不带，所以它没有投影可做——它认的文件名必须与记忆模块同一个，
    否则页面收不到「记忆变了」，那份只含画像三节的载荷就永远停在旧内容上。
+   两份记忆**同名不同位置**（#191）：`.learning/MEMORY.yaml` 是共享记忆那一域 `memory`，
+   科目目录下那份是 `subject-memory`——认得出它，但不把它并进注入源那一片。
    ───────────────────────────────────────────────────────────────────────── */
 
 import { MEMORY_FILE } from '../core/memory.ts';
@@ -33,6 +35,10 @@ export const WATCH_DOMAINS = [
   'subjects',
   // 单个科目内部
   'subject',
+  // <科目>/MEMORY.yaml —— 科目记忆（只装「积累」，永不进任何上下文）。**自成一域**：
+  // payload 里没有它对应的一片，也**不许**并进 `memory`（那一域的名分是「注入源变了」，
+  // 而科目记忆的取值范围里根本没有画像三节）。它认的文件名与记忆模块同一份词表。
+  'subject-memory',
   'curriculum',
   'progress',
   'lesson',
@@ -75,6 +81,10 @@ const SUBJECT_FILES: Record<string, WatchDomain> = {
   'MISSION.md': 'mission',
   'GLOSSARY.md': 'glossary',
   'RESOURCES.md': 'resources',
+  // #191 科目记忆：与共享记忆**同名、不同位置**（科目目录下），所以文件名取自记忆模块
+  // 那一份词表而不是手抄。域自成一片（见 `WATCH_DOMAINS` 里那段）：认出它、但不把它当
+  // 注入源——它一个字节的内容都不会进任何上下文。
+  [MEMORY_FILE]: 'subject-memory',
 };
 
 /**
