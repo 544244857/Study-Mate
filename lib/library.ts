@@ -11,7 +11,7 @@
    「继续学」的挑选顺序、零节点科目跳过。刻意不同的地方只有四处，
    都写在各自位置的注释里：
      1. 课件正文内联（lesson_md），不再让阅读端去 fetch lessons/<slug>/<file>.md；
-     2. 顶层多出 workspace 与 memory_md（Host 半要知道自己在读哪个库、共享记忆是什么）；
+     2. 顶层多出 workspace 与 memory_md（前者让 Host 半知道自己在读哪个库，后者只放共享记忆的画像三节）；
      3. 顶层不再有 source / note —— 那是原型构建脚本自己的元信息（相对路径、
         「由构建脚本抽出」），放进插件 payload 会误导人；
      4. 一个可用科目都没有时给**空清单**，不抛错（#90）：那是「工作区在、课还没建」，
@@ -34,6 +34,8 @@ import type { ReferenceEntry } from './reference.ts';
 import { parseAnchors, reconcileAnchors } from './core/anchors.ts';
 import type { AnchorMatch } from './core/anchors.ts';
 import { cmpCodePoints } from './core/format.ts';
+// 共享记忆的注入边界（#190）：载荷里的 `memory_md` 只取画像三节，`积累` 永不进上下文。
+import { MEMORY_FILE, readMemory } from './core/memory.ts';
 // 题型与字段的判据在纯函数域（词表只有一份：lib/core/rules.ts 的 QUESTION_KINDS）。
 // 未知题型要带**题库文件与行号**报出来——行号来自扫 JSON 原文，不是文本搜索。
 import { checkPoolKinds } from './core/questions.ts';
@@ -649,7 +651,10 @@ export function buildLibrary(options: { workspace?: string; root?: string } = {}
     workspace,
     generated_at: new Date().toISOString(),
     today: updated.length === 0 ? '' : updated[updated.length - 1].slice(0, 10),
-    memory_md: readTextIfPresent(path.join(learningDir, 'MEMORY.yaml')) ?? '',
+    /* #190：载荷里只放共享记忆的**画像三节**投影（字段名与形状照旧，见 ADR-0014「宿主契约不动」）。
+       `积累` 是角色攒下的干活笔记，与整份科目记忆一样永不进上下文——载荷是给页面展开的，
+       展开的东西同样只该是学生画像；只有 `积累` 的文件投影成空串。 */
+    memory_md: readMemory({ shared: readTextIfPresent(path.join(learningDir, MEMORY_FILE)) }).injectable,
     subjects,
   };
 }

@@ -48,13 +48,16 @@ const NEW_NAME = 'MEMORY.yaml';
 
 /* ── 一、模板骨架：新名在、旧名不在，节与今天一致 ─────────────────────────── */
 
-/** 改名前 `templates/MEMORY.md` 的四节与每节的条目（逐字取自那份文件）。
-    期望值写死在这里，不从模板自己算——从模板算出来的期望值只能证明它等于它自己。 */
+/** 改名前 `templates/MEMORY.md` 的前三节与每节的条目（逐字取自那份文件）。
+    期望值写死在这里，不从模板自己算——从模板算出来的期望值只能证明它等于它自己。
+    **#190 换掉了第四节**：原来那个只装本机事实的「跨科目观察」撤掉了，换成「积累」
+    （一条 = 中文键 + 一句话，所以空骨架是空映射而不是空列表）；节名与投影白名单由
+    `test_core_memory.mjs` 从记忆模块那一侧钉住，这里只跟着改期望值。 */
 const SKELETON = {
   我是谁: ['现有技能', '各领域当前水平'],
   教学偏好: ['有效的讲法', '容易烦躁的', '例子偏好'],
   学习习惯: ['可投入时间', '节奏', '常见卡点'],
-  跨科目观察: [],
+  积累: [],
 };
 
 test('#189 模板：templates/MEMORY.yaml 在盘上，旧模板名不在', () => {
@@ -64,20 +67,20 @@ test('#189 模板：templates/MEMORY.yaml 在盘上，旧模板名不在', () =>
     `templates/${OLD_NAME} 还留在盘上：改名之后它不该再有第二份（读侧不兜旧名，留着只会误导）`);
 });
 
-test('#189 模板：带注释的空骨架，节与四节条目与改名前一致', () => {
+test('#189/#190 模板：带注释的空骨架，画像三节的条目与改名前一致，`积累` 是空映射', () => {
   const text = fs.readFileSync(path.join(ROOT, 'templates', NEW_NAME), 'utf8');
   assert.match(text, /^#/m, '骨架要带注释：节是什么、往里写什么，注释是它唯一的说明书');
   assert.doesNotMatch(text, new RegExp(OLD_NAME.replace('.', '\\.')), '骨架里不许再写旧名');
 
   const parsed = parseYaml(text, { file: `templates/${NEW_NAME}` });
   assert.equal(typeof parsed, 'object', '骨架要解析得开（它是 YAML，不是随手写的文本）');
-  assert.deepEqual(Object.keys(parsed), Object.keys(SKELETON), '四节的节名与顺序都要与改名前一致');
+  assert.deepEqual(Object.keys(parsed), Object.keys(SKELETON), '四节的节名与顺序：前三节与改名前一致，第四节是 #190 的「积累」');
 
   for (const [section, entries] of Object.entries(SKELETON)) {
     const value = parsed[section];
     if (entries.length === 0) {
-      // 「跨科目观察」今天的条目没有小标题，就是一串自由记录
-      assert.deepEqual(value, [], `「${section}」要是一个空列表（骨架是空的）`);
+      // #190：「积累」是「一条 = 中文键 + 一句话」的映射，空骨架就是空映射（不是空列表）
+      assert.deepEqual(value, {}, `「${section}」要是一个空映射（骨架是空的）`);
       continue;
     }
     assert.deepEqual(Object.keys(value), entries, `「${section}」下的条目标题与改名前一致`);

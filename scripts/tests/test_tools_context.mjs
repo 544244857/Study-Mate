@@ -30,9 +30,35 @@ function withTools(t, options = {}) {
 
 /* ── 一、结构化摘要 ───────────────────────────────────────────────────── */
 
+/** 一份像样的共享记忆（#190）：画像三节里有内容的那两节 + 一条 `积累`。
+    `fish 脾气` 在三节里一次都不出现——否定断言不会因为共用词而假阳性。 */
+const MEMORY_YAML = [
+  '我是谁:',
+  '  现有技能: [终端]',
+  '',
+  '教学偏好:',
+  '  有效的讲法: []',
+  '',
+  '学习习惯:',
+  '  常见卡点: 喜欢动手试。',
+  '',
+  '积累:',
+  '  fish 脾气: 这台机器上 fish 不吃双横线。',
+  '',
+].join('\n');
+
+/** `memory.markdown` 的期望值**手写**：画像三节里**有内容**的那两节，按白名单顺序原样接起来。 */
+const MEMORY_PROJECTION = [
+  '我是谁:',
+  '  现有技能: [终端]',
+  '',
+  '学习习惯:',
+  '  常见卡点: 喜欢动手试。',
+].join('\n');
+
 test('开场一次调用拿到：工作区路径、今天、科目现状（当前节点 + 三档）、记录与能力', async (t) => {
   const f = withTools(t);
-  fs.writeFileSync(path.join(f.workspace, '.learning', 'MEMORY.yaml'), '# 画像\n\n喜欢动手。\n');
+  fs.writeFileSync(path.join(f.workspace, '.learning', 'MEMORY.yaml'), MEMORY_YAML);
   fs.writeFileSync(path.join(f.dir, 'learning-records', '2026-05-06-变量.md'),
     '# 变量这一课\n\n- 日期：2026-05-06\n\n学会了。\n');
 
@@ -60,11 +86,28 @@ test('开场一次调用拿到：工作区路径、今天、科目现状（当�
   assert.match(subject.recentRecords[0].markdown, /学会了/);
 
   assert.equal(value.memory.present, true);
-  assert.match(value.memory.markdown, /喜欢动手/);
+  // #190：`markdown` 是**画像三节**的投影，不是整份文件——总控开场那一次调用拿到的就是它
+  assert.equal(value.memory.markdown, MEMORY_PROJECTION);
+  for (const fragment of ['积累', 'fish 脾气', '不吃双横线']) {
+    assert.equal(value.memory.markdown.includes(fragment), false,
+      `摘要里出现了「${fragment}」：${value.memory.markdown}`);
+  }
   // #189：回报的路径要以新名结尾，不是只「读到了内容」——总控照着这个路径去读盘
   assert.match(value.memory.file, /[\\/]\.learning[\\/]MEMORY\.yaml$/);
   assert.equal(value.capabilities.model.available, false);
   assert.deepEqual(value.notes, []);
+});
+
+test('#190 摘要：记忆里没有画像内容（只有 `积累`）时 `markdown` 是空串，`present` 照实为 true', async (t) => {
+  const f = withTools(t);
+  fs.writeFileSync(path.join(f.workspace, '.learning', 'MEMORY.yaml'),
+    ['积累:', '  fish 脾气: 这台机器上 fish 不吃双横线。', ''].join('\n'));
+
+  const value = await execute(f.ctx, 'studymate_workspace_context', {});
+  await assertOutput(assert, f.ctx.definitions.get('studymate_workspace_context'), value);
+  assert.equal(value.memory.present, true, '文件在盘上，`present` 就该是 true');
+  assert.equal(value.memory.markdown, '', '`积累` 不是可注入的内容，投影是空的');
+  assert.match(value.memory.file, /[\\/]\.learning[\\/]MEMORY\.yaml$/);
 });
 
 test('三档状态来自 progress.yaml；旧词表读到就映射（不静默当学会）', async (t) => {

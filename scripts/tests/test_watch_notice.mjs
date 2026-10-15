@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const domains = await import(pathToFileURL(path.join(ROOT, 'lib/watch/domains.ts')).href);
 const notice = await import(pathToFileURL(path.join(ROOT, 'lib/watch/notice.ts')).href);
+const memory = await import(pathToFileURL(path.join(ROOT, 'lib/core/memory.ts')).href);
 
 test('路径 → 域：课件、题库、作答、记忆与「新建科目」各归各片', () => {
   const table = [
@@ -33,6 +34,10 @@ test('路径 → 域：课件、题库、作答、记忆与「新建科目」各
     ['.learning/subjects/demo', ['subjects']],
     ['.learning/subjects', ['subjects']],
     ['.learning/MEMORY.yaml', ['memory']],
+    // #190：记忆片认的文件名与记忆模块是**同一份词表**——监听域只管「哪一片变了」，一个字节的
+    // 内容都不带（没有投影可做）；它认的名字漂了，页面就收不到「记忆变了」，那份只含画像三节的
+    // 载荷（`test_host_library_payload.mjs` 钉着）会永远停在旧内容上。
+    [`.learning/${memory.MEMORY_FILE}`, ['memory']],
     // #189：旧名不再被当成记忆——它就是一份落在 `.learning/` 下的普通文件，按「认不出来」
     // 处理（页面整份重取）。读侧不兜旧名、不留兼容分支，这条断言钉的就是那件事。
     ['.learning/MEMORY.md', ['workspace']],

@@ -135,7 +135,7 @@ export interface AskSessionDeps {
   agentDefaultModel?: AskDefaultModel | null;
   /** `ctx.llm` 拿到的模型服务（可能没有） */
   llm?: unknown;
-  /** 读共享记忆（`.learning/MEMORY.yaml`） */
+  /** 读共享记忆里**可注入的画像三节**（收窄在 `lib/ask/memory.ts`；默认实现就是它） */
   readMemory?: (workspace: string) => string;
   /** 现造会话 id（测试注入；不注入就是 `studymate-qa-<uuid>`） */
   createId?: () => string;
@@ -357,6 +357,8 @@ export async function openAskSession(deps: AskSessionDeps, input: AskSessionInpu
   }
 
   // 5. 共享记忆：会话开张注入一条，之后不再重复（这条路由一条会话只跑一次）。空就不注入。
+  //    `readMemoryFromWorkspace` 交出来的已经是**画像三节**（#190）——`积累` 与整份科目记忆
+  //    到不了这儿；空骨架也是一个字的画像内容都没有，同样不注入。
   const memory = (deps.readMemory ?? readMemoryFromWorkspace)(deps.workspace).trim();
   let memoryInjected = false;
   if (memory !== '' && live && typeof live.inject === 'function') {
