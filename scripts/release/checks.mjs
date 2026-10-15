@@ -282,6 +282,9 @@ const groups = {
       // 纯函数域（lib/core/**）：JSON Schema 子集校验器 + 四类校验 + 规则层。
       // 最后一条是覆盖率下限门禁，它自己会 spawn 一轮带阈值的 `node --test`。
       'scripts/tests/test_core_schema_subset.mjs',
+      // 纯函数域（`lib/core/memory.ts`，#190）：两份记忆的文本 → 可注入的画像三节投影、
+      // `积累` 条目的键与内容、缺节与空骨架的判定。「`积累` 不进上下文」在这条套件里被钉成判据。
+      'scripts/tests/test_core_memory.mjs',
       'scripts/tests/test_validators_curriculum.mjs',
       'scripts/tests/test_validators_progress_subject.mjs',
       'scripts/tests/test_validators_handoff.mjs',
