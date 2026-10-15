@@ -388,11 +388,12 @@ async function prepare() {
 }
 
 export async function registryVersion(version, request = fetch) {
-  const response = await request(`${REGISTRY}${encodeURIComponent(PACKAGE)}/${encodeURIComponent(version)}`, {
+  const url = `${REGISTRY}${encodeURIComponent(PACKAGE)}/${encodeURIComponent(version)}`;
+  const response = await request(url, {
     headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(30_000),
   });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status}; publication status is unknown.`);
+  if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status} for ${url}; publication status is unknown.`);
   return response.json();
 }
 
@@ -400,6 +401,42 @@ export function verifyPublished(remote, pack) {
   if (remote.name !== PACKAGE || remote.version !== pack.version || remote.dist?.integrity !== pack.integrity) {
     throw new Error(`${PACKAGE}@${pack.version} already exists with different contents. It cannot be overwritten.`);
   }
+}
+
+/** npm 对大包是异步入库：CLI 打出 `Your package is being processed...` 就返回了。
+ * 窗口默认 30 分钟——绝大多数发布一分钟内就可见，30 分钟覆盖慢的那些；
+ * force-majeure 的迟到（2026-10-15 那次 8.1 MB 的包迟到约 55 分钟）靠重跑补齐，
+ * 重跑不会重复发包。`RELEASE_NPM_WAIT_SECONDS` 覆盖总时长，上限是 workflow 的 job 超时。
+ */
+export function publishWaitSeconds() {
+  const seconds = Number(process.env.RELEASE_NPM_WAIT_SECONDS ?? 1800);
+  if (!Number.isFinite(seconds) || seconds < 0) throw new Error('RELEASE_NPM_WAIT_SECONDS must be a non-negative number of seconds.');
+  return seconds;
+}
+
+/** 等 npm registry 出现某个版本；窗口内没出现返回 remote: null，由调用方决定怎么报。
+ * 节奏从密到疏：多数发布一分钟内可见，少数慢的走 15/30 秒轮询，把请求数压下来。
+ */
+export async function waitForPublished(version, { request = fetch, totalMs = publishWaitSeconds() * 1000, sleep, now = Date.now } = {}) {
+  const wait = sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+  const started = now();
+  let attempts = 0;
+  for (;;) {
+    attempts++;
+    const remote = await registryVersion(version, request);
+    const elapsed = now() - started;
+    if (remote) return { remote, attempts, elapsed };
+    const pause = attempts <= 30 ? 5000 : attempts <= 60 ? 10_000 : attempts <= 180 ? 15_000 : 30_000;
+    if (elapsed + pause > totalMs) return { remote: null, attempts, elapsed };
+    await wait(pause);
+  }
+}
+
+/** 发布已发出、registry 里却还没出现时的现场说明：包可能仍在 npm 队列里。 */
+export function publicationPending(version, { status, attempts, elapsed }) {
+  return `${PACKAGE}@${version} 在 ${Math.round(elapsed / 1000)} 秒（${attempts} 次查询）内没有出现在 registry 上（npm publish 退出码 ${status}）。`
+    + `npm 对大包是异步入库，这个版本可能仍在 npm 队列里：先看 ${REGISTRY}${PACKAGE}/${version}，出现了就重跑本任务补齐 Release 与 ZIP；`
+    + '确实没有再用 `RELEASE_NPM_WAIT_SECONDS` 加长等待窗口重跑。';
 }
 
 export function verifyPublishOrder(version, latest) {
@@ -440,13 +477,10 @@ async function publish() {
     const result = command('npm', ['publish', pack.file, '--access', 'public', '--provenance', '--ignore-scripts', '--registry', REGISTRY], { allowFailure: true });
     process.stdout.write(result.stdout || '');
     process.stderr.write(result.stderr || '');
-    // npm processes accepted publications asynchronously; allow up to five minutes.
-    // A lost HTTP response may also follow a successful immutable publication.
-    for (let attempt = 0; attempt < 60 && !remote; attempt++) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      remote = await registryVersion(pack.version);
-    }
-    if (!remote) throw new Error(`npm publication could not be verified (exit ${result.status}). Re-run this workflow after checking npm.`);
+    // npm 异步处理已受理的发布，丢响应也可能发生在一次成功的不可变发布之后；两者都靠轮询收尾。
+    const waited = await waitForPublished(pack.version);
+    remote = waited.remote;
+    if (!remote) throw new Error(publicationPending(pack.version, { ...waited, status: result.status }));
   }
   verifyPublished(remote, pack);
   const notes = notesFromChangelog(readFileSync('CHANGELOG.md', 'utf8'), state.version);
