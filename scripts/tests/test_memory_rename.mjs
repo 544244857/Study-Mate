@@ -113,7 +113,7 @@ function walk(dir, found = []) {
 /** 二进制按扩展名跳过：图是导出的产物（改它的源，不改它），源码与文档都是文本。 */
 const BINARY_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.woff', '.woff2', '.zip', '.pdf']);
 
-test('#189 全仓没有一处手写的旧名（生成产物与决策记录除外）', () => {
+test('#189 全仓没有一处手写的旧名（生成产物、决策记录、自述历史与反证输入除外）', () => {
   const offenders = [];
   for (const relative of walk(ROOT)) {
     if (EXEMPT_FILES.has(relative)) continue;
