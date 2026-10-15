@@ -114,6 +114,16 @@ const MEMORY_YAML = [
 /** `memory_md` 的期望值**手写**：画像三节里**有内容**的那一节，原样（投影只有这一节）。 */
 const MEMORY_PROJECTION = ['我是谁:', '  现有技能: [终端]'].join('\n');
 
+/** #191 科目记忆：只对这门课成立的做法与事实（科目目录下那份 `MEMORY.yaml`）。用词在共享
+    记忆里一次都不出现——否定断言不会因为共用词而假阳性。 */
+const SUBJECT_MEMORY_YAML = [
+  '# 科目记忆 —— 只对这门课成立的做法与事实。',
+  '#',
+  '积累:',
+  '  演示环境: 这门课的 lab 要在 /tmp/lab-probe 下跑。',
+  '',
+].join('\n');
+
 function makeWorkspace(tree = {}, { memory = MEMORY_YAML } = {}) {
   const root = tmpRoot();
   const workspace = path.join(root, 'ws');
@@ -149,6 +159,23 @@ test('readLibrary 的顶层就那五个键，含义各自钉住', () => {
   // today 取各科目 updated_at 的字典序最大者的前 10 位
   assert.equal(payload.today, '2026-05-06');
   assert.equal(payload.subjects.length, 1);
+});
+
+test('#191 载荷：科目记忆一个字都不进 payload（盘上那份带内容的科目记忆是活的）', () => {
+  const tree = subjectTree('demo', { ...minimalSubject(), 'MEMORY.yaml': SUBJECT_MEMORY_YAML });
+  const { workspace } = makeWorkspace(tree);
+  // 正面：盘上真有一份**带内容**的科目记忆——不然这条否定断言只是「文件不存在」
+  assert.match(fs.readFileSync(path.join(workspace, '.learning', 'subjects', 'demo', 'MEMORY.yaml'), 'utf8'),
+    /lab-probe/, '夹具要真的把科目记忆写进科目目录');
+
+  const payload = readLibrary({ workspace });
+
+  // 载荷是给页面**展开**的：科目记忆既不在任何字段里，也不许从别的字段漏出来
+  const dump = JSON.stringify(payload);
+  for (const fragment of ['科目记忆', '演示环境', '/tmp/lab-probe']) {
+    assert.equal(dump.includes(fragment), false, `载荷里出现了科目记忆的「${fragment}」：${dump}`);
+  }
+  assert.equal(payload.memory_md, MEMORY_PROJECTION, '共享记忆的画像三节照旧');
 });
 
 test('buildLibrary 与 readLibrary 是同一份实现，相对 workspace 按 root 解析', () => {
