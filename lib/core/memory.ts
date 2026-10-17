@@ -7,9 +7,11 @@
 
    为什么要有这一层：共享记忆与科目记忆是**两种可见性**，不是两份内容。学生画像三节
    （`我是谁` / `教学偏好` / `学习习惯`）可以进上下文；`积累`（角色攒下的干活笔记）与整份
-   科目记忆**永不进入任何上下文**。这条边界不能靠提示词约定——四条消费路径（答疑开张注入、
-   工作区摘要工具、图片库载荷、监听域）各自读盘，各写一遍「取哪几节」就会漂。所以分节与
-   白名单只在这里定义一次，调用方只拿投影文本。
+   科目记忆**永不进入任何上下文**。这条边界不能靠提示词约定——三处取内容的消费路径（答疑开张
+   注入、工作区摘要工具、图片库载荷）各自读盘，各写一遍「取哪几节」就会漂。所以分节与白名单
+   只在这里定义一次，调用方只拿投影文本。第四处会点到「记忆」这个名字的消费点是监听域
+   （`lib/watch/domains.ts`）：它只按文件名认这份文件、一个字节的内容都不带（它回答「哪一片
+   变了」，不是「取哪几节」），所以那里没有投影可用，也不该有。
 
    为什么投影是**原文照搬**而不是重新序列化：投影要能一眼对回学生自己写的那几行（他在文件里
    改了措辞，注入的就是他改的措辞）。所以这里只切段、不构造值，跟 `resources.ts` 的
@@ -62,11 +64,14 @@ export interface MemorySectionView {
   heading: string;
   /** 标题行的 1 起行号。 */
   from: number;
-  /** 下一节标题之前的最后一行（含）的 1 起行号；本节是最后一节时就是文件末行。 */
+  /** 下一节标题之前的最后一行（含）的 1 起行号；本节是最后一节时就是文件末行。
+   *  这是**文件里的事实**（下一节从哪一行开始），与「哪几行算这一节的内容」不是一回事——
+   *  正文的边界见 `text`。 */
   to: number;
   /** 这一节里有内容的条目（空列表、空映射都不算）。 */
   entries: MemoryEntry[];
-  /** 这一节的原文：标题行 + 正文，去掉末尾空行。投影就是从这儿取的。 */
+  /** 这一节的原文：标题行 + 正文，止于最后一个非空非注释行（下一节标题上方的注释块属于
+   *  下一节，见下面 `text` 那一步的注释）。投影就是从这儿取的。 */
   text: string;
 }
 
@@ -217,6 +222,13 @@ function entriesOf(lines: readonly string[], from: number, to: number): { entrie
   return { entries, level };
 }
 
+/** 投影用的一节正文：整行注释不是内容（`isBlankOrComment`，与 `entriesOf` / `blockContent`
+ *  同一套判据），空行只是排版。节体里**任何位置**的注释都不进注入——注释是写给人看的说明书，
+ *  不是学生画像；学生的每一行照旧原样留着（他改了措辞，注入的就是他改的措辞）。 */
+function projectedBody(text: string): string {
+  return splitLines(text).filter((line) => !isBlankOrComment(line)).join('\n');
+}
+
 /* ── 一份文件 → 一份判读 ────────────────────────────────────────────────── */
 
 /**
@@ -238,8 +250,10 @@ export function readMemoryFile(kind: MemoryKind, text?: string | null): MemoryFi
     const next = heads[position + 1];
     const end = next === undefined ? lines.length - 1 : next - 1;
     const body = lines.slice(head, end + 1);
-    // 标题行本身不是空行，所以这里一定收得住（末尾的空行只是排版）
-    while ((body[body.length - 1] ?? '').trim() === '') body.pop();
+    // 节体止于最后一个非空非注释行：**下一节标题上方的注释块是下一节的说明书**——模板里
+    // 「积累」上方那三行就落在「学习习惯」的 `to` 范围里，收进这一节的正文就会跟着进注入。
+    // 标题行既不空也不是注释，所以这里一定收得住。
+    while (body.length > 1 && isBlankOrComment(body[body.length - 1] ?? '')) body.pop();
     const { entries } = entriesOf(lines, head + 1, end + 1);
     sections.push({
       heading: unquote((HEADING_RE.exec(lines[head] ?? '')?.[1] ?? '').trim()),
@@ -256,7 +270,7 @@ export function readMemoryFile(kind: MemoryKind, text?: string | null): MemoryFi
     .filter((heading) => (PROFILE_SECTIONS as readonly string[]).includes(heading))
     .map((heading) => sections.find((section) => section.heading === heading))
     .filter((section): section is MemorySectionView => section !== undefined && section.entries.length > 0)
-    .map((section) => section.text)
+    .map((section) => projectedBody(section.text))
     .join('\n\n');
 
   const accumulation = sections.filter((section) => section.heading === ACCUMULATION_SECTION);
