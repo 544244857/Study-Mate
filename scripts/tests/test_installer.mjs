@@ -390,7 +390,23 @@ test('档位里是旧一代的插件时：安装器接管——停用那条入�
   assert.deepEqual(rows.find(row => row.id === 'studymate'),
     { id: 'studymate', name: '@yunmiao/studymate', disabled: true }, '不认识新契约的旧插件不该被执行');
   const declarations = rows.flatMap(row => row.insert || []).filter(row => row.config?.id === 'learning');
-  assert.equal(declarations.length, 1, '接管时要写声明行，两条模式不能没人管');
+  assert.equal(declarations.length, 1, '接管时要写学习模式那一条声明行');
+});
+
+test('声明式安装只声明「学习模式」：答疑模式的取课件工具行在档位里解析不到（#204）', t => {
+  const f = fixture(t);
+  f.version('0.2.0-rc.2');
+  const declared = () => f.yaml(f.patch).flatMap(row => row.insert || []).map(row => row.config.id);
+  // 档位里没有这个包（`npx install` 的常态）：答疑模式的工具行 `@yunmiao/studymate/qa-preset`
+  // 解析不到，宿主会把「有一行起不来」判成整条预设 broken——所以那条预设根本不该声明。
+  assert.equal(f.install('--workspace', path.join(f.dir, 'workspace')).status, 0);
+  assert.deepEqual(declared(), ['learning']);
+  assert.equal(fs.readFileSync(f.patch, 'utf8').includes('@yunmiao/studymate/qa-preset'), false,
+    '档位里解析不到的行不该写进去');
+  // 档位里那份插件是旧一代、安装器接管时同理：只声明学习模式。
+  profileSelecting(f, '0.1.3');
+  assert.equal(f.install('--workspace', path.join(f.dir, 'workspace')).status, 0);
+  assert.deepEqual(declared(), ['learning'], '接管时也只声明学习模式');
 });
 
 test('从旧状态恢复：把插件更新到同一代之后，重跑一次就放开那条入口（#157）', t => {
