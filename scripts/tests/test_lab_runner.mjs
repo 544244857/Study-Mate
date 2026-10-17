@@ -808,3 +808,26 @@ test('两个运行入口都在、都只调 check.sh：干净态与作答态各�
     assert.ok(sheet.includes(entry), `lab 说明骨架要写清 ${entry} 怎么用`);
   }
 });
+
+/* ── 十、三个运行入口在「文件归属」里查得到 ───────────────────────────────
+   角色的规矩是「布局以归属表为准」：要跑哪个入口、它在哪，查那张表。这三个名字此前只活在
+   骨架目录与 lab 说明里，归属表 §二 只有「实操任务／实操答案／lab 说明」三行——照着查就
+   查不到。这一条把「查表就有」重新钉住：名字在盘上、在表里，而且那一行写清了落到哪。 */
+
+test('三个运行入口都在「文件归属」里登记过（查表就有，不是只在骨架里）', () => {
+  const entries = ['干净态.sh', '作答态.sh', '自检.sh'];
+  for (const entry of entries) {
+    assert.ok(fs.existsSync(path.join(SKELETON, entry)), `骨架里没有 ${entry}——名字对不上就别指望照抄得下来`);
+  }
+
+  const doc = fs.readFileSync(path.join(ROOT, 'docs', '规范', '文件归属.md'), 'utf8');
+  // §二（工作区 · 课件与素材）那一节：到 §三 为止
+  const section = doc.split('## 三、')[0];
+  const missing = [];
+  for (const entry of entries) {
+    const row = section.split('\n').find(line => /^\|/.test(line) && line.includes(entry));
+    if (!row) { missing.push(`· 归属表 §二 里查不到 ${entry}`); continue; }
+    if (!row.includes('<subject_path>/lab/')) missing.push(`· ${entry} 那一行没写清它落在 <subject_path>/lab/`);
+  }
+  assert.deepEqual(missing, [], `三个运行入口查表查不到（角色照「布局以归属表为准」办时会卡住）：\n${missing.join('\n')}`);
+});
