@@ -16,8 +16,16 @@
 # ─────────────────────────────────────────────────────────────────────────
 set -u
 
+# 卡住时的唯一出口：印一行事实（这次没跑起来、卡在哪一步），把**卡住那一步自己的**退出码
+# 原样交回去（`check.sh` 里那句「谁卡住就交回谁的退出码」是同一个姿势）。非零在这里只说
+# 「这一趟没跑起来」——卡在哪由那一行说清，所以没有第二套码表，也不编一个数字。
+stuck() {
+  printf '这次没跑起来：%s；check.sh 没跑（退出码 %s 说的就是这件事）\n' "$1" "$2"
+  exit "$2"
+}
+
 SELF=$(dirname "$0")
-cd "$SELF" || exit
+cd "$SELF" || stuck "进不去脚本所在目录「$SELF」，卡在第一步（定位骨架）" $?
 ROOT=$PWD
 
 # 任务目录 = 骨架里除 solutions/ 之外的第一个目录（照抄后改成 `<NNNN>-<主题>` 也认得）
@@ -31,15 +39,18 @@ for CAND in "$ROOT"/*/; do
 done
 if [ -z "$TASK" ]; then
   printf '任务目录不在：%s 下没有一个 <NNNN>-<主题> 目录\n' "$ROOT"
-  exit
+  # 非零照实交回：就是这条判据（任务目录在不在）此刻自己的退出码，不编一个数字
+  [ -n "$TASK" ]
+  stuck "卡在找任务目录这一步（就是上面那句）" $?
 fi
 
-TMP=$(mktemp -d) || exit
-cp -R "$ROOT"/. "$TMP"/ || exit
+TMP=$(mktemp -d) || stuck "建不了临时目录（mktemp -d 没成），卡在摆盘" $?
+cp -R "$ROOT"/. "$TMP"/ || stuck "整棵 lab 拷不进临时目录「$TMP」，卡在摆盘" $?
 printf '状态：作答态（把参考解的作答摆进临时副本）\n'
 printf '临时目录：%s\n' "$TMP"
 printf '拷贝：%s/solutions/%s/作答/. → %s/%s/作答/\n' "$ROOT" "$TASK" "$TMP" "$TASK"
-cp -R "$ROOT/solutions/$TASK/作答/." "$TMP/$TASK/作答/" || exit
+cp -R "$ROOT/solutions/$TASK/作答/." "$TMP/$TASK/作答/" \
+  || stuck "参考解的作答拷不进临时副本（solutions/$TASK/作答/ 不在或读不了），卡在摆盘" $?
 printf '命令：sh check.sh（cwd %s/%s）\n' "$TMP" "$TASK"
 ( cd "$TMP/$TASK" && sh check.sh )
 CODE=$?
