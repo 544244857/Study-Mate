@@ -162,9 +162,9 @@ const ROLE_PROMPTS = {
 3. **大纲字段规范（对齐 \`curriculum.schema.json\`）**：
    - \`title\`: ≤16 字，教材风格命名。
    - \`objective\`: ≤34 字，一句话、可观察的行为目标。
-   - \`problem\`: 场景钩子，说明用哪个真实问题引入。
    - \`practice\`: 动手方向与侧重（明确写出 \`以讲为主\`、\`以练为主\` 或 \`讲练并重\`）。
    - \`resources\`: 对应教材章节或核对过的官方文档链接。
+   - 其余字段（\`problem\`、\`concepts\`、\`pitfalls\` 等）按需写，不为"整齐"逐个填满；\`problem\` 想不出真实的问题就留空，不编人物与情节。
    - 特殊 YAML 语法：以 \`&\` 或 \`*\` 开头的列表项必须加引号（如 \`["& 取地址", "* 解引用"]\`）。
 4. **三条贯穿线索**：
    - 目标线索：每个节点清楚定位其与学生最终目标的关系。
@@ -236,7 +236,7 @@ function replaceRequired(text, pattern, replacement, name) {
 // 这个插件也没有引擎脚本：导出时逐名换成**本宿主做得到的那件事**（按 schema 与格式要求
 // 逐项自查）。新增原生工具时这里加一行——scripts/tests/test_skill_contracts.mjs 会检查覆盖率。
 export const NATIVE_TOOL_FALLBACK = {
-  studymate_workspace_context: '读工作区配置、.learning/MEMORY.md、当前科目的 progress.yaml 与最近的学习记录',
+  studymate_workspace_context: '读工作区配置、.learning/MEMORY.yaml、当前科目的 progress.yaml 与最近的学习记录',
   studymate_validate_pool: '按图片库规范逐项自查：图片落在 `assets/img/pool/`、索引七列表头逐字一致、命名可检索、体积合规',
   studymate_validate_curriculum: '按 `<root>/schemas/curriculum.schema.json` 与 `progress.schema.json` 逐项自查：字段齐全、`prerequisites` 指向存在的节点 id、无环、实验课前置非空',
   studymate_validate_lesson: '按内容格式逐项自查：`:::` 指令成对、`::: quiz` 锚点与题库键逐字一致、图片路径真实存在、公式标记成对',
@@ -281,7 +281,7 @@ function adaptAntigravityController(body) {
   result = replaceRequired(
     result,
     /^1\. \*\*加载 `record-keeping` 并读状态\*\*[^\n]+/m,
-    '1. **加载协议并恢复记忆**：按本技能开头的「Antigravity 宿主约定」加载调度与交互协议，并读 `record-keeping`；结合 `<LEARN_WORKSPACE>/.learning/MEMORY.md`、当前活跃科目进度表与最近的学习记录恢复学习断点。优先处理本次消息中的回答或续学意图。',
+    '1. **加载协议并恢复记忆**：按本技能开头的「Antigravity 宿主约定」加载调度与交互协议，并读 `record-keeping`；结合 `<LEARN_WORKSPACE>/.learning/MEMORY.yaml`、当前活跃科目进度表与最近的学习记录恢复学习断点。优先处理本次消息中的回答或续学意图。',
     'controller recovery'
   );
 
@@ -428,10 +428,12 @@ export function adaptAntigravitySkill(content, name) {
     // 回报配置里的工作区，这里换成 Antigravity 的选定顺序（用户指定 → 环境变量 → 默认
     // `~/StudyMate`）。**暂存模式已删**（ADR-0008），所以没有落点问答、没有偏好文件、
     // 也没有搬运——只在写不进去时问一次可写位置。
+    // 锚点带上了 #192 那句「两份记忆全角色直写」的例外：正文改口径时这里要同步改，
+    // 改漏了 `replaceRequired` 会整份报错（不是静默空转）。
     adaptedBody = replaceRequired(
       adaptedBody,
-      /^学习状态由你（主教练）亲自读写，不派角色。\*\*工作区根[^\n]*/m,
-      '学习状态由你（主教练）亲自读写，不派角色。**工作区根**：按「Antigravity 宿主约定」选定 `<LEARN_WORKSPACE>`（用户本次指定目录 → 环境变量 → 默认 `~/StudyMate`）；学习数据全在它下面，不另建临时工作区，也不在会话目录里找学习文件。',
+      /^学习状态由你（主教练）亲自读写，不派角色；\*\*唯一的例外是两份记忆[^\n]*/m,
+      '学习状态由你（主教练）亲自读写，不派角色；**唯一的例外是两份记忆——任何角色收尾时都直接往里追加，不经过你转交**。**工作区根**：按「Antigravity 宿主约定」选定 `<LEARN_WORKSPACE>`（用户本次指定目录 → 环境变量 → 默认 `~/StudyMate`）；学习数据全在它下面，不另建临时工作区，也不在会话目录里找学习文件。',
       'record-keeping workspace root'
     );
     adaptedBody = replaceRequired(

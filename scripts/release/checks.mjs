@@ -282,6 +282,9 @@ const groups = {
       // 纯函数域（lib/core/**）：JSON Schema 子集校验器 + 四类校验 + 规则层。
       // 最后一条是覆盖率下限门禁，它自己会 spawn 一轮带阈值的 `node --test`。
       'scripts/tests/test_core_schema_subset.mjs',
+      // 纯函数域（`lib/core/memory.ts`，#190）：两份记忆的文本 → 可注入的画像三节投影、
+      // `积累` 条目的键与内容、缺节与空骨架的判定。「`积累` 不进上下文」在这条套件里被钉成判据。
+      'scripts/tests/test_core_memory.mjs',
       'scripts/tests/test_validators_curriculum.mjs',
       'scripts/tests/test_validators_progress_subject.mjs',
       'scripts/tests/test_validators_handoff.mjs',
@@ -412,7 +415,11 @@ const groups = {
       'scripts/tests/test_release_metadata.mjs',
       // #83：文档悬空引用（README 与 docs/** 的相对链接、行内代码里的仓库路径）。
       // 拆除之后最容易留下的就是"文档还指着已删文件"，人眼扫不可靠。
-      'scripts/tests/test_docs_references.mjs'],
+      'scripts/tests/test_docs_references.mjs',
+      // #189：共享记忆改名 `MEMORY.yaml`。**否定式**扫全仓「旧名一处都不许留」——
+      // 规则可达性套件只断「必须出现」，钉不住「不许再出现」，改名这类横扫的残留
+      //（某份夹具、某条注释、模板说明表里的旧路径）靠人眼扫不出来。
+      'scripts/tests/test_memory_rename.mjs'],
   },
   '--browser': {
     // 三个旧静态模板夹具（hl / quiz_code / math）随 `templates/assets/` 一起退役：

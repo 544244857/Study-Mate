@@ -91,6 +91,7 @@
 ```
 
 - `ready: false`：**不抛异常**——开场问"学什么"之前工作区可能还没建。这时 `subjects: []`、`memory.markdown: ""`，`notes` 里有一句该怎么办（没配工作区就提示跑一次 `npx @yunmiao/studymate install`）。
+- `memory.markdown` 只是共享记忆里**画像三节**（`我是谁` / `教学偏好` / `学习习惯`）的投影，不是整份文件：`积累`（角色攒下的干活笔记）与整份科目记忆**永不进任何上下文**，要读就自己按「文件归属」找路径、grep 键。`present` 说的是「文件在不在」，所以「只有 `积累`」的文件是 `present: true` + 空 `markdown`。
 - `current: null` 是「这门课还没有节点」，不是「读失败」；`nodes: []` 同理。
 - `recentRecords` 每个科目**最多 5 条**（开场要的是"最近学到哪"，不是整本档案）。
 - 逐域投影：`subjects` 的切片里**没有**题库、没有课件正文——真去读别的域会当场越权抛错（§4）。
@@ -105,6 +106,7 @@
 
 - `problems` 每条带 `file` 与 `line`（1 起），`blocking: true` 是阻断、`false` 是提示——**打回按它，不按你自己的判断**。
 - `validate_lesson` 另给两份对账清单：`anchors: [{ text, resolution, line, keys }]`（`resolution` 四态：`resolved` / `stale` / `ambiguous` / `missing`，**多匹配绝不静默取第一个**）与 `orphans: [{ key, line, count }]`（题库里没有对应锚点的键）。
+- `validate_lesson` 的分层按**「题库文件在不在」**（#193）：题库文件还没产出时（讲解交稿那一步），题目位置相关的**不阻断**——`problems` 里只有一条 `blocking: false` 的「待对账」提示（带处数），`summary` 是放行；**格式层照旧逐条阻断**。文件在盘上而内容读不进来（坏 JSON、顶层不是对象）照旧逐条阻断，不算「未产出」。
 - 空值口径：没问题时 `problems: []`、`blockingCount: 0`、`summary: "放行——没有问题"`；文件不存在是**一条阻断问题**（`line: 1`），不是异常。
 - `validate_curriculum` 给科目目录（或 `RESOURCES.md` 本身）时，`reports` 里可能多一份 `kind: 'resources'`：判的是**「资源清单」对大纲节点的覆盖率**——每条来源在行末写 `· 服务 node.id`（多条用「、」分隔），于是「还有 N 个节点指不出一处来源」与「条数超过节点数 × 2」都报得出来。这几条**全是提示**（`blocking: false`）：这个标记是新加的写法，现存清单一条都没有，判成阻断等于升级即整片变红——但看到它们就该派「资料收集」补收集，别自己数。那一份报告另带 `hosts`（**站点分布，只报不卡**：`[ { host, entries } ]`，如「7 个站点——oi-wiki 12 条」）。
 - `validate_pool` 还会**按文件头复算**（#132）：文件头与扩展名是否一致（存成 `.png` 的 HTML 错误页）、宽高与索引的「尺寸」列是否对得上（`尺寸` **以文件头为准**，页面标注可能被缩放过）。这几条新判据**全是提示**——现存工作区里已经存在的这类问题不该升级即整片变红；但采图角色照旧「把校验器报的每一行改到没有为止」。
@@ -204,7 +206,7 @@ Antigravity / Codex / ChatGPT Work 上没有原生工具，也**没有引擎脚�
 
 | 你要做的事 | 在本宿主怎么做 |
 |---|---|
-| 读工作区现状 | 直接读工作区配置、`.learning/MEMORY.md`、当前科目的 `progress.yaml` 与最近的学习记录 |
+| 读工作区现状 | 直接读工作区配置、`.learning/MEMORY.yaml`、当前科目的 `progress.yaml` 与最近的学习记录 |
 | 数据层校验 | 按 `<root>/schemas/{curriculum,progress,subject}.schema.json` 逐项自查：字段齐全、`prerequisites` 指向存在的节点 id、无环、实验课前置非空 |
 | 内容层校验 | 按内容格式逐项自查：`:::` 指令成对、`::: quiz` 锚点与题库键逐字一致、图片路径真实存在、公式标记成对 |
 | 图片库校验 | 按图片库规范逐项自查：图片落在 `assets/img/pool/`、索引七列表头逐字一致、命名可检索、体积合规 |

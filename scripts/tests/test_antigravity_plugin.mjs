@@ -8,6 +8,7 @@ import test from 'node:test';
 import { buildAntigravityPlugin } from '../../bin/antigravity-plugin.mjs';
 import { AGENT_ROLES, AGENT_TOOLS, adaptAntigravitySkill, adaptAntigravityAgent } from '../../bin/antigravity-skill-compat.mjs';
 import { extractZip } from './fixtures/zip.mjs';
+import { missingTemplateFiles } from './fixtures/templates.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const cli = path.join(root, 'bin/studymate.mjs');
@@ -89,7 +90,7 @@ test('导出的 Antigravity ZIP 是一份完整的插件：角色、技能、sch
   // 5. 静态材料：schema、工作区数据骨架、文档、logo
   for (const asset of [
     'assets/logo.png',
-    'templates/MEMORY.md',
+    'templates/MEMORY.yaml',
     'templates/MISSION.md',
     'templates/GLOSSARY.md',
     'templates/RESOURCES.md',
@@ -109,6 +110,8 @@ test('导出的 Antigravity ZIP 是一份完整的插件：角色、技能、sch
     'templates/lesson.html', 'templates/home-index.html', 'templates/assets']) {
     assert.equal(fs.existsSync(path.join(plugin, unwanted)), false, `Unwanted asset present: ${unwanted}`);
   }
+  // 工作区数据骨架（含 #197 的 lab 骨架）要**一份不落**地进产物：清单从源取，不手抄文件名。
+  assert.deepEqual(missingTemplateFiles(plugin), [], '导出的插件少了工作区数据骨架里的文件');
   const shipped = [];
   const walk = (directory) => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {

@@ -25,9 +25,11 @@
    （ADR-0009：仓库里不存样例数据）。跑命令这类测试**不依赖网络、不依赖仓库外的路径**，
    只用 `process.execPath` 与工作区里的临时脚本。 */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { assertOutput, execute, fakeContext, useHome, writeSubject } from './fixtures/tools.mjs';
@@ -57,12 +59,15 @@ function writeLabSubject(t, options = {}) {
   const labRun = path.join(dir, 'lab', '0001-var');
   fs.mkdirSync(labRun, { recursive: true });
 
-  const script = options.script ?? [
-    "console.log('first line from the test command');",
-    "console.error('boom: assertion failed at line 42');",
-    'process.exit(3);',
-  ].join('\n');
-  fs.writeFileSync(path.join(labRun, 'check.mjs'), `${script}\n`);
+  // `script: null` = 这一课不摆跑手夹具那份 `check.mjs`（#197 的骨架自带 `check.sh`）
+  if (options.script !== null) {
+    const script = options.script ?? [
+      "console.log('first line from the test command');",
+      "console.error('boom: assertion failed at line 42');",
+      'process.exit(3);',
+    ].join('\n');
+    fs.writeFileSync(path.join(labRun, 'check.mjs'), `${script}\n`);
+  }
 
   const evidence = options.evidence ?? `${quote(NODE)} check.mjs`;
   const item = options.item ?? {
@@ -627,4 +632,248 @@ test('反证：结构对齐判据不空转——一边漂了必须报出来', ()
   assert.notDeepEqual(Object.keys(lab.labRunTool(tasks.taskService())).sort(),
     [...shrunk].filter(([, optional]) => !optional).map(([key]) => key).sort(),
     '两边同时删掉一个键时，运行期对象与声明应当对不上——这一条就是防「一起漂」的');
+});
+
+/* ── 八、实验骨架（#197）：照抄即用，跑手仍只从「证据」字段取命令 ──────────
+   骨架（`templates/lab/`）是给**出题角色**照抄的：判分入口的框架、任务／答案／探针的布局、
+   lab 说明、干净态与作答态两个运行入口、只按顺序调那两个入口的自检。它**只回事实**——
+   没有判决词，也没有第二套退出码语义（跑手那条「非零不是失败判决」不能被骨架写打架）。
+
+   这一组钉六件事（骨架内容本身的清单由随包/装机那几处套件分头守住，见 fixtures/templates.mjs）：
+     · 骨架照抄进科目之后，跑手认得这套布局（命令来源仍是「证据」字段）；
+     · 盘上有 `check.sh` 不等于有命令——「证据」空着照样拒；
+     · 入口固定叫 `check.sh`（跑手套件自己的夹具用 `check.mjs`，那是夹具，不是骨架）；
+     · 干净态／作答态各有一个运行入口，两个都只摆盘 + 调 `check.sh` + 原样转述事实；
+     · 骨架自检能在干净目录里把两态各跑一遍，退出码原样转述（且它自己不摆盘）；
+     · 骨架文件里没有判决词、没有字面退出码；lab 骨架在模板说明表里登记过。 */
+
+const SKELETON = path.join(ROOT, 'templates', 'lab');
+const SKELETON_EXAMPLE = path.join(SKELETON, '0000-示例');
+
+/** 骨架下全部文件的相对路径（相对 `templates/lab/`），给内容断言用。 */
+function skeletonFiles() {
+  const found = [];
+  const walk = (dir, prefix = '') => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), relative);
+      else found.push(relative);
+    }
+  };
+  walk(SKELETON);
+  return found.sort();
+}
+
+/** 照抄骨架：任务目录、答案目录、lab 说明三处按「文件归属」各就各位。 */
+function adoptSkeleton(dir, node = 'var') {
+  const labDir = path.join(dir, 'lab');
+  const runDir = path.join(labDir, `0001-${node}`);
+  fs.mkdirSync(runDir, { recursive: true });
+  for (const entry of fs.readdirSync(SKELETON_EXAMPLE)) {
+    fs.cpSync(path.join(SKELETON_EXAMPLE, entry), path.join(runDir, entry), { recursive: true });
+  }
+  fs.mkdirSync(path.join(labDir, 'solutions'), { recursive: true });
+  fs.cpSync(path.join(SKELETON, 'solutions', '0000-示例'), path.join(labDir, 'solutions', `0001-${node}`),
+    { recursive: true });
+  fs.copyFileSync(path.join(SKELETON, 'README.md'), path.join(labDir, 'README.md'));
+  return runDir;
+}
+
+const SKELETON_ITEM = {
+  kind: '交付物', q: '照骨架做出来的实验', 交付物: 'check.sh', 证据: 'sh check.sh',
+};
+
+test('骨架照抄进科目后跑手认得它：命令仍只从「证据」字段来', async (t) => {
+  const { dir, labRun } = writeLabSubject(t, { script: null, item: SKELETON_ITEM });
+  adoptSkeleton(dir);
+
+  const out = await execute(labContext(), 'studymate_lab_run', {
+    subject: 'demo', node: 'var', question: '什么是变量#0',
+  });
+
+  assert.equal(out.状态, '跑完了', JSON.stringify(out.拒 ?? {}, null, 2));
+  assert.equal(out.命令来源, '题目「什么是变量#0」的「证据」字段', '骨架在盘上也不改命令的来源');
+  assert.equal(out.跑.命令, 'sh check.sh');
+  assert.equal(out.跑.cwd, labRun, '落脚点就是照抄出来的那个任务目录');
+  // 跑的是骨架那一份：参数事实 + 断言自己的事实 + 它自己那次的退出码
+  assert.match(out.跑.stdout, /任务目录：/);
+  assert.match(out.跑.stdout, /作答目录：/);
+  assert.match(out.跑.stdout, /探针 .*此刻实测 \d+ 行/);
+  assert.match(out.跑.stdout, /check\.sh 退出码：\d+/);
+  // 干净态：任务还留白，那一格读不到——非零是**事实**，不是判决（读成布尔才是写错了）
+  assert.equal(typeof out.跑.退出码, 'number');
+  assert.notEqual(out.跑.退出码, 0);
+});
+
+test('反证：盘上有骨架也不算命令来源——「证据」空着照样拒', async (t) => {
+  const { dir, quiz } = writeLabSubject(t, { script: null, item: SKELETON_ITEM });
+  adoptSkeleton(dir);
+  writeEvidence(quiz, '   ');
+
+  const out = await execute(labContext(), 'studymate_lab_run', {
+    subject: 'demo', node: 'var', question: '什么是变量#0',
+  });
+
+  assert.equal(out.状态, '拒了');
+  assert.match(out.拒.为什么, /「证据」是空的/);
+  assert.equal(fs.existsSync(path.join(dir, 'attempts')), false, '拒了就不该留下作答痕迹');
+});
+
+test('骨架自检：在干净目录里把干净态与作答态各跑一遍，退出码原样转述', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'studymate-lab-skeleton-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const copied = path.join(directory, 'lab');
+  fs.cpSync(SKELETON, copied, { recursive: true });
+
+  const result = spawnSync('sh', ['自检.sh'], { cwd: copied, encoding: 'utf8', windowsHide: true });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.notEqual(result.status, null, `自检被信号打断了：${result.signal}`);
+
+  // 空跑也要有交代：两个状态各一行事实 + 各自的退出码（顺序固定：先干净态、后作答态）
+  const codes = [...result.stdout.matchAll(/^(干净态|作答态)退出码：(\d+)$/gm)];
+  assert.deepEqual(codes.map(match => match[1]), ['干净态', '作答态'],
+    `自检的事实行没印全：\n${result.stdout}\n${result.stderr}`);
+  assert.notEqual(Number(codes[0][2]), 0, '留白任务读不到那一格：非零正是留白有效的证据');
+  assert.equal(Number(codes[1][2]), 0, '把参考解拷进任务目录后，同一份断言读到的是填好的那一格');
+  // 自检自己的退出码 = 它最后一次跑的那一次，原样（没有第二套码表）
+  assert.equal(result.status, Number(codes[1][2]));
+  // 重跑在临时目录里做，用完就删：骨架旁边不留痕迹
+  const temporary = [...result.stdout.matchAll(/^临时目录已删：(.+)$/gm)].map(match => match[1].trim());
+  assert.equal(temporary.length, 2, '两态各在一个干净目录里跑，各留一行交代');
+  for (const removed of temporary) assert.equal(fs.existsSync(removed), false, `${removed} 该被删掉`);
+  assert.deepEqual(fs.readdirSync(copied).sort().filter(name => name.startsWith('tmp')),
+    [], '临时目录不该落在骨架里面');
+});
+
+test('骨架只回事实：没有判决词，也没有字面退出码', () => {
+  const files = skeletonFiles();
+  assert.ok(files.length >= 11, `骨架文件太少（${files.length} 份）：判分入口、两个运行入口、断言、任务、作答、探针、答案、说明、自检都要有`);
+  // 入口固定叫 check.sh（跑手套件的夹具用 check.mjs，那是夹具，别照抄它）
+  assert.ok(files.includes('0000-示例/check.sh'), '判分入口要固定叫 check.sh');
+  assert.equal(files.some(name => /check\.(?:mjs|js|py)$/.test(name)), false, '骨架里不该有第二个判分入口');
+  assert.ok(files.includes('自检.sh'), '骨架要自带那条「在干净目录里整套重跑」的自检');
+  assert.ok(files.includes('干净态.sh') && files.includes('作答态.sh'), '两态各要有一个运行入口');
+  assert.ok(files.includes('solutions/0000-示例/作答/任务1.txt'), '答案要与任务分开放');
+  assert.ok(files.includes('README.md'), 'lab 说明的骨架要带上');
+
+  for (const name of files) {
+    const text = fs.readFileSync(path.join(SKELETON, name), 'utf8');
+    assert.doesNotMatch(text, /通过|失败|成功|不通过|passed|failed|PASS|FAIL/,
+      `${name} 里出现了判决词：骨架只回事实`);
+    assert.doesNotMatch(text, /exit\s+[0-9]/, `${name} 里有字面退出码：自定义码表就是从这种地方长出来的`);
+  }
+});
+
+test('骨架在模板说明表里登记过（随包发出的那一份，不是某个科目的 lab）', () => {
+  const readme = fs.readFileSync(path.join(ROOT, 'templates', 'README.md'), 'utf8');
+  const row = readme.split('\n').find(line => /^\|\s*`lab\/`/.test(line));
+  assert.ok(row, 'templates/README.md 的表里要有 `lab/` 这一行');
+  assert.match(row, /出题角色/, '这一行要写清谁来用它（出题角色造 lab 时照抄）');
+  assert.match(row, /\.learning\/subjects\/<slug>\/lab\//, '这一行要写清它落到工作区的哪');
+});
+
+test('两个运行入口都在、都只调 check.sh：干净态与作答态各一个，自检只按顺序调它们', () => {
+  const files = skeletonFiles();
+  for (const entry of ['干净态.sh', '作答态.sh']) assert.ok(files.includes(entry), `骨架里要有 ${entry}`);
+
+  for (const name of ['干净态.sh', '作答态.sh']) {
+    const text = fs.readFileSync(path.join(SKELETON, name), 'utf8');
+    // 判分入口只有一个：入口自己跑的就是 check.sh，不直接碰断言
+    assert.match(text, /\bsh check\.sh\b/, `${name} 要把 check.sh 跑起来（判分入口仍只有它一个）`);
+    assert.doesNotMatch(text, /断言\.sh/, `${name} 不该自己调断言：那是 check.sh 的事`);
+    // 只回事实：这一次的退出码原样印出来、原样交回去（不判定、没有第二套码表）
+    assert.match(text, /退出码：%d/, `${name} 要把这一次的退出码印成事实`);
+    assert.match(text, /exit "\$CODE"/, `${name} 要把那个退出码原样交回去`);
+    assert.doesNotMatch(text, /exit\s+[0-9]/, `${name} 不许立字面退出码`);
+  }
+
+  // 两态各自的摆盘：干净态不碰参考解；作答态自己把参考解的作答拷进去，跑完随临时副本清掉
+  const clean = fs.readFileSync(path.join(SKELETON, '干净态.sh'), 'utf8');
+  assert.doesNotMatch(clean, /cp -R "\$ROOT\/solutions/, '干净态不该拷参考解（任务留白就是留白）');
+  const answered = fs.readFileSync(path.join(SKELETON, '作答态.sh'), 'utf8');
+  assert.match(answered, /cp -R "\$ROOT\/solutions\/\$TASK\/作答\/\."/, '作答态要自己把参考解的作答摆进临时副本');
+  assert.match(answered, /rm -rf "\$TMP"/, '作答态跑完要把痕迹（临时副本）清掉');
+
+  // 自检不再自己写一遍摆盘：它只按顺序调这两个入口（一处定义）
+  const selfCheck = fs.readFileSync(path.join(SKELETON, '自检.sh'), 'utf8');
+  assert.match(selfCheck, /干净态\.sh/);
+  assert.match(selfCheck, /作答态\.sh/);
+  // 判据看**代码**：注释里解释「它自己不摆盘、不跑 check.sh」不算犯规（先去掉整行注释）
+  const selfCheckCode = selfCheck.split('\n').filter(line => !/^\s*#/.test(line)).join('\n');
+  assert.doesNotMatch(selfCheckCode, /mktemp|cp -R|check\.sh/, '自检里不该再有一份摆盘或判分逻辑');
+
+  // lab 说明骨架里那两种跑法跟着入口走（角色照抄时看得见跑哪个）
+  const sheet = fs.readFileSync(path.join(SKELETON, 'README.md'), 'utf8');
+  for (const entry of ['干净态.sh', '作答态.sh', '自检.sh']) {
+    assert.ok(sheet.includes(entry), `lab 说明骨架要写清 ${entry} 怎么用`);
+  }
+});
+
+/* ── 九、运行入口的失败路径：没跑起来要说清，别报成功 ─────────────────────
+   两个入口的头几件事是「找到任务目录」「建临时目录」「把整棵 lab 拷进去」。没走成的时候
+   它们跑不了 `check.sh`——那时的输出只该说两件事：**卡在哪一步**、**非零退出**。
+   以前不是这样：找不到任务目录那一支印完那句「任务目录不在」就 `exit`，而裸 `exit`
+   取的是上一条命令（那句 `printf`）的状态，于是「这一趟没跑起来」被报成了 0。
+   这一组钉的就是那条路径：非零 + 一行说清原因，而且**正常路径一个字节都不变**。 */
+
+test('反证：没有任务目录的 lab —— 两个入口都非零退出，且印出卡在哪一步', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'studymate-lab-notask-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const copied = path.join(directory, 'lab');
+  fs.cpSync(SKELETON, copied, { recursive: true });
+  // 「没有任务目录」= 骨架里那个示例任务目录搬走（`solutions/` 留着——它本来就不算任务目录）
+  fs.rmSync(path.join(copied, '0000-示例'), { recursive: true, force: true });
+
+  for (const entry of ['干净态.sh', '作答态.sh']) {
+    const result = spawnSync('sh', [entry], { cwd: copied, encoding: 'utf8', windowsHide: true });
+    assert.equal(result.error, undefined, result.error?.message);
+    assert.notEqual(result.status, null, `${entry} 被信号打断了：${result.signal}`);
+    const output = `${result.stdout}${result.stderr}`;
+    assert.notEqual(result.status, 0, `${entry} 没跑起来却报了 0：\n${output}`);
+    assert.match(output, /任务目录不在/, `${entry} 要说清卡在哪一步（找任务目录）`);
+    assert.match(output, /没跑起来/, `${entry} 要印一行「这次没跑起来」的事实：\n${output}`);
+    assert.doesNotMatch(output, /退出码：0/, `${entry} 没跑起来就不该有一条「跑完了」的假事实`);
+    // 没跑起来就没摆盘：临时目录一个都不该留在骨架旁边
+    assert.deepEqual(fs.readdirSync(copied).sort().filter(name => name.startsWith('tmp')), []);
+  }
+});
+
+test('对照：任务目录在的时候两个入口照旧（失败路径的判据不是「一律非零」）', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'studymate-lab-ok-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const copied = path.join(directory, 'lab');
+  fs.cpSync(SKELETON, copied, { recursive: true });
+
+  const answered = spawnSync('sh', ['作答态.sh'], { cwd: copied, encoding: 'utf8', windowsHide: true });
+  assert.equal(answered.status, 0, `作答态应当归零：\n${answered.stdout}\n${answered.stderr}`);
+  assert.match(answered.stdout, /^作答态退出码：0$/m, '这一次的退出码照旧原样印出来');
+  assert.match(answered.stdout, /^临时目录已删：/m, '跑完照旧把临时副本清掉');
+
+  const clean = spawnSync('sh', ['干净态.sh'], { cwd: copied, encoding: 'utf8', windowsHide: true });
+  assert.notEqual(clean.status, 0, '干净态：留白任务读不到那一格，非零正是留白有效的证据');
+  assert.match(clean.stdout, /^干净态退出码：\d+$/m, '干净态也照旧把退出码印成事实');
+  assert.match(clean.stdout, /^临时目录已删：/m);
+});
+
+/* ── 十、三个运行入口在「文件归属」里查得到 ───────────────────────────────
+   角色的规矩是「布局以归属表为准」：要跑哪个入口、它在哪，查那张表。这三个名字此前只活在
+   骨架目录与 lab 说明里，归属表 §二 只有「实操任务／实操答案／lab 说明」三行——照着查就
+   查不到。这一条把「查表就有」重新钉住：名字在盘上、在表里，而且那一行写清了落到哪。 */
+
+test('三个运行入口都在「文件归属」里登记过（查表就有，不是只在骨架里）', () => {
+  const entries = ['干净态.sh', '作答态.sh', '自检.sh'];
+  for (const entry of entries) {
+    assert.ok(fs.existsSync(path.join(SKELETON, entry)), `骨架里没有 ${entry}——名字对不上就别指望照抄得下来`);
+  }
+
+  const doc = fs.readFileSync(path.join(ROOT, 'docs', '规范', '文件归属.md'), 'utf8');
+  // §二（工作区 · 课件与素材）那一节：到 §三 为止
+  const section = doc.split('## 三、')[0];
+  const missing = [];
+  for (const entry of entries) {
+    const row = section.split('\n').find(line => /^\|/.test(line) && line.includes(entry));
+    if (!row) { missing.push(`· 归属表 §二 里查不到 ${entry}`); continue; }
+    if (!row.includes('<subject_path>/lab/')) missing.push(`· ${entry} 那一行没写清它落在 <subject_path>/lab/`);
+  }
+  assert.deepEqual(missing, [], `三个运行入口查表查不到（角色照「布局以归属表为准」办时会卡住）：\n${missing.join('\n')}`);
 });

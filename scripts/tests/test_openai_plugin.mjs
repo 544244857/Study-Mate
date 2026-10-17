@@ -21,6 +21,7 @@ import test from 'node:test';
 
 import { buildOpenAiPlugin } from '../../bin/openai-plugin.mjs';
 import { extractZip, readZip } from './fixtures/zip.mjs';
+import { missingTemplateFiles } from './fixtures/templates.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const cli = path.join(root, 'bin/studymate.mjs');
@@ -48,7 +49,7 @@ test('导出的 ZIP 是一份能脱离源码检出跑起来的插件', (t) => {
     'skills/learning-system/references/codex-interaction.md',
     'scripts/interaction_state.mjs', 'assets/logo.png',
     'schemas/curriculum.schema.json', 'schemas/agent-handoff.schema.json',
-    'templates/MEMORY.md', 'templates/subject.yaml',
+    'templates/MEMORY.yaml', 'templates/subject.yaml',
     'docs/规范/文件归属.md', 'README.md', 'LICENSE']) {
     assert.ok(fs.existsSync(path.join(plugin, asset)), asset);
   }
@@ -56,6 +57,9 @@ test('导出的 ZIP 是一份能脱离源码检出跑起来的插件', (t) => {
     'scripts/tests', 'requirements.txt', 'templates/assets', 'templates/lesson.html']) {
     assert.equal(fs.existsSync(path.join(plugin, unwanted)), false, unwanted);
   }
+  // 工作区数据骨架（含 #197 的 lab 骨架）要**一份不落**地进产物：这份清单从源取，
+  // 不是手抄的一串文件名——手抄的那串正是「加了新文件、这条路没跟上」会漏的地方。
+  assert.deepEqual(missingTemplateFiles(plugin), [], '导出的插件少了工作区数据骨架里的文件');
 
   const controllerSkill = fs.readFileSync(path.join(plugin, 'skills/learning-system/SKILL.md'), 'utf8');
   assert.match(controllerSkill, /没有引擎脚本/, '导出稿要说清本宿主没有引擎脚本');

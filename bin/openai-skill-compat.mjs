@@ -19,7 +19,7 @@ const HOST_GUIDE = `## OpenAI 宿主约定（导出时生成）
 `;
 
 const BOOTSTRAP = `0. **定位工作区与引擎**：按“OpenAI 宿主约定”从本技能文件定位 \`<root>\`。学习工作区按以下顺序选定并记为 \`<LEARN_WORKSPACE>\`：用户本次明确指定的目录 → 非空环境变量 \`STUDYMATE_WORKSPACE\` → 非空 \`LEARN_WORKSPACE\` → 用户显式设置的 \`STUDYMATE_CONFIG\` 配置中的 \`workspace\` → 当前任务/项目中已有的学习工作区（含 \`.learning/\`，或用户提供的已恢复学习档案）。配置的 \`root\` 不覆盖本插件根目录；配置不存在或无效时报告具体问题，不悄悄改用别处的数据。只有用户明确要求复用旧 DSH 工作区时才读取其指定的旧配置；没有 DSH 配置不影响启动。
-   - **首次初始化**：已有明确的工作区路径时直接在该目录初始化；尚未选定时，在当前宿主已授权的可写项目/数据目录中建 \`StudyMate/\` 并设为工作区（已有同名目录先检查并复用，避免覆盖）。路径不得位于插件根目录或插件缓存。若宿主没有给出可写位置，只询问保存位置，其他学习目标盘问可以继续。在选定的工作区创建 \`.learning/subjects/\`，仅在缺失时从 \`<root>/templates/MEMORY.md\` 复制为 \`.learning/MEMORY.md\`；保留已有科目与记忆。向学生说明实际保存位置。
+   - **首次初始化**：已有明确的工作区路径时直接在该目录初始化；尚未选定时，在当前宿主已授权的可写项目/数据目录中建 \`StudyMate/\` 并设为工作区（已有同名目录先检查并复用，避免覆盖）。路径不得位于插件根目录或插件缓存。若宿主没有给出可写位置，只询问保存位置，其他学习目标盘问可以继续。在选定的工作区创建 \`.learning/subjects/\`，仅在缺失时从 \`<root>/templates/MEMORY.yaml\` 复制为 \`.learning/MEMORY.yaml\`；保留已有科目与记忆。向学生说明实际保存位置。
    - **执行准备**：分配本会话的 \`<STUDYMATE_SCRATCH>\`；本插件不含引擎脚本，校验按“OpenAI 宿主约定”逐项自查，导出用 \`npx -y @yunmiao/studymate@latest export\`。检查当前宿主的持久化能力；临时沙箱遵守“展示与持续保存”。不要求安装其他聊天宿主或运行旧安装脚本。`;
 
 function replaceRequired(text, pattern, replacement, name) {
@@ -35,7 +35,7 @@ function replaceRequired(text, pattern, replacement, name) {
    要求逐项自查」——不假装有一条能跑的命令（Python 引擎随 #83 退役，Node CLI 目前只有导出）。
    契约与人类可读的对照表在 `preset/skills/learning-system/references/tools.md` 的宿主差异一节。 */
 export const NATIVE_TOOL_FALLBACK = {
-  studymate_workspace_context: '读工作区配置、.learning/MEMORY.md、当前科目的 progress.yaml 与最近的学习记录',
+  studymate_workspace_context: '读工作区配置、.learning/MEMORY.yaml、当前科目的 progress.yaml 与最近的学习记录',
   studymate_validate_curriculum: '按 `<root>/schemas/curriculum.schema.json` 与 `progress.schema.json` 逐项自查：字段齐全、`prerequisites` 指向存在的节点 id、无环、实验课前置非空',
   studymate_validate_lesson: '按内容格式逐项自查：`:::` 指令成对、`::: quiz` 锚点与题库键逐字一致、图片路径真实存在、公式标记成对',
   studymate_validate_pool: '按图片库规范逐项自查：图片落在 `assets/img/pool/`、索引七列表头逐字一致、命名可检索、体积合规',
@@ -130,9 +130,11 @@ export function adaptOpenAiSkill(content, name) {
     // 回报配置里的工作区，这里换成「OpenAI 宿主约定」的选定顺序（用户指定 → 环境变量 →
     // 显式配置 → 既有学习数据）。**暂存模式已删**（ADR-0008），所以没有落点问答、
     // 没有偏好文件、也没有搬运——只在写不进去时问一次可写位置。
+    // 锚点带上了 #192 那句「两份记忆全角色直写」的例外：正文改口径时这里要同步改，
+    // 改漏了 `replaceRequired` 会整份报错（不是静默空转）。
     body = replaceRequired(body,
-      /^学习状态由你（主教练）亲自读写，不派角色。\*\*工作区根[^\n]*/m,
-      '学习状态由你（主教练）亲自读写，不派角色。**工作区根**：按「OpenAI 宿主约定」选定 `<LEARN_WORKSPACE>`（用户本次指定目录 → 环境变量 → 显式配置 → 既有学习数据）；学习数据全在它下面，不在插件目录或会话目录里找学习文件，也不另建临时工作区。',
+      /^学习状态由你（主教练）亲自读写，不派角色；\*\*唯一的例外是两份记忆[^\n]*/m,
+      '学习状态由你（主教练）亲自读写，不派角色；**唯一的例外是两份记忆——任何角色收尾时都直接往里追加，不经过你转交**。**工作区根**：按「OpenAI 宿主约定」选定 `<LEARN_WORKSPACE>`（用户本次指定目录 → 环境变量 → 显式配置 → 既有学习数据）；学习数据全在它下面，不在插件目录或会话目录里找学习文件，也不另建临时工作区。',
       'record-keeping workspace root');
     body = replaceRequired(body,
       /^- \*\*只在 `<LEARN_WORKSPACE>` 下写学习文件\*\*[^\n]*/m,

@@ -41,7 +41,7 @@ test('bootstrap initializes a separate workspace without requiring legacy config
   assert.match(controller, /用户本次明确指定的目录 → 非空环境变量 `STUDYMATE_WORKSPACE` → 非空 `LEARN_WORKSPACE` → 用户显式设置的 `STUDYMATE_CONFIG`/);
   assert.match(controller, /只有用户明确要求复用旧 DSH 工作区时才读取其指定的旧配置/);
   assert.match(controller, /没有 DSH 配置不影响启动/);
-  assert.match(controller, /仅在缺失时从 `<root>\/templates\/MEMORY\.md` 复制为 `\.learning\/MEMORY\.md`/);
+  assert.match(controller, /仅在缺失时从 `<root>\/templates\/MEMORY\.yaml` 复制为 `\.learning\/MEMORY\.yaml`/);
   assert.match(controller, /插件根目录只读/);
   assert.match(controller, /完整 `\.learning\/`（含隐藏目录）的可下载归档/);
   assert.doesNotMatch(adapted.get('record-keeping'), /开场从.*config\.yaml/);

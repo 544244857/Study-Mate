@@ -95,7 +95,7 @@ test('容错：某个目录观察不起来只记一句，其余目录照常工�
   assert.ok(!watch.directories().includes(lessons), '起不来的目录不该出现在集合里');
   assert.ok(watch.directories().length > 0, '别的目录还在看着');
 
-  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), '# 画像\n');
+  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), '# 画像\n');
   await waitFor(() => batches.length >= 1, '坏了一个目录不影响别的目录');
 });
 

@@ -8,6 +8,7 @@ import test from 'node:test';
 import { supportsDsh, findDsh, isDesktopLauncher, desktopResourceDirs, defaultProfile } from '../../bin/studymate.mjs';
 import { adaptSkill } from '../../bin/skill-compat.mjs';
 import { parseYaml } from '../../lib/yaml.ts';
+import { missingTemplateFiles } from './fixtures/templates.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const cli = path.join(root, 'bin/studymate.mjs');
@@ -225,6 +226,10 @@ test('install, reinstall and downgrade preserve workspace and unrelated profile 
   const workspace = path.join(f.dir, '学习 [1]');
   let result = f.install('--workspace', workspace);
   assert.equal(result.status, 0, result.stderr);
+  // 装出来的引擎副本要带上**整份**工作区数据骨架（含 #197 的 lab 骨架）：清单从源取，
+  // 手抄的那串文件名正是「骨架加了新文件、这条路没跟上」会漏的地方。
+  assert.deepEqual(missingTemplateFiles(path.join(f.env.DSH_HOME, 'studymate', 'engine')), [],
+    '安装器落下的引擎副本少了工作区数据骨架里的文件');
   let patch = fs.readFileSync(f.patch, 'utf8');
   assert.ok(patch.startsWith(original));
   const row = f.yaml(f.patch).find(row => row.insert)?.insert[0];

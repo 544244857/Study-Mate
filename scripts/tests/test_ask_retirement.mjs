@@ -47,7 +47,17 @@ after(() => {
   else process.env.DSH_HOME = ORIGINAL_DSH_HOME;
 });
 
-const MEMORY_MD = '讲法偏好：先给结论再给为什么。\n';
+/** 共享记忆按 #190 的分节写：注入侧只取画像三节，所以这里得有一节**有内容**的画像，
+    否则「该注入一条」会变成「没有可注入的东西」——那是另一件事（`test_host_ask_session` 钉）。
+    `积累` 一并写上：它不该出现在注入的那一条里。 */
+const MEMORY_YAML = [
+  '教学偏好:',
+  '  有效的讲法: 先给结论再给为什么。',
+  '',
+  '积累:',
+  '  fish 脾气: 这台机器上 fish 不吃双横线。',
+  '',
+].join('\n');
 /** 一份误解记录：**三个来源都有**，最后一条还是更老的写法（`question` / `date`，没有 source）。
  *  它同时是「建会话那条链路一个字都不落盘」的字节基准与「读侧照样读得进」的输入。 */
 const MISCONCEPTIONS_YAML = [
@@ -80,7 +90,7 @@ function makeWorkspace() {
   const workspace = path.join(root, 'ws');
   const subjectDir = path.join(workspace, '.learning', 'subjects', '网络');
   fs.mkdirSync(subjectDir, { recursive: true });
-  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.md'), MEMORY_MD);
+  fs.writeFileSync(path.join(workspace, '.learning', 'MEMORY.yaml'), MEMORY_YAML);
   fs.writeFileSync(path.join(subjectDir, 'misconceptions.yaml'), MISCONCEPTIONS_YAML);
   // DSH_HOME 指向临时目录：`resolveWorkspace()` 走的是 `~/.dsh/studymate-config.yaml`。
   const dshHome = path.join(root, '.dsh');
@@ -309,6 +319,12 @@ test('#107 走一遍新会话链路：整个工作区逐字节不变（一个字
   // 这条会话带上了 provider/model（少了它真宿主里一按发送就抛 has no provider/model）
   assert.deepEqual(host.calls.create[0].agentOptions, { provider: 'fake-provider', model: 'fake-model' });
   assert.equal(host.calls.inject.length, 1, '共享记忆该注入一条');
+  // #190：注入的那一条只含画像三节——`积累`（角色攒下的干活笔记）一个字都不许进学生的上下文
+  const injected = JSON.stringify(host.calls.inject[0]);
+  assert.match(injected, /先给结论再给为什么/, '画像那一节要真的注入进去');
+  for (const fragment of ['积累', 'fish 脾气', '不吃双横线']) {
+    assert.equal(injected.includes(fragment), false, `注入的文本里出现了「${fragment}」：${injected}`);
+  }
 
   assert.deepEqual(snapshotWorkspace(workspace), before, '建会话这条链路碰了工作区');
   assert.equal(fs.readFileSync(path.join(workspace, '.learning', 'subjects', '网络', 'misconceptions.yaml'), 'utf8'), MISCONCEPTIONS_YAML);

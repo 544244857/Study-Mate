@@ -174,7 +174,9 @@ async function probeNativeTools(app, home, presetTools, presetScope) {
   fs.writeFileSync(path.join(probeDsh, 'studymate-config.yaml'),
     `# StudyMate 学习工作区与引擎项目定位\n${JSON.stringify({ workspace: probeWorkspace }, null, 2)}\n`);
   writeSubject(probeWorkspace, 'demo');
-  fs.writeFileSync(path.join(probeWorkspace, '.learning', 'MEMORY.md'), '# 画像\n\n探针用。\n');
+  // #190：分节写（画像三节 + `积累`）——没写进画像节的内容不会被注入，探针要一份像样的工作区
+  fs.writeFileSync(path.join(probeWorkspace, '.learning', 'MEMORY.yaml'),
+    ['我是谁:', '  现有技能: [终端]', '', '积累:', '  探针: 这份工作区是探针造的。', ''].join('\n'));
 
   const previousDshHome = process.env.DSH_HOME;
   process.env.DSH_HOME = probeDsh;
@@ -741,7 +743,9 @@ if (process.argv.includes('--probe')) {
     assert.equal(fs.realpathSync(config.root), fs.realpathSync(engine));
     assert.equal(fs.existsSync(path.join(config.root, 'preset', 'learning', 'agent.cordis.yml')), true);
     assert.equal(fs.existsSync(path.join(config.root, 'schemas', 'curriculum.schema.json')), true);
-    assert.equal(fs.existsSync(path.join(config.root, 'templates', 'MEMORY.md')), true);
+    assert.equal(fs.existsSync(path.join(config.root, 'templates', 'MEMORY.yaml')), true);
+    // #197：工作区数据骨架里的 lab 骨架也要在装机后存在（这条要真 DSH，属按需组）
+    assert.equal(fs.existsSync(path.join(config.root, 'templates', 'lab', '0000-示例', 'check.sh')), true);
     assert.equal(fs.existsSync(path.join(config.root, 'preset', 'skills', 'learning-system', 'SKILL.md')), true);
     assert.equal(fs.realpathSync(config.workspace), fs.realpathSync(f.workspace));
   });

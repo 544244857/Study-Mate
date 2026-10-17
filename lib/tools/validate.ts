@@ -395,6 +395,8 @@ function validateOneLesson(
   const poolPresent = poolView.present;
   let pool: Record<string, unknown> | null = null;
   if (poolPresent) {
+    // #193：这里**只**回答「文件在不在」，不回答「内容读进来没有」——文件在盘上就不许走降级，
+    // 坏 JSON / 顶层不是对象照旧按「没有题」逐条阻断（把它们当成「未产出」就是悄悄放松闸门）。
     if (poolView.error) {
       // 语法错照 Python 的口径报一条普通错误，后面的对账按「没有题」走
       poolJsonError(poolView.text, poolView.error, poolView.file, problems);
