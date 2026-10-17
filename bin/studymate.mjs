@@ -19,7 +19,7 @@ const metadata = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), '
 const help = `StudyMate ${metadata.version}
 
 在 DSH 中装插件（推荐）：dsh plugin --profile <档位> add @yunmiao/studymate
-本安装器只装「引擎材料 + 两条模式声明」：0.1.7-alpha.1 以下的 DSH，或要指定学习工作区时用
+本安装器只装「引擎材料 + 学习模式那一条声明」：0.1.7-alpha.1 以下的 DSH，或要指定学习工作区时用
 npx -y @yunmiao/studymate@latest install
 Codex / ChatGPT Work：下载并导入最新插件 ZIP：
 https://github.com/Miaotofu01/Study-Mate/releases/latest/download/studymate-openai.zip
@@ -382,7 +382,7 @@ export function installPayload({ workspaceArg, profile, version, desktop = false
         }));
       }
     }
-    // 两条预设各把自己的技能目录占位符换成**引擎侧的绝对路径**（同一份 `preset/skills`；
+    // 预设各把自己的技能目录占位符换成**引擎侧的绝对路径**（同一份 `preset/skills`；
     // 答疑那条在它后面接 `/local-qa`，见 `preset/qa/agent.cordis.yml`）。少占位符就抛——
     // 那说明这份安装包不完整，猜不出路径时不能往下走。**学习那一条的检查放在最前**：它要
     // 先于答疑那条的拷贝发生（老包/坏包可能没有 `preset/qa/`，先报「缺占位符」更准确）。
@@ -401,15 +401,20 @@ export function installPayload({ workspaceArg, profile, version, desktop = false
     };
     const stagedPreset = path.join(staging, 'learning');
     stagePreset('learning', stagedPreset, '学习模式');
+    // 答疑模式**只在原生安装时注册**（#204）：它的取课件工具行（`@yunmiao/studymate/qa-preset`）
+    // 要包在档位里才解析得到，而声明式安装不把包放进档位——宿主把「有一行起不来」判成整条预设
+    // broken（`lib/preset.ts` 给学习模式那条行写的是同一个理），而那条路本来也没有答疑面板。
+    const bundled = native || mode === 'native';
     const stagedQaPreset = path.join(staging, 'qa');
-    stagePreset('qa', stagedQaPreset, '答疑模式');
+    if (bundled) stagePreset('qa', stagedQaPreset, '答疑模式');
 
     // 注册预设：`lib/preset.ts`（迁移前的 Python 安装助手的 TS 替代，形状逐字段一致）。
-    // 两条预设**一次**产出：托管块的 BEGIN/END 只有一套，分两次调用后一次会把前一次剥掉。
+    // 原生安装下两条预设**一次**产出：托管块的 BEGIN/END 只有一套，分两次调用后一次会把前一次剥掉。
     // 它自己保证「失败时一个字节都不落盘」——所以这里不需要再回滚它那部分。
     const stagedPatch = path.join(staging, 'cordis.patch.yml');
     registration = installPreset({
-      presetDir: stagedPreset, extraPresets: [{ id: 'qa', dir: stagedQaPreset }],
+      presetDir: stagedPreset,
+      ...(bundled ? { extraPresets: [{ id: 'qa', dir: stagedQaPreset }] } : {}),
       dshHome, profile, patchOutput: stagedPatch,
       ...(native ? { bundle: true } : { dshVersion: version, mode }),
     });
