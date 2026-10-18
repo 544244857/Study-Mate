@@ -13,7 +13,8 @@
      · **不越权**：手动声明的 learning 预设、手动插的 StudyMate 入口、越界 profile 名、
        符号链接、坏清单——一律**在写盘之前**失败，一个字节都不落；
      · **真读我们发货的那份预设**：`preset/learning/agent.cordis.yml` 有 `>-` / `|` 块标量与
-       `!!js` 标签，解析器要能读（读不了，bundle 模式给 DSH 的 config 就是错的）。
+       `!!js` 标签，解析器要能读（读不了，bundle 模式给 DSH 的 config 就是错的）；
+       persona 模板只使用 DSH 注册的提示变量（#206）。
 
    夹具全部现造现弃（ADR-0009）：临时 HOME、拷一份真预设进去，跑完删。 */
 import assert from 'node:assert/strict';
@@ -577,4 +578,37 @@ test('bundle 模式给两条 config：学习的字段名一字不改，答疑的
   // 不带 qa 时旧形状仍然只有 config、没有 qaConfig
   const alone = invoke(f, { version: null, bundle: true });
   assert.equal('qaConfig' in alone, false);
+});
+
+/* #206：DSH 0.2.1 起 prompt loop 只注册 provider / model 两个提示变量；工作目录由
+   working-directory 服务作为 required runtime context 投递，不是 `{{cwd}}`。persona 的
+   prefix/suffix 是严格模板：出现未注册的 `{{…}}` 会在渲染 `deployment:persona-suffix`
+   时整轮抛错。两条预设都会发货，所以两条都钉住。 */
+test('两条预设的 persona 模板只引用 DSH 注册的提示变量（#206）', () => {
+  const registered = new Set(['provider', 'model']);
+  const files = [
+    ['学习模式', path.join(ROOT, 'preset', 'learning', 'agent.cordis.yml')],
+    ['答疑模式', path.join(ROOT, 'preset', 'qa', 'agent.cordis.yml')],
+  ];
+  for (const [label, file] of files) {
+    const plugins = parseYaml(fs.readFileSync(file, 'utf8'),
+      { file, tags: 'expression', blockScalars: true });
+    const persona = plugins.find(row => row.id === 'persona');
+    assert.ok(persona, `${label} 必须有 persona 行`);
+    assert.equal(persona.config.suffix ?? '', '',
+      `${label} 的 persona suffix 必须为空：工作目录由 runtime context 提供，不是提示变量`);
+    const walk = (value, where) => {
+      if (typeof value === 'string') {
+        for (const [, name] of value.matchAll(/\{\{([^{}]*)\}\}/g)) {
+          assert.ok(registered.has(name),
+            `${label} 的 persona.${where} 引用了未注册的提示变量 {{${name}}}（DSH 0.2.1 只注册 provider / model）`);
+        }
+        return;
+      }
+      if (value && typeof value === 'object') {
+        for (const [key, child] of Object.entries(value)) walk(child, `${where}.${key}`);
+      }
+    };
+    walk(persona.config, 'config');
+  }
 });

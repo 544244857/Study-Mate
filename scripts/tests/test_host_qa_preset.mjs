@@ -111,7 +111,8 @@ test('答疑模式与学习模式并列：id/名/order 各自独立，插件行�
 
   const persona = rows.find(row => row.id === 'persona');
   assert.equal(persona.name, '@deepseek-ai/dsh-persona');
-  assert.equal(persona.config.suffix, 'Your working directory is {{cwd}}.');
+  assert.equal(persona.config.suffix, '',
+    '答疑 persona 不写工作目录：DSH 0.2.1 只注册 provider / model，cwd 走 runtime context（#206）');
   assert.ok(persona.config.prefix.includes('就地答疑'), 'persona 要写明它是阅读端的就地答疑');
   assert.ok(persona.config.prefix.includes('__STUDYMATE_SKILLS__/local-qa'),
     'persona 要写明按这一份规范答');
