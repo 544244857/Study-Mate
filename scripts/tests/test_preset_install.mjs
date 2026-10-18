@@ -31,10 +31,12 @@ const PLUGIN = '@deepseek-ai/dsh-agent-preset';
 const BEGIN = '# BEGIN STUDYMATE LEARNING PRESET';
 const BUNDLE = '@yunmiao/studymate';
 
-/** 解析一份补丁文件。`!!js` 与 CordisLoader 同口径：读成它的标量原文。 */
+/** 解析一份补丁文件。`!!js` 与 CordisLoader 同口径：读成它的标量原文。
+    生产代码（`PATCH_PARSE_OPTIONS`）还开了多行 plain 标量：DSH 设置页会把长文本折行。 */
 function parsed(file) {
-  return parseYaml(fs.readFileSync(file, 'utf8'),
-    { file, tags: 'scalar', blockScalars: true, documentMarkers: true });
+  return parseYaml(fs.readFileSync(file, 'utf8'), {
+    file, tags: 'scalar', blockScalars: true, documentMarkers: true, plainScalarContinuation: true,
+  });
 }
 
 /** 展开托管行进 insert/group 的嵌套（与安装器内部的 rows() 同一口径）。 */
@@ -250,6 +252,32 @@ test('bundle 模式：不读 dsh、不写 profile，直接给 DSH 一份可用 c
   assert.ok(delegation.config.some(row => row.name === '@deepseek-ai/dsh-workflow-ptc'));
   // workflow 行的改写仍然落在预设目录自己那份（安装器随后整目录替换到位）
   assert.ok(fs.readFileSync(path.join(f.staged, 'agent.cordis.yml'), 'utf8').includes('dsh-workflow-ptc'));
+});
+
+test('profile 补丁里的多行 plain 标量不挡注册（DSH 0.2.1 设置页的真实形态）', (t) => {
+  const f = fixture(t);
+  // DSH 设置页把长 description 折到下一行：合法 YAML，旧解析器读不了就会让插件整条跳过。
+  fs.writeFileSync(f.patch, [
+    '- id: llm-deepseek-account',
+    '  name: "@deepseek-ai/dsh-llm-deepseek-account"',
+    '  config:',
+    '    models:',
+    '      - id: deepseek-v4-pro',
+    '        description: Stronger agentic coding, knowledge, and difficult reasoning; suited',
+    '          to complex or quality-critical tasks at higher cost.',
+    '',
+  ].join('\n'), 'utf8');
+  // 原生 bundle：不写 profile，但启动时必须读得动它。
+  const bundled = invoke(f, { version: null, bundle: true });
+  assert.equal(bundled.mode, 'bundle');
+  assert.equal(bundled.config.id, 'learning');
+  // 声明式：托管块要插到补丁末尾，整份文件仍要能解析。
+  const declared = invoke(f);
+  assert.equal(declared.mode, 'declarative');
+  const rows = parsed(f.patch);
+  assert.equal(rows[0].config.models[0].description,
+    'Stronger agentic coding, knowledge, and difficult reasoning; suited to complex or quality-critical tasks at higher cost.');
+  assert.ok(rows.some((row) => row.insert?.[0]?.config?.id === 'learning'));
 });
 
 test('bundle 启动拒绝隐式迁移，且不写任何文件', (t) => {

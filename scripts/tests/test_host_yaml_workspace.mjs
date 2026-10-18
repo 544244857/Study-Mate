@@ -127,6 +127,45 @@ test('块标量：| 保换行、> 折行，块后面还能接同级键', () => {
   ].join('\n'), opts), ['第一项', '第二项']);
 });
 
+test('多行 plain 标量：显式开启后按 YAML 折行规则读，默认仍报错', () => {
+  const opts = { plainScalarContinuation: true };
+  assert.deepEqual(parseYaml('a: first line\n  second line\n', opts), { a: 'first line second line' });
+  // 中间隔一个空行：折成一个换行（与 PyYAML 的 plain scalar 折行一致）
+  assert.deepEqual(parseYaml('a: first\n\n  second\n', opts), { a: 'first\nsecond' });
+  // 值块本身可以是标量：键下一行开始、缩进更深
+  assert.deepEqual(parseYaml('a:\n  hello\n  world\nb: 2\n', opts), { a: 'hello world', b: 2 });
+  // 列表项 / 列表项里的映射值
+  assert.deepEqual(parseYaml('- first\n  second\n- third\n', opts), ['first second', 'third']);
+  assert.deepEqual(parseYaml([
+    '- id: x',
+    '  description: long text here',
+    '    wrapped continuation',
+    '',
+  ].join('\n'), opts), [{ id: 'x', description: 'long text here wrapped continuation' }]);
+  // 续行里出现映射冒号是非法 YAML（与 PyYAML 同口径）
+  assert.throws(() => parseYaml('a: first\n  b: second\n', opts), /续行里出现/);
+  // 默认关闭：学习文件仍按老规矩报错
+  assert.throws(() => parseYaml('a: first\n  second\n'), /同级键必须对齐|多行 plain 标量/);
+});
+
+test('真实 DSH 设置页形态：长 description 折行不会让补丁解析失败', () => {
+  const patch = [
+    '- id: llm-deepseek-account',
+    '  config:',
+    '    models:',
+    '      - id: deepseek-v4-pro',
+    '        name: DeepSeek-V4-Pro',
+    '        description: Stronger agentic coding, knowledge, and difficult reasoning; suited',
+    '          to complex or quality-critical tasks at higher cost.',
+    '',
+  ].join('\n');
+  const options = {
+    tags: 'scalar', blockScalars: true, documentMarkers: true, plainScalarContinuation: true,
+  };
+  assert.equal(parseYaml(patch, options)[0].config.models[0].description,
+    'Stronger agentic coding, knowledge, and difficult reasoning; suited to complex or quality-critical tasks at higher cost.');
+});
+
 test('空文档与裸流式集合', () => {
   assert.equal(parseYaml(''), null);
   assert.equal(parseYaml('# 只有注释\n'), null);

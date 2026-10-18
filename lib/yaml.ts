@@ -23,9 +23,14 @@
    解析错的后果比报错难查得多。但安装器要读的两份文件是 DSH 自己的配置
    （`~/.dsh/profiles/<profile>/cordis.patch.yml` 与 `preset/learning/agent.cordis.yml`），
    它们合法地用了 `!!js` 标签与 `>-` / `|` 块标量——PyYAML 侧靠两个自定义 Loader 支持它们。
+   同一份 profile 补丁还可能是 DSH 设置页写出来的：长文本会按 YAML 的 plain 标量续行
+   折到下一行（`description: …; suited` + 缩进一行的 `to complex …`），这不是非法 YAML。
+   插件在启动时要读它做冲突检查；读不了就整条跳过，于是「学习模式」会从模式选择器里消失。
+   所以多行 plain 标量也做成**显式开启**的能力（`plainScalarContinuation`）。
 
-   所以这里把这两类构造做成**显式开启**的能力，而不是放宽默认：不开就跟以前一字不差地报错，
-   开了才解析（调用方是 lib/preset.ts，见那里对两种标签语义的说明）。
+   所以这里把这三类构造做成**显式开启**的能力，而不是放宽默认：不开就跟以前一字不差地报错，
+   开了才解析（调用方是 lib/preset.ts，见那里对两种标签语义的说明）。学习文件仍走默认关闭，
+   宁可炸，也不要静默把两行折成一个值。
 
    `tags` 的两种语义对应 PyYAML 侧的两个 Loader：
      · `'scalar'`     —— `!!js <原文>` 直接取原文（PatchLoader：profile 补丁文件用）；
@@ -40,6 +45,12 @@ export interface YamlParseOptions {
   tags?: YamlTags;
   /** 允许 `|` / `>` 块标量；省略＝见到块标量报错。 */
   blockScalars?: boolean;
+  /**
+   * 允许多行 plain 标量（值折到下一行）。YAML 里这是合法写法，DSH 自己的
+   * `cordis.patch.yml` 就会这么写（例如设置页生成的长 `description`）；省略＝见到续行报错。
+   * 学习文件仍按默认关闭：那边宁可炸，也不要静默把两行折成一个值。
+   */
+  plainScalarContinuation?: boolean;
   /** 允许**一对**文档标记（开头的 `---`、结尾的 `...`）；省略＝见到就报错（一个文件只解析一个文档）。 */
   documentMarkers?: boolean;
 }
@@ -48,6 +59,7 @@ export interface YamlParseOptions {
 let active: YamlParseOptions = {};
 function tagsMode(): YamlTags | undefined { return active.tags; }
 function blockScalarsEnabled(): boolean { return active.blockScalars === true; }
+function plainScalarContinuationEnabled(): boolean { return active.plainScalarContinuation === true; }
 
 /** 这一次解析的**原始行**（含空行与整行注释，行尾的 \r 已归一）。块标量要按原文取，
     而下面的行索引刻意丢掉了空行与注释行，所以这里单独留一份。 */
@@ -564,6 +576,58 @@ function parseInlineValue(text: string, line: SourceLine, column: number, file: 
   return asText ? text : resolvePlainScalar(text);
 }
 
+/**
+ * 这个值后面还能不能续写 plain 标量。拆掉 `!!js` 标签后再看：流式集合与引号标量
+ * 有自己的行规则（本解析器不支持跨行），只有 plain 标量能吃掉下一行。
+ */
+function isPlainScalarStart(text: string): boolean {
+  const tag = splitTag(text);
+  const rest = tag ? tag.rest : text;
+  return rest !== '' && !'[{\"\''.includes(rest[0]);
+}
+
+/**
+ * 读 plain 标量的续行，按 YAML 的折行规则拼成一个值：
+ *   · 单次换行折成一个空格；中间空了几行就折成几个换行；
+ *   · 续行必须比当前块缩进更深——缩进回到同级就交回上层；
+ *   · 续行里出现 `": "` 是非法 YAML（plain 标量不能含映射冒号），当场报错。
+ *
+ * 只在 `plainScalarContinuation` 打开时被调用（DSH 的 cordis 配置）；学习文件仍走
+ * 「多行 plain 标量 ⇒ 报错」的老路。
+ */
+function readPlainContinuation(
+  lines: SourceLine[], start: number, parentIndent: number, first: SourceLine, firstText: string, file: string,
+): { text: string; next: number } {
+  let text = firstText;
+  let previousLine = first.line;
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.indent <= parentIndent) break;
+    const piece = pyStrip(stripComment(line.content));
+    if (findKeyColon(piece) >= 0) {
+      fail(file, line, line.indent + 1, line.raw,
+        'plain 标量的续行里出现 ": "：YAML 不允许；要嵌套结构就把值写成空再换行');
+    }
+    // indexLines 丢掉了空行/整行注释，所以用行号差判断中间是否真的隔了空行：
+    // 一个空行折成一个换行（PyYAML 的 plain scalar 折行规则）。
+    const gap = line.line - previousLine;
+    text += gap > 1 ? '\n'.repeat(gap - 1) : ' ';
+    text += piece;
+    previousLine = line.line;
+    i++;
+  }
+  return { text, next: i };
+}
+
+/** 从一条已经是 plain 标量起点的行开始读值（键后与「值块」共用一个入口）。 */
+function readPlainValue(
+  lines: SourceLine[], line: SourceLine, index: number, parentIndent: number, firstText: string, file: string,
+): { value: unknown; next: number } {
+  const { text, next } = readPlainContinuation(lines, index + 1, parentIndent, line, firstText, file);
+  return { value: parseInlineValue(text, line, line.indent + 1, file), next };
+}
+
 function parseKey(raw: string, line: SourceLine, column: number, file: string): string {
   if (raw === '') fail(file, line, column, line.raw, '键是空的');
   if (raw === '<<' || raw === '=') fail(file, line, column, line.raw, `不支持 YAML 合并键 / 特殊键 "${raw}"`);
@@ -597,7 +661,7 @@ function parseMapping(lines: SourceLine[], start: number, indent: number, file: 
     if (line.indent < indent) break;
     if (line.indent > indent) {
       fail(file, line, line.indent + 1, line.raw,
-        `缩进比同级多了 ${line.indent - indent} 个空格：同级键必须对齐（多行 plain 标量也不支持）`);
+        `缩进比同级多了 ${line.indent - indent} 个空格：同级键必须对齐（多行 plain 标量的续行只能紧跟在值的后面）`);
     }
     if (isSeqEntry(line.content)) break; // 交回上层；在映射里出现通常是上一行漏了 key
     if (line.content[0] === '&' || line.content[0] === '*' || line.content[0] === '!') {
@@ -606,7 +670,7 @@ function parseMapping(lines: SourceLine[], start: number, indent: number, file: 
     const colon = findKeyColon(line.content);
     if (colon < 0) {
       fail(file, line, line.indent + 1, line.raw,
-        '这一行既不是 key: value 也不是 "- " 列表项（本解析器不支持多行 plain 标量）');
+        '这一行既不是 key: value 也不是 "- " 列表项（多行 plain 标量要先有值才能续行）');
     }
     const key = parseKey(pyStrip(line.content.slice(0, colon)), line, line.indent + 1, file);
     const rest = pyStrip(stripComment(line.content.slice(colon + 1)));
@@ -619,8 +683,14 @@ function parseMapping(lines: SourceLine[], start: number, indent: number, file: 
       setKey(obj, key, child.value);
       i = child.next;
     } else {
-      setKey(obj, key, parseInlineValue(rest, line, line.indent + colon + 2, file));
-      i++;
+      if (plainScalarContinuationEnabled() && isPlainScalarStart(rest)) {
+        const folded = readPlainValue(lines, line, i, indent, rest, file);
+        setKey(obj, key, folded.value);
+        i = folded.next;
+      } else {
+        setKey(obj, key, parseInlineValue(rest, line, line.indent + colon + 2, file));
+        i++;
+      }
     }
   }
   return [obj, i];
@@ -667,6 +737,10 @@ function parseSequence(lines: SourceLine[], start: number, indent: number, file:
       const inner = parseMapping(lines, i, column, file);
       arr.push(inner[0]);
       i = inner[1];
+    } else if (plainScalarContinuationEnabled() && isPlainScalarStart(value)) {
+      const folded = readPlainValue(lines, line, i, indent, value, file);
+      arr.push(folded.value);
+      i = folded.next;
     } else {
       arr.push(parseInlineValue(value, line, column + 1, file));
       i++;
@@ -683,6 +757,13 @@ function parseChild(lines: SourceLine[], i: number, parentIndent: number, file: 
     if (isSeqEntry(line.content)) {
       const [value, next] = parseSequence(lines, i, line.indent, file);
       return { value, next };
+    }
+    // 关闭续行时保持老路（交给 parseMapping 报「既不是 key: value」）；
+    // 打开后续行才可能是「孩子就是一个标量块」，例如 `key:\n  第一行\n  第二行`。
+    if (findKeyColon(line.content) < 0 && plainScalarContinuationEnabled()) {
+      const text = pyStrip(stripComment(line.content));
+      if (isPlainScalarStart(text)) return readPlainValue(lines, line, i, parentIndent, text, file);
+      return { value: parseInlineValue(text, line, line.indent + 1, file), next: i + 1 };
     }
     const [value, next] = parseMapping(lines, i, line.indent, file);
     return { value, next };
@@ -701,7 +782,7 @@ function parseChild(lines: SourceLine[], i: number, parentIndent: number, file: 
  *
  * @param {string} text 文件全文
  * @param {YamlParseOptions} [options] 出错信息里要写的文件名；以及两份 cordis 配置才需要的
- *        `tags` / `blockScalars`（默认关闭，见文件头那段说明）
+ *        `tags` / `blockScalars` / `plainScalarContinuation`（默认关闭，见文件头那段说明）
  * @returns {unknown} 映射、序列或标量；空文档返回 null
  */
 export function parseYaml(text: string, options: YamlParseOptions = {}): unknown {
@@ -729,6 +810,11 @@ export function parseYaml(text: string, options: YamlParseOptions = {}): unknown
         return parseInlineValue(joined, first, first.indent + 1, file);
       }
       if (lines.length > 1) {
+        // 整个文档就是一个多行 plain 标量（YAML 把续行折进同一个标量）。DSH 配置的
+        // 顶层必须是列表，这里读出来之后由调用方报「顶层必须是 YAML 列表」，比解析错误更准。
+        if (plainScalarContinuationEnabled() && isPlainScalarStart(head)) {
+          return readPlainValue(lines, first, 0, first.indent - 1, head, file).value;
+        }
         const second = lines[1];
         fail(file, second, second.indent + 1, second.raw,
           '第一行既不是 key: value 也不是 "- " 列表项，本解析器不支持多行 plain 标量（YAML 会把续行折进同一个标量）');
