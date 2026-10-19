@@ -17,14 +17,15 @@
 # ── identity ────────────────────────────────────────────────────────────────
 
 # The preset's own persona, shadowing the deployment default for this agent.
-# `{{model}}` and `{{cwd}}` resolve from the agent's own route and workspace.
+# `{{model}}` resolves from the agent's own route; DSH 0.2.1 只注册 provider / model，
+# 工作目录由 runtime context 提供，不是提示变量（#206）。
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    suffix: Your working directory is {{cwd}}.
+    suffix: ''
     # 技能目录**必须**走占位符：`__STUDYMATE_SKILLS__` 由安装器换成 <引擎根>/preset/skills 的
     # **绝对路径**（bin/studymate.mjs 的 installPayload，原生加载那一条也走它；少占位符就在
-    # 安装时抛）。裸相对路径不行——`{{cwd}}` 是学生会话的任意工作目录，在别处启动时
+    # 安装时抛）。裸相对路径不行——学生会话的工作目录是任意的，在别处启动时
     # `preset/skills/learning-system` 谁都解析不出来（同一条规矩见 docs/规范/工程约束.md §二）。
     prefix: >-
       你是 StudyMate 自学系统的主教练（学习模式）。按 __STUDYMATE_SKILLS__/learning-system 的指示调度学习流程。
