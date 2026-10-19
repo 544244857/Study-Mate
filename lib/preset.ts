@@ -351,7 +351,9 @@ function scanDocument(text: string): PatchDocument & { contentLines: Array<{ sta
  * 带标记是合法的。只抹**开头这一个**与**末尾这一个**：中间再来一个就是真的多文档，那时
  * 解析器会照旧报错——多文档必须失败，不能只读第一份。
  */
-const PATCH_PARSE_OPTIONS = { tags: 'scalar', blockScalars: true, documentMarkers: true } as const;
+const PATCH_PARSE_OPTIONS = {
+  tags: 'scalar', blockScalars: true, documentMarkers: true, plainScalarContinuation: true,
+} as const;
 
 /** 解析并校验一份补丁文件；返回解析出的内容与插入位置。 */
 function parsePatch(text: string, file: string): PatchDocument {
@@ -644,7 +646,9 @@ export function installPreset(options: InstallPresetOptions): PresetRegistration
       const source = (metadata ?? {}) as Record<string, unknown>;
       const config: Record<string, unknown> = Object.fromEntries(['name', 'description', 'order']
         .filter(key => key in source).map(key => [key, source[key]]));
-      const plugins = parseYaml(preset.agent, { file: preset.file, tags: 'expression', blockScalars: true });
+      const plugins = parseYaml(preset.agent, {
+        file: preset.file, tags: 'expression', blockScalars: true, plainScalarContinuation: true,
+      });
       if (!Array.isArray(plugins)) throw new Error(`${preset.id} 预设必须是插件列表；未修改配置`);
       // #138：StudyMate 的原生工具住在**主预设（学习模式）的作用域**里，不在 profile 根上——
       // 那样别的预设（含宿主内置的 standard）看不见它们。这条行**只在原生安装时加**：
