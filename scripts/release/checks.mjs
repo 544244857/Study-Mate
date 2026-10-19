@@ -311,6 +311,11 @@ const groups = {
       // 界面文案里一个判决词都没有，入口只有一颗「跑一次」按钮且不点不跑。
       // 渲染函数在工厂闭包里，靠 fixtures/client_harness.mjs 的 React 桩调起来。
       'scripts/tests/test_client_lab_run.mjs',
+      // #202：`::: related` 的 href 归到哪——「本科目的另一课」认哪几种写法、比不中怎么降级、
+      // 渲染出来是 `<button data-node>` 还是 `target="_blank"` 的 `<a>`。判据是纯函数，渲染
+      // 那半边用 client_harness.mjs 的 React 桩调 `Block`；真浏览器里点一下在
+      // browser/related_links_test.mjs。
+      'scripts/tests/test_client_related.mjs',
       // #175：判分要点（criteria）是共享字段——预测验证 / 交付物的展开面板也要显示它，
       // 开放题照旧两块。同一套夹具（client_harness.mjs）把 SubjectiveBody 逐题型调起来。
       'scripts/tests/test_client_quiz_fields.mjs',
@@ -473,6 +478,10 @@ const groups = {
       // 切 tab 之后引用仍在」。#106 起提交那段走引用来源的 codec（`ref` 原样进消息，不再是
       // 面板往请求体里塞原文），#107 退役了旧路由，这一套钉的就是 chip 那条真浏览器链路。
       'browser/ask_quote_test.mjs',
+      // #202：「相关课件」指向本科目另一课时在阅读端里就地打开。Node 那边钉住了判据与元素形状
+      // （test_client_related.mjs），这一条钉的是**点下去之后**：这一页换成那一课、地址一字不变
+      // （没开新窗口）、写错的那一条点不动。夹具与 reading_routes_test 同一套。
+      'browser/related_links_test.mjs',
     ],
   },
 };
