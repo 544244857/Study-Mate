@@ -70,6 +70,13 @@ function snapshot(dir) {
 
 test('native loading initializes portable skills and owns the preset lifetime without a dsh subprocess', t => {
   const f = fixture(t);
+  // 启动不许往包目录里写：装好的包是随包发的只读材料（link: 安装下更是学生自己的检出）。
+  // 判据是启动前后给 `preset/skills` 取指纹，**不是**往包里塞一个哨兵文件：`test:installer`
+  // 把本文件与 `test_installer.mjs` 并发跑，那个用例的 copyPayload 正在 cpSync 这棵树（先
+  // readdir 再逐个 lstat），哨兵被我们删掉的瞬间会让它撞 ENOENT（#216）。指纹覆盖新增 /
+  // 改写 / 删除三种写，比单个哨兵更强，也不碰别的套件正在读的共享目录。
+  const skills = path.join(root, 'preset', 'skills');
+  const skillsBefore = snapshot(skills);
   const result = f.boot();
   assert.equal(result.status, 0, result.stderr + result.stdout);
   const state = JSON.parse(result.stdout);
@@ -104,16 +111,12 @@ test('native loading initializes portable skills and owns the preset lifetime wi
   fs.writeFileSync(data, 'my learning data');
   const config = { ...f.yaml(f.config), custom: 'keep' };
   fs.writeFileSync(f.config, JSON.stringify(config));
-  const skillSentinel = path.join(root, 'preset', 'skills', 'obsolete.txt');
-  fs.writeFileSync(skillSentinel, 'old package');
   const again = f.boot({ LEARN_WORKSPACE: '' });
   assert.equal(again.status, 0, again.stderr + again.stdout);
   assert.equal(f.yaml(f.config).custom, 'keep');
   assert.equal(fs.readFileSync(data, 'utf8'), 'my learning data');
-  // 启动不许往包目录里写：装好的包是随包发的只读材料（link: 安装下更是学生自己的检出）
-  assert.equal(fs.readFileSync(skillSentinel, 'utf8'), 'old package');
+  assert.deepEqual(snapshot(skills), skillsBefore, '原生加载不许往包目录里写');
   assert.equal(fs.existsSync(path.join(f.dshHome, 'studymate')), false);
-  fs.rmSync(skillSentinel);
 });
 
 test('native startup leaves installer-managed registration and payload unchanged', t => {
