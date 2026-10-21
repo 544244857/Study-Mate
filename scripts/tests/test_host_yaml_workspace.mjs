@@ -197,6 +197,20 @@ test('标签加块标量按调用的标签口径取值：expression 模式给 {_
   assert.deepEqual(value, { a: { __jsExpr: 'one\ntwo\n' } });
 });
 
+test('标签加块标量的两处边界：孩子的缩进指示按父节点算、只开 blockScalars 也认裸块头', () => {
+  const options = {
+    tags: 'scalar', blockScalars: true, documentMarkers: true, plainScalarContinuation: true,
+  };
+  // 缩进指示（`|2`）是相对**父节点**（键所在那一层）算的，不是相对块头那一行。
+  // PyYAML 对 `key:\n  |2\n    x` 给的是 "  x"：多出来的两格属于正文。
+  assert.equal(parseYaml('key:\n  |2\n    x\n', options).key, '  x\n');
+  assert.equal(parseYaml('key:\n  |1\n   x\n', options).key, '  x\n');
+  // 只开 blockScalars（不续行）时，孩子块的**裸**头照旧要认——那是 blockScalars 的承诺
+  assert.equal(parseYaml('key:\n  |\n    x\n', { blockScalars: true }).key, 'x\n');
+  // 标签没开时仍旧拒，不静默把标签丢掉
+  assert.throws(() => parseYaml('key:\n  !!js >-\n    x\n', { blockScalars: true }), /不支持标签/);
+});
+
 test('空文档与裸流式集合', () => {
   assert.equal(parseYaml(''), null);
   assert.equal(parseYaml('# 只有注释\n'), null);
