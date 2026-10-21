@@ -404,6 +404,19 @@ function isBlockScalarHeader(text: string): boolean {
 }
 
 /**
+ * 值是块标量时返回它的头与「要不要过标签」。裸头如 `>-` 直接读；带标签的头如 `!!js >-`
+ * 先剥掉标签再判——DSH 的 profile 补丁就这么写（graph-memory 的 embedding 三项），
+ * 只认裸头的调用点会把它当 plain 标量，接着撞进续行规则报错，整份补丁读不出来，
+ * 学习模式于是静默不注册。返回 null＝不是块标量。
+ */
+function blockScalarHeader(text: string): { header: string; tagged: boolean } | null {
+  if (isBlockScalarHeader(text)) return { header: text, tagged: false };
+  const tag = splitTag(text);
+  if (tag && isBlockScalarHeader(tag.rest)) return { header: tag.rest, tagged: true };
+  return null;
+}
+
+/**
  * 读一个块标量。行号取自 header 那一行，往后按**原始行**走——空行属于块内容，
  * 而上面那份行索引刻意不留空行。
  *
@@ -674,9 +687,10 @@ function parseMapping(lines: SourceLine[], start: number, indent: number, file: 
     }
     const key = parseKey(pyStrip(line.content.slice(0, colon)), line, line.indent + 1, file);
     const rest = pyStrip(stripComment(line.content.slice(colon + 1)));
-    if (isBlockScalarHeader(rest)) {
-      const block = readBlockScalar(line, rest, indent);
-      setKey(obj, key, block.value);
+    const blockHeader = blockScalarHeader(rest);
+    if (blockHeader) {
+      const block = readBlockScalar(line, blockHeader.header, indent);
+      setKey(obj, key, blockHeader.tagged ? applyTag(block.value) : block.value);
       i = firstLineAtOrAfter(lines, i + 1, block.next);
     } else if (rest === '') {
       const child = parseChild(lines, i + 1, indent, file);
@@ -713,9 +727,10 @@ function parseSequence(lines: SourceLine[], start: number, indent: number, file:
       column++;
     }
     const value = pyStrip(stripComment(rest));
-    if (isBlockScalarHeader(value)) {
-      const block = readBlockScalar(line, value, indent);
-      arr.push(block.value);
+    const blockHeader = blockScalarHeader(value);
+    if (blockHeader) {
+      const block = readBlockScalar(line, blockHeader.header, indent);
+      arr.push(blockHeader.tagged ? applyTag(block.value) : block.value);
       i = firstLineAtOrAfter(lines, i + 1, block.next);
       continue;
     }
@@ -762,6 +777,16 @@ function parseChild(lines: SourceLine[], i: number, parentIndent: number, file: 
     // 打开后续行才可能是「孩子就是一个标量块」，例如 `key:\n  第一行\n  第二行`。
     if (findKeyColon(line.content) < 0 && plainScalarContinuationEnabled()) {
       const text = pyStrip(stripComment(line.content));
+      // 孩子是块标量头（`key:\n  |`，也含 `!!js >-` 这种带标签的）时先按块读，
+      // 否则会当成 plain 标量续行，正文被折成一行还带着块头。
+      const blockHeader = blockScalarHeader(text);
+      if (blockHeader) {
+        const block = readBlockScalar(line, blockHeader.header, line.indent);
+        return {
+          value: blockHeader.tagged ? applyTag(block.value) : block.value,
+          next: firstLineAtOrAfter(lines, i + 1, block.next),
+        };
+      }
       if (isPlainScalarStart(text)) return readPlainValue(lines, line, i, parentIndent, text, file);
       return { value: parseInlineValue(text, line, line.indent + 1, file), next: i + 1 };
     }

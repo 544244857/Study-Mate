@@ -166,6 +166,37 @@ test('真实 DSH 设置页形态：长 description 折行不会让补丁解析�
     'Stronger agentic coding, knowledge, and difficult reasoning; suited to complex or quality-critical tasks at higher cost.');
 });
 
+test('标签加块标量：`!!js >-` 先折行再过标签，profile 补丁里的 embedding 三项读得出来', () => {
+  const options = {
+    tags: 'scalar', blockScalars: true, documentMarkers: true, plainScalarContinuation: true,
+  };
+  // 本机真实形态：graph-memory 的 embedding.apiKeyEnv / dimensions 就是 `!!js >-`。
+  // 值里带 `? … : …`，走 plain 续行会撞「续行里出现 ": "」，所以必须先按块读再折行。
+  const parsed = parseYaml([
+    '- id: graph-memory',
+    '  config:',
+    '    embedding:',
+    '      apiKeyEnv: !!js >-',
+    '        process.env.GRAPH_MEMORY_EMBEDDING_API_KEY ?',
+    "        'GRAPH_MEMORY_EMBEDDING_API_KEY' : undefined",
+    '      baseURL: !!js process.env.GRAPH_MEMORY_EMBEDDING_BASE_URL',
+    '',
+  ].join('\n'), options);
+  assert.deepEqual(parsed[0].config.embedding, {
+    apiKeyEnv: "process.env.GRAPH_MEMORY_EMBEDDING_API_KEY ? 'GRAPH_MEMORY_EMBEDDING_API_KEY' : undefined",
+    baseURL: 'process.env.GRAPH_MEMORY_EMBEDDING_BASE_URL',
+  });
+
+  // `!!js |` 保换行；列表项里的带标签块标量；键下一行才给块头，三种位置都要走同一条路
+  assert.deepEqual(parseYaml('- !!js |\n  a\n  b\n- 尾\n', options), ['a\nb\n', '尾']);
+  assert.deepEqual(parseYaml('key:\n  !!js >-\n    x\n    y\n', options), { key: 'x y' });
+});
+
+test('标签加块标量按调用的标签口径取值：expression 模式给 {__jsExpr}', () => {
+  const value = parseYaml('a: !!js |\n  one\n  two\n', { tags: 'expression', blockScalars: true });
+  assert.deepEqual(value, { a: { __jsExpr: 'one\ntwo\n' } });
+});
+
 test('空文档与裸流式集合', () => {
   assert.equal(parseYaml(''), null);
   assert.equal(parseYaml('# 只有注释\n'), null);
